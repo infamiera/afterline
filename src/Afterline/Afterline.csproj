@@ -9,8 +9,9 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Afterline</AssemblyName>
     <RootNamespace>Afterline</RootNamespace>
-    <Version>0.2.2</Version>
+    <Version>0.2.3</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Afterline.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -21,4 +22,10 @@
     <DebugType>None</DebugType>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\Afterline.ico" />
+    <EmbeddedResource Include="Assets\AfterlineTray.ico">
+      <LogicalName>Afterline.Assets.AfterlineTray.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>

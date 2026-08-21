@@ -17,7 +17,7 @@ Afterline is an independent Windows utility for capturing, autosaving, archiving
 
 ## Windows builds
 
-Release builds are produced by GitHub Actions as a self-contained Windows x64 application. The downloadable artifact contains `Afterline.exe` and `SHA256SUMS.txt`; the .NET SDK is not required to run it.
+Release builds are produced by GitHub Actions as a self-contained Windows x64 application. The downloadable artifact contains only `Afterline.exe`; the .NET SDK is not required to run it.
 
 ## Data and privacy
 
