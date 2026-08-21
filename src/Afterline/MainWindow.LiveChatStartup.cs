@@ -8,5 +8,6 @@ public partial class MainWindow
         EnsureLiveChatEnhancements();
         EnsureOocExportFiltering();
         EnsureCachedReplayUi();
+        EnsureUiBehaviorFixes();
     }
 }
