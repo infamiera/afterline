@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -9,7 +8,6 @@ namespace Afterline.Services;
 public sealed class SessionJournal
 {
     private static readonly Regex TimestampPrefix = new(@"^\[\d{1,2}:\d{2}:\d{2}\]\s+", RegexOptions.Compiled);
-    private static readonly Regex FileTimestamp = new(@"Afterline Chatlog \[(?<date>\d{4}-\d{2}-\d{2}) - (?<time>\d{2}-\d{2}-\d{2})\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _activeFile;
     private string? _stateFile;
@@ -23,27 +21,29 @@ public sealed class SessionJournal
 
     public async Task<IReadOnlyList<string>> RecoverAsync(string archiveRoot, CancellationToken cancellationToken)
     {
-        string activeDir = GetActiveDirectory();
-        Directory.CreateDirectory(activeDir);
+        Directory.CreateDirectory(AppPaths.ActiveSessionsDirectory);
         Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
 
-        RestoreFromRecoveryBackups(activeDir);
-
-        string[] activeLogs = Directory.GetFiles(activeDir, "*.txt")
-            .OrderBy(File.GetCreationTimeUtc)
+        string[] stateFiles = Directory.GetFiles(AppPaths.ActiveSessionsDirectory, "*.state.json")
+            .OrderBy(File.GetLastWriteTimeUtc)
             .ToArray();
 
         IReadOnlyList<string> previousVisible = Array.Empty<string>();
-        if (activeLogs.Length > 0)
-        {
-            string newestStateFile = Path.ChangeExtension(activeLogs[^1], ".state.json");
-            SessionState? newestState = await LoadStateAsync(newestStateFile, cancellationToken);
-            if (newestState is not null)
-                previousVisible = newestState.LastVisibleSnapshot.ToArray();
-        }
 
-        foreach (string stale in activeLogs)
-            await FinalizeSpecificAsync(stale, archiveRoot, cancellationToken);
+        foreach (string stateFile in stateFiles)
+        {
+            SessionState? state = await LoadStateAsync(stateFile, cancellationToken);
+            if (state is null)
+            {
+                DeleteIfExists(stateFile);
+                continue;
+            }
+
+            previousVisible = state.LastVisibleSnapshot.ToArray();
+            await RecoverSessionAsync(state, archiveRoot, cancellationToken);
+            DeleteIfExists(state.BackupFile);
+            DeleteIfExists(stateFile);
+        }
 
         _activeFile = null;
         _stateFile = null;
@@ -61,19 +61,55 @@ public sealed class SessionJournal
         {
             if (HasActiveSession) return;
 
-            string activeDir = GetActiveDirectory();
-            Directory.CreateDirectory(activeDir);
+            Directory.CreateDirectory(AppPaths.ActiveSessionsDirectory);
             Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
 
-            string baseName = $"Afterline Chatlog [{startedAt:yyyy-MM-dd - HH-mm-ss}]";
-            _activeFile = UniquePath(activeDir, baseName, ".txt");
-            _stateFile = Path.ChangeExtension(_activeFile, ".state.json");
-            _backupFile = Path.Combine(AppPaths.RecoveryBackupsDirectory, Path.GetFileName(_activeFile));
-            _state = new SessionState { StartedAt = startedAt };
+            string year = startedAt.ToString("yyyy");
+            string month = startedAt.ToString("MM - MMMM");
+            string monthDir = Path.Combine(archiveRoot, year, month);
+            Directory.CreateDirectory(monthDir);
 
-            string header = $"[AFTERLINE SESSION: {startedAt:yyyy-MM-dd HH:mm:ss}]";
-            await WriteNewFileAsync(_activeFile, header, cancellationToken);
-            await WriteNewFileAsync(_backupFile, header, cancellationToken);
+            string? existing = FindSameDayArchive(monthDir, startedAt.Date);
+            bool continuingSameDay = existing is not null;
+
+            if (existing is not null)
+            {
+                _activeFile = existing;
+            }
+            else
+            {
+                string baseName = $"Afterline Chatlog [{startedAt:yyyy-MM-dd - HH-mm-ss}]";
+                _activeFile = UniquePath(monthDir, baseName, ".txt");
+            }
+
+            _backupFile = Path.Combine(AppPaths.RecoveryBackupsDirectory,
+                $"Afterline Recovery [{startedAt:yyyy-MM-dd - HH-mm-ss}].txt");
+            _stateFile = Path.Combine(AppPaths.ActiveSessionsDirectory,
+                $"Afterline [{startedAt:yyyy-MM-dd - HH-mm-ss}].state.json");
+            _state = new SessionState
+            {
+                StartedAt = startedAt,
+                ArchiveFile = _activeFile,
+                BackupFile = _backupFile
+            };
+
+            if (continuingSameDay)
+            {
+                await AppendLineAsync(_activeFile, string.Empty, cancellationToken);
+                await AppendLineAsync(_activeFile,
+                    $"==================== NEW LOGIN - {startedAt:HH:mm:ss} ====================",
+                    cancellationToken);
+            }
+            else
+            {
+                await WriteNewFileAsync(_activeFile,
+                    $"[AFTERLINE SESSION: {startedAt:yyyy-MM-dd HH:mm:ss}]",
+                    cancellationToken);
+            }
+
+            await WriteNewFileAsync(_backupFile,
+                $"[AFTERLINE RECOVERY: {startedAt:yyyy-MM-dd HH:mm:ss}]",
+                cancellationToken);
             await SaveStateAsync(cancellationToken);
         }
         finally
@@ -93,7 +129,18 @@ public sealed class SessionJournal
                 ? entry.Text
                 : $"[{entry.CapturedAt:HH:mm:ss}] {entry.Text}";
 
-            await AppendLineAsync(_activeFile, line, cancellationToken);
+            try
+            {
+                await AppendLineAsync(_activeFile, line, cancellationToken);
+            }
+            catch
+            {
+                if (_backupFile is not null)
+                {
+                    try { await AppendLineAsync(_backupFile, line, cancellationToken); } catch { }
+                }
+                throw;
+            }
 
             if (_backupFile is not null)
             {
@@ -139,9 +186,9 @@ public sealed class SessionJournal
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            string source = _activeFile;
-            DateTime started = _state?.StartedAt ?? InferStartedAt(source);
-            string destination = await ArchiveOrMergeAsync(source, archiveRoot, started, cancellationToken);
+            string destination = _activeFile;
+            if (_state is not null)
+                await RecoverSessionAsync(_state, archiveRoot, cancellationToken);
 
             DeleteIfExists(_stateFile);
             DeleteIfExists(_backupFile);
@@ -158,61 +205,42 @@ public sealed class SessionJournal
         }
     }
 
-    private async Task FinalizeSpecificAsync(string source, string archiveRoot, CancellationToken cancellationToken)
+    private static async Task RecoverSessionAsync(SessionState state, string archiveRoot, CancellationToken cancellationToken)
     {
-        string stateFile = Path.ChangeExtension(source, ".state.json");
-        string backupFile = Path.Combine(AppPaths.RecoveryBackupsDirectory, Path.GetFileName(source));
-        SessionState? state = await LoadStateAsync(stateFile, cancellationToken);
-        DateTime started = state?.StartedAt ?? InferStartedAt(source);
+        if (string.IsNullOrWhiteSpace(state.BackupFile) || !File.Exists(state.BackupFile))
+            return;
 
-        await ArchiveOrMergeAsync(source, archiveRoot, started, cancellationToken);
-        DeleteIfExists(stateFile);
-        DeleteIfExists(backupFile);
-    }
-
-    private static async Task<string> ArchiveOrMergeAsync(string source, string archiveRoot, DateTime startedAt, CancellationToken cancellationToken)
-    {
-        string year = startedAt.ToString("yyyy");
-        string month = startedAt.ToString("MM - MMMM");
-        string monthDir = Path.Combine(archiveRoot, year, month);
-        Directory.CreateDirectory(monthDir);
-
-        string? sameDay = FindSameDayArchive(monthDir, startedAt.Date);
-        if (sameDay is null)
+        string archiveFile = state.ArchiveFile;
+        if (string.IsNullOrWhiteSpace(archiveFile))
         {
-            string destination = EnsureUniqueFile(BuildArchivePath(source, archiveRoot, startedAt));
-            MoveAcrossVolumes(source, destination);
-            return destination;
+            string year = state.StartedAt.ToString("yyyy");
+            string month = state.StartedAt.ToString("MM - MMMM");
+            string monthDir = Path.Combine(archiveRoot, year, month);
+            Directory.CreateDirectory(monthDir);
+            archiveFile = Path.Combine(monthDir, $"Afterline Chatlog [{state.StartedAt:yyyy-MM-dd - HH-mm-ss}].txt");
         }
 
-        string divider = $"==================== NEW LOGIN - {startedAt:HH:mm:ss} ====================";
+        string[] backupLines = File.ReadLines(state.BackupFile)
+            .Skip(1)
+            .ToArray();
+        if (backupLines.Length == 0) return;
 
-        await using (FileStream stream = new(sameDay, FileMode.Append, FileAccess.Write, FileShare.Read,
-                         4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
-        await using (StreamWriter writer = new(stream, new UTF8Encoding(false)))
+        if (!File.Exists(archiveFile))
         {
-            await writer.WriteLineAsync();
-            await writer.WriteLineAsync(divider.AsMemory(), cancellationToken);
-
-            bool firstLine = true;
-            foreach (string line in File.ReadLines(source))
-            {
-                if (firstLine && line.StartsWith("[AFTERLINE SESSION:", StringComparison.Ordinal))
-                {
-                    firstLine = false;
-                    continue;
-                }
-
-                firstLine = false;
-                await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
-            }
-
-            await writer.FlushAsync(cancellationToken);
-            await stream.FlushAsync(cancellationToken);
+            await WriteNewFileAsync(archiveFile,
+                $"[AFTERLINE SESSION: {state.StartedAt:yyyy-MM-dd HH:mm:ss}]",
+                cancellationToken);
+            foreach (string line in backupLines)
+                await AppendLineAsync(archiveFile, line, cancellationToken);
+            return;
         }
 
-        File.Delete(source);
-        return sameDay;
+        string[] archiveTail = File.ReadLines(archiveFile)
+            .TakeLast(Math.Max(backupLines.Length, 250))
+            .ToArray();
+        int overlap = FindOverlap(archiveTail, backupLines);
+        foreach (string line in backupLines.Skip(overlap))
+            await AppendLineAsync(archiveFile, line, cancellationToken);
     }
 
     private async Task SaveStateAsync(CancellationToken cancellationToken)
@@ -260,31 +288,6 @@ public sealed class SessionJournal
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static void RestoreFromRecoveryBackups(string activeDir)
-    {
-        foreach (string backup in Directory.GetFiles(AppPaths.RecoveryBackupsDirectory, "*.txt"))
-        {
-            string target = Path.Combine(activeDir, Path.GetFileName(backup));
-            try
-            {
-                if (!File.Exists(target))
-                {
-                    File.Copy(backup, target, false);
-                    continue;
-                }
-
-                var backupInfo = new FileInfo(backup);
-                var activeInfo = new FileInfo(target);
-                if (backupInfo.Length > activeInfo.Length && backupInfo.LastWriteTimeUtc >= activeInfo.LastWriteTimeUtc)
-                    File.Copy(backup, target, true);
-            }
-            catch (Exception ex)
-            {
-                DiagnosticLogger.Error($"Unable to restore failsafe backup {backup}.", ex);
-            }
-        }
-    }
-
     private static string? FindSameDayArchive(string monthDir, DateTime date)
     {
         if (!Directory.Exists(monthDir)) return null;
@@ -296,54 +299,32 @@ public sealed class SessionJournal
             .FirstOrDefault();
     }
 
-    private static DateTime InferStartedAt(string path)
+    private static int FindOverlap(IReadOnlyList<string> oldLines, IReadOnlyList<string> newLines)
     {
-        Match match = FileTimestamp.Match(Path.GetFileName(path));
-        if (match.Success && DateTime.TryParseExact(
-                $"{match.Groups["date"].Value} {match.Groups["time"].Value}",
-                "yyyy-MM-dd HH-mm-ss",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out DateTime parsed))
-            return parsed;
-
-        return File.GetCreationTime(path);
-    }
-
-    private static string GetActiveDirectory() => AppPaths.ActiveSessionsDirectory;
-
-    private static string BuildArchivePath(string source, string archiveRoot, DateTime startedAt)
-    {
-        string year = startedAt.ToString("yyyy");
-        string month = startedAt.ToString("MM - MMMM");
-        return Path.Combine(archiveRoot, year, month, Path.GetFileName(source));
-    }
-
-    private static void MoveAcrossVolumes(string source, string destination)
-    {
-        try
+        int max = Math.Min(oldLines.Count, newLines.Count);
+        for (int length = max; length > 0; length--)
         {
-            File.Move(source, destination);
+            bool same = true;
+            for (int i = 0; i < length; i++)
+            {
+                if (!string.Equals(oldLines[oldLines.Count - length + i], newLines[i], StringComparison.Ordinal))
+                {
+                    same = false;
+                    break;
+                }
+            }
+            if (same) return length;
         }
-        catch (IOException)
-        {
-            File.Copy(source, destination, false);
-            File.Delete(source);
-        }
+        return 0;
     }
 
     private static string UniquePath(string folder, string baseName, string extension)
-        => EnsureUniqueFile(Path.Combine(folder, baseName + extension));
-
-    private static string EnsureUniqueFile(string path)
     {
+        string path = Path.Combine(folder, baseName + extension);
         if (!File.Exists(path)) return path;
-        string dir = Path.GetDirectoryName(path)!;
-        string name = Path.GetFileNameWithoutExtension(path);
-        string ext = Path.GetExtension(path);
         for (int i = 2; ; i++)
         {
-            string candidate = Path.Combine(dir, $"{name} ({i}){ext}");
+            string candidate = Path.Combine(folder, $"{baseName} ({i}){extension}");
             if (!File.Exists(candidate)) return candidate;
         }
     }
@@ -359,6 +340,8 @@ public sealed class SessionJournal
         public DateTime StartedAt { get; set; }
         public DateTime? LastMessageAt { get; set; }
         public int MessageCount { get; set; }
+        public string ArchiveFile { get; set; } = string.Empty;
+        public string BackupFile { get; set; } = string.Empty;
         public List<string> LastVisibleSnapshot { get; set; } = new();
     }
 }
