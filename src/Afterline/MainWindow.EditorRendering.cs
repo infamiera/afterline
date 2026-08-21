@@ -34,7 +34,7 @@ public partial class MainWindow
             double lineSpacing = _editorLineSpacingSlider?.Value ?? 1;
             double chatWidth = Math.Max(320, _editorChatWidthSlider?.Value ?? 900);
             (FontFamily fontFamily, FontWeight fontWeight) = ResolveEditorFont();
-            IReadOnlyList<EditorChatLine> lines = EditorChatFormatter.FormatLines(input, showTimestamps, _editorLineColorOverrides);
+            IReadOnlyList<EditorChatLine> lines = UnifiedChatFormatter.FormatLines(input, showTimestamps, _editorLineColorOverrides);
             RefreshEditorLineColorList(lines);
 
             var stack = new StackPanel

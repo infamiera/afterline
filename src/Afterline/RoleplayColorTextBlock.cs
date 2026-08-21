@@ -90,7 +90,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             return;
         }
 
-        IReadOnlyList<EditorChatLine> formatted = EditorChatFormatter.FormatLines(text, showTimestamps: true);
+        IReadOnlyList<EditorChatLine> formatted = UnifiedChatFormatter.FormatLines(text, showTimestamps: true);
         EditorChatLine? line = formatted.FirstOrDefault();
         if (line is null || line.Segments.Count == 0)
         {
