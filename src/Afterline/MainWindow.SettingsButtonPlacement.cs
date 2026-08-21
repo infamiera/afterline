@@ -37,6 +37,14 @@ public partial class MainWindow
             .OfType<Button>()
             .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Notes & Bookmarks", StringComparison.Ordinal));
 
+        if (notes is not null)
+        {
+            notes.Click += (_, _) =>
+            {
+                if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
+            };
+        }
+
         navigationPanel.Children.Remove(SettingsNav);
         navigationPanel.Children.Clear();
 
