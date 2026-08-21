@@ -27,6 +27,7 @@ public partial class MainWindow
         ConfigureLiveChatContextMenu();
         ConfigureLiveChatHeader();
         ConfigureServerStatus();
+        EnsureNotificationAndUpdateUi();
 
         AddSettingHelp(
             ReconnectBox,
@@ -277,6 +278,7 @@ public partial class MainWindow
             string path = await _journal.ExportCurrentLogAsync(_settings.ArchiveRoot, downloads, CancellationToken.None);
             if (_liveActionStatus is not null)
                 _liveActionStatus.Text = $"Saved {Path.GetFileName(path)} to Downloads.";
+            ShowExportSuccessNotification(path);
         }
         catch (Exception ex)
         {
