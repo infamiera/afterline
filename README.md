@@ -5,11 +5,13 @@ Afterline is an independent Windows utility for capturing, autosaving, archiving
 ## Features
 
 - Automatic chat capture while a supported game client is active.
-- Continuous crash-safe session autosave.
-- Automatic recovery of unfinished sessions.
+- Continuous crash-safe session autosave with a second local recovery copy.
+- Automatic recovery of unfinished sessions after an unexpected shutdown.
+- Graceful shutdown finalization when the application is exited normally.
+- Same-day chatlog continuation: later logins append to the existing daily log with a clear `NEW LOGIN - HH:mm:ss` divider.
 - Custom chatlog storage directory.
 - Year and month archive organization.
-- Optional live chat display with content-based line coloring.
+- Optional live chat display inside Afterline.
 - Archive browsing with recent logs.
 - Multi-term text search for conversations, character names and keywords.
 - Plain-text chatlogs that remain usable outside Afterline.

@@ -1,7 +1,7 @@
 <Window x:Class="Afterline.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Afterline" Width="1260" Height="800" MinWidth="1040" MinHeight="680"
+        Title="Afterline" Icon="Assets/Afterline.ico" Width="1260" Height="800" MinWidth="1040" MinHeight="680"
         WindowStartupLocation="CenterScreen">
     <Grid Background="{StaticResource Bg}">
         <Grid.ColumnDefinitions>
@@ -18,7 +18,24 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Text="AFTERLINE" FontSize="23" FontWeight="SemiBold"/>
+                <Viewbox Width="50" Height="50" HorizontalAlignment="Left" VerticalAlignment="Top" SnapsToDevicePixels="True">
+                    <Canvas Width="96" Height="96">
+                        <Path Data="M18,78 L48,18 L72,72 Q76,82 88,82 L94,82"
+                              StrokeThickness="12"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Square"
+                              StrokeEndLineCap="Round"
+                              SnapsToDevicePixels="True">
+                            <Path.Stroke>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#70AEF2" Offset="0"/>
+                                    <GradientStop Color="#5B9FEF" Offset="0.55"/>
+                                    <GradientStop Color="#4B91E8" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Path.Stroke>
+                        </Path>
+                    </Canvas>
+                </Viewbox>
 
                 <StackPanel Grid.Row="2">
                     <Button x:Name="DashboardNav" Content="Dashboard" HorizontalContentAlignment="Left" Margin="0,0,0,8" Click="DashboardNav_Click"/>
@@ -63,7 +80,6 @@
                 </Border>
             </Grid>
 
-            <!-- Dashboard -->
             <Grid x:Name="DashboardPage" Grid.Row="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -123,7 +139,6 @@
                 </Border>
             </Grid>
 
-            <!-- Live chat -->
             <Grid x:Name="LivePage" Grid.Row="2" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -137,10 +152,7 @@
                             <TextBlock Text="Live display" FontSize="17" FontWeight="SemiBold"/>
                             <TextBlock Text="Capture continues even when this display is disabled." Foreground="{StaticResource MutedText}" Margin="0,4,0,0"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <CheckBox x:Name="ColorizeLiveChatCheck" Content="RP chat colors" Margin="0,0,18,0" Checked="ColorizeLiveChatCheck_Changed" Unchecked="ColorizeLiveChatCheck_Changed"/>
-                            <CheckBox x:Name="ShowLiveChatCheck" Content="Show live chat" Checked="ShowLiveChatCheck_Changed" Unchecked="ShowLiveChatCheck_Changed"/>
-                        </StackPanel>
+                        <CheckBox Grid.Column="1" x:Name="ShowLiveChatCheck" Content="Show live chat" VerticalAlignment="Center" Checked="ShowLiveChatCheck_Changed" Unchecked="ShowLiveChatCheck_Changed"/>
                     </Grid>
                 </Border>
                 <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="0">
@@ -149,7 +161,7 @@
                         <ListBox x:Name="LiveChatList" ItemsSource="{Binding LiveMessages}" BorderThickness="0" Padding="12" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Display}" Foreground="{Binding Foreground}" TextWrapping="Wrap" Margin="2,2"/>
+                                    <TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="2,2"/>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -160,7 +172,6 @@
                 </Border>
             </Grid>
 
-            <!-- Search -->
             <Grid x:Name="SearchPage" Grid.Row="2" Visibility="Collapsed">
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                 <Border Style="{StaticResource CardStyle}">
@@ -238,7 +249,6 @@
                 </Grid>
             </Grid>
 
-            <!-- Archive -->
             <Grid x:Name="ArchivePage" Grid.Row="2" Visibility="Collapsed">
                 <Border Style="{StaticResource CardStyle}" Padding="0">
                     <Grid>
@@ -260,7 +270,6 @@
                 </Border>
             </Grid>
 
-            <!-- Settings -->
             <ScrollViewer x:Name="SettingsPage" Grid.Row="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,14">
@@ -278,7 +287,6 @@
                         <StackPanel>
                             <TextBlock Text="Capture &amp; processing" FontSize="18" FontWeight="SemiBold"/>
                             <CheckBox x:Name="SettingsShowLiveCheck" Content="Display captured messages in Live Chat" Margin="0,14,0,0"/>
-                            <CheckBox x:Name="SettingsColorizeLiveCheck" Content="Apply RP chat colors to the Live Chat display"/>
                             <CheckBox x:Name="AutoScrollCheck" Content="Automatically scroll Live Chat"/>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -309,7 +317,7 @@
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Chatlog storage" FontSize="18" FontWeight="SemiBold"/>
-                            <TextBlock Text="Choose any writable folder. Completed sessions are organized beneath it by YEAR → MONTH. Active autosave data stays in Afterline's local recovery folder until the session is finalized." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12"/>
+                            <TextBlock Text="Choose any writable folder. Completed sessions are organized beneath it by YEAR → MONTH. Active capture is continuously mirrored to Afterline's local recovery folder so unexpected shutdowns can be recovered." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBox x:Name="ArchiveRootBox" IsReadOnly="True"/>
@@ -327,11 +335,9 @@
 
             <Grid Grid.Row="4">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock x:Name="BottomStatusText" Text="Afterline 0.2.2" Foreground="{StaticResource MutedText}" FontSize="11"/>
+                <TextBlock x:Name="BottomStatusText" Text="Afterline 0.2.4" Foreground="{StaticResource MutedText}" FontSize="11"/>
                 <TextBlock Grid.Column="1" Text="Autosave always on" Foreground="{StaticResource Success}" FontSize="11"/>
             </Grid>
         </Grid>
     </Grid>
 </Window>
-
-

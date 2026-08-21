@@ -38,9 +38,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public async Task StartAsync()
     {
         if (_worker is not null) return;
-        bool running = FiveMProcessService.IsRunning();
-        await _journal.RecoverAsync(_settings().ArchiveRoot, running, _cts.Token);
-        _previousVisible = _journal.LastVisibleSnapshot.ToList();
+        _previousVisible = (await _journal.RecoverAsync(_settings().ArchiveRoot, _cts.Token)).ToList();
         _worker = Task.Run(WorkerAsync);
     }
 
@@ -183,6 +181,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             try { await _worker; } catch { }
         }
+
+        try
+        {
+            await _journal.FinalizeAsync(_settings().ArchiveRoot, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to finalize the active chatlog during shutdown. The recovery copy was kept.", ex);
+        }
+
         await _reader.DisposeAsync();
         _cts.Dispose();
     }

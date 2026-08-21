@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private CaptureCoordinator _capture = null!;
     private BackgroundProcessor _processor = null!;
     private Forms.NotifyIcon? _trayIcon;
+    private System.Drawing.Icon? _trayBrandIcon;
     private bool _isExiting;
 
     public ObservableCollection<ChatEntry> LiveMessages { get; } = new();
@@ -81,10 +82,25 @@ public partial class MainWindow : Window
 
     private void SetupTrayIcon()
     {
+        try
+        {
+            var iconResource = System.Windows.Application.GetResourceStream(
+                new Uri("pack://application:,,,/Assets/AfterlineTray.ico", UriKind.Absolute));
+            if (iconResource is not null)
+            {
+                using var sourceIcon = new System.Drawing.Icon(iconResource.Stream);
+                _trayBrandIcon = (System.Drawing.Icon)sourceIcon.Clone();
+            }
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to load the Afterline tray icon.", ex);
+        }
+
         _trayIcon = new Forms.NotifyIcon
         {
             Text = "Afterline — waiting for FiveM",
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = _trayBrandIcon ?? System.Drawing.SystemIcons.Application,
             Visible = true
         };
         var menu = new Forms.ContextMenuStrip();
@@ -124,6 +140,8 @@ public partial class MainWindow : Window
             _trayIcon.Visible = false;
             _trayIcon.Dispose();
         }
+        _trayBrandIcon?.Dispose();
+        _trayBrandIcon = null;
 
         await _capture.DisposeAsync();
         await _processor.DisposeAsync();
@@ -143,7 +161,7 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             if (!_settings.ShowLiveChat) return;
-            LiveMessages.Add(entry.WithColorization(_settings.ColorizeLiveChat));
+            LiveMessages.Add(entry);
             while (LiveMessages.Count > Math.Max(100, _settings.MaxLiveMessages)) LiveMessages.RemoveAt(0);
             LiveCountText.Text = $"{LiveMessages.Count:N0} messages shown";
             if (_settings.AutoScrollLiveChat && LiveMessages.Count > 0)
@@ -230,7 +248,7 @@ public partial class MainWindow : Window
         }
 
         string processInfo = _processor.LastProcessedAt is DateTime processed ? $" · archive processed {processed:HH:mm:ss}" : string.Empty;
-        BottomStatusText.Text = $"Afterline 0.2.1{processInfo}";
+        BottomStatusText.Text = $"Afterline 0.2.4{processInfo}";
     }
 
     private async Task RefreshArchiveAsync()
@@ -266,10 +284,8 @@ public partial class MainWindow : Window
         AutoDetectCheck.IsChecked = _settings.AutoDetectFiveM;
         AutoCaptureCheck.IsChecked = _settings.AutoCapture;
         SettingsShowLiveCheck.IsChecked = _settings.ShowLiveChat;
-        SettingsColorizeLiveCheck.IsChecked = _settings.ColorizeLiveChat;
         AutoScrollCheck.IsChecked = _settings.AutoScrollLiveChat;
         ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
-        ColorizeLiveChatCheck.IsChecked = _settings.ColorizeLiveChat;
         ArchiveRootBox.Text = _settings.ArchiveRoot;
         SearchRootBox.Text = _settings.ArchiveRoot;
         ArchiveRootText.Text = _settings.ArchiveRoot;
@@ -354,18 +370,6 @@ public partial class MainWindow : Window
         LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ColorizeLiveChatCheck_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_settings is null) return;
-        _settings.ColorizeLiveChat = ColorizeLiveChatCheck.IsChecked == true;
-        SettingsColorizeLiveCheck.IsChecked = _settings.ColorizeLiveChat;
-
-        if (LiveMessages.Count == 0) return;
-        ChatEntry[] recolored = LiveMessages.Select(x => x.WithColorization(_settings.ColorizeLiveChat)).ToArray();
-        LiveMessages.Clear();
-        foreach (var entry in recolored) LiveMessages.Add(entry);
-    }
-
     private void ExtendedSearchCheck_Changed(object sender, RoutedEventArgs e)
     {
         ExtendedSearchPanel.Visibility = ExtendedSearchCheck.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
@@ -445,7 +449,6 @@ public partial class MainWindow : Window
             _settings.AutoDetectFiveM = AutoDetectCheck.IsChecked == true;
             _settings.AutoCapture = AutoCaptureCheck.IsChecked == true;
             _settings.ShowLiveChat = SettingsShowLiveCheck.IsChecked == true;
-            _settings.ColorizeLiveChat = SettingsColorizeLiveCheck.IsChecked == true;
             _settings.AutoScrollLiveChat = AutoScrollCheck.IsChecked == true;
             _settings.ReconnectGraceMinutes = ComboInt(ReconnectBox, 5);
             _settings.ProcessingIntervalMinutes = ComboInt(ProcessingBox, 1);
@@ -461,7 +464,6 @@ public partial class MainWindow : Window
 
             ArchiveRootText.Text = _settings.ArchiveRoot;
             ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
-            ColorizeLiveChatCheck.IsChecked = _settings.ColorizeLiveChat;
             LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
             await RefreshArchiveAsync();
 
