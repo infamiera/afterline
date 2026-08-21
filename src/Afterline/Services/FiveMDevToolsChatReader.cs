@@ -18,17 +18,26 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         ".map(function(el){return (el.innerText || '').replace(/\\s+/g,' ').trim();})" +
         ".filter(function(x){return x.length > 0;}))";
 
-    private const string ReadServerHintExpression =
+    // FiveM's root NUI keeps the current endpoint in the lexical `serverAddress`
+    // variable. It is updated by FiveM through the rootCall/setServerAddress path.
+    // Do not use document.title here: the root page title is "CitizenFX root UI"
+    // and is not server metadata.
+    private const string ReadServerStateExpression =
         "JSON.stringify((function(){" +
-        "var d=window.nuiHandoverData||{};" +
-        "return {address:(d.serverAddress||d.endpoint||''),name:(d.serverName||d.projectName||d.hostname||document.title||'')};" +
+        "var h=(typeof handoverBlob==='object'&&handoverBlob)?handoverBlob:{};" +
+        "var a=(typeof serverAddress==='string')?serverAddress:'';" +
+        "return {address:(a||h.serverAddress||h.endpoint||'')," +
+        "name:(h.serverName||h.projectName||h.hostname||'')};" +
         "})())";
 
     private readonly HttpClient _http;
+    private readonly Dictionary<string, string> _resolvedNames = new(StringComparer.OrdinalIgnoreCase);
     private ClientWebSocket? _socket;
     private int _contextId;
     private int _requestId;
     private ServerSessionInfo _currentServer = ServerSessionInfo.Unknown;
+    private string? _lastResolutionAddress;
+    private DateTime _lastResolutionAttemptUtc = DateTime.MinValue;
 
     public ServerSessionInfo CurrentServer => _currentServer;
 
@@ -41,6 +50,10 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     public async Task<IReadOnlyList<string>> ReadVisibleLinesAsync(CancellationToken cancellationToken)
     {
         await EnsureConnectedAsync(cancellationToken);
+        await RefreshServerInfoAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(_currentServer.Address))
+            throw new IOException("FiveM is running but is not currently connected to a server.");
 
         JsonElement result = await RequestAsync("Runtime.evaluate", new
         {
@@ -80,6 +93,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _contextId = 0;
         _requestId = 0;
         _currentServer = ServerSessionInfo.Unknown;
+        _lastResolutionAddress = null;
+        _lastResolutionAttemptUtc = DateTime.MinValue;
     }
 
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
@@ -94,7 +109,6 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         using JsonDocument targets = JsonDocument.Parse(targetJson);
 
         string? debuggerUrl = null;
-        string? targetTitle = null;
         foreach (JsonElement target in targets.RootElement.EnumerateArray())
         {
             if (!target.TryGetProperty("url", out JsonElement url) ||
@@ -103,8 +117,6 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
             if (target.TryGetProperty("webSocketDebuggerUrl", out JsonElement ws))
                 debuggerUrl = ws.GetString();
-            if (target.TryGetProperty("title", out JsonElement title))
-                targetTitle = title.GetString();
             break;
         }
 
@@ -124,8 +136,6 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         if (string.IsNullOrWhiteSpace(frameId))
             throw new IOException("FiveM client chat frame is not available yet.");
 
-        _currentServer = await DiscoverServerInfoAsync(targetTitle, linked.Token);
-
         JsonElement isolatedWorld = await RequestAsync("Page.createIsolatedWorld", new
         {
             frameId,
@@ -139,101 +149,172 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _contextId = context.GetInt32();
     }
 
-    private async Task<ServerSessionInfo> DiscoverServerInfoAsync(string? targetTitle, CancellationToken cancellationToken)
+    private async Task RefreshServerInfoAsync(CancellationToken cancellationToken)
     {
-        string? address = null;
-        string? name = null;
+        ServerHint hint = await ReadServerHintAsync(cancellationToken);
+        string? address = NullIfBlank(hint.Address);
+        string? name = CleanServerName(NullIfBlank(hint.Name));
 
-        try
+        if (string.IsNullOrWhiteSpace(address))
         {
-            JsonElement result = await RequestAsync("Runtime.evaluate", new
-            {
-                expression = ReadServerHintExpression,
-                returnByValue = true
-            }, cancellationToken);
+            _currentServer = ServerSessionInfo.Unknown;
+            _lastResolutionAddress = null;
+            return;
+        }
 
-            if (result.TryGetProperty("result", out JsonElement runtimeResult) &&
-                runtimeResult.TryGetProperty("value", out JsonElement valueElement))
+        string normalizedAddress = NormalizeAddress(address);
+        if (ServerSessionInfo.IsGenericServerName(name)) name = null;
+
+        if (string.IsNullOrWhiteSpace(name) && _resolvedNames.TryGetValue(normalizedAddress, out string? cachedName))
+            name = cachedName;
+
+        bool addressChanged = !string.Equals(
+            normalizedAddress,
+            _lastResolutionAddress,
+            StringComparison.OrdinalIgnoreCase);
+
+        bool shouldResolve = string.IsNullOrWhiteSpace(name) &&
+            (addressChanged || DateTime.UtcNow - _lastResolutionAttemptUtc >= TimeSpan.FromSeconds(5));
+
+        if (shouldResolve)
+        {
+            _lastResolutionAddress = normalizedAddress;
+            _lastResolutionAttemptUtc = DateTime.UtcNow;
+
+            string? resolved = await TryResolveServerNameAsync(address, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(resolved))
             {
-                string? json = valueElement.GetString();
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using JsonDocument hint = JsonDocument.Parse(json);
-                    if (hint.RootElement.TryGetProperty("address", out JsonElement addressElement))
-                        address = NullIfBlank(addressElement.GetString());
-                    if (hint.RootElement.TryGetProperty("name", out JsonElement nameElement))
-                        name = CleanServerName(NullIfBlank(nameElement.GetString()));
-                }
+                name = resolved;
+                _resolvedNames[normalizedAddress] = resolved;
             }
         }
-        catch
+        else if (addressChanged)
         {
-            // Server identity is best-effort. Chat capture should continue if metadata is unavailable.
+            _lastResolutionAddress = normalizedAddress;
         }
 
-        if (IsGenericTitle(name)) name = null;
-        if (string.IsNullOrWhiteSpace(name) && !IsGenericTitle(targetTitle))
-            name = CleanServerName(targetTitle);
-
-        if (!string.IsNullOrWhiteSpace(address))
-        {
-            string? resolved = await TryResolveServerNameAsync(address, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(resolved)) name = resolved;
-        }
-
-        return new ServerSessionInfo
+        _currentServer = new ServerSessionInfo
         {
             Address = address,
             Name = name
         };
     }
 
-    private async Task<string?> TryResolveServerNameAsync(string address, CancellationToken cancellationToken)
+    private async Task<ServerHint> ReadServerHintAsync(CancellationToken cancellationToken)
     {
+        JsonElement result = await RequestAsync("Runtime.evaluate", new
+        {
+            expression = ReadServerStateExpression,
+            returnByValue = true
+        }, cancellationToken);
+
+        if (!result.TryGetProperty("result", out JsonElement runtimeResult) ||
+            !runtimeResult.TryGetProperty("value", out JsonElement valueElement))
+            return new ServerHint();
+
+        string? json = valueElement.GetString();
+        if (string.IsNullOrWhiteSpace(json)) return new ServerHint();
+
         try
         {
-            string candidate = address.Trim();
-            if (!candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-                !candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                candidate = "http://" + candidate;
-
-            if (!Uri.TryCreate(candidate, UriKind.Absolute, out Uri? baseUri) ||
-                (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
-                return null;
-
-            Uri infoUri = new(baseUri, "/info.json");
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            linked.CancelAfter(TimeSpan.FromMilliseconds(800));
-            string json = await _http.GetStringAsync(infoUri, linked.Token);
-            using JsonDocument doc = JsonDocument.Parse(json);
-
-            if (doc.RootElement.TryGetProperty("vars", out JsonElement vars) && vars.ValueKind == JsonValueKind.Object)
+            return JsonSerializer.Deserialize<ServerHint>(json, new JsonSerializerOptions
             {
-                foreach (string property in new[] { "sv_projectName", "sv_hostname", "serverName" })
-                {
-                    if (vars.TryGetProperty(property, out JsonElement value))
-                    {
-                        string? parsed = CleanServerName(NullIfBlank(value.GetString()));
-                        if (!string.IsNullOrWhiteSpace(parsed)) return parsed;
-                    }
-                }
-            }
-
-            foreach (string property in new[] { "serverName", "hostname", "name" })
-            {
-                if (doc.RootElement.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String)
-                {
-                    string? parsed = CleanServerName(NullIfBlank(value.GetString()));
-                    if (!string.IsNullOrWhiteSpace(parsed)) return parsed;
-                }
-            }
+                PropertyNameCaseInsensitive = true
+            }) ?? new ServerHint();
         }
         catch
         {
-            // Friendly names are optional; retaining the connection state is more important.
+            return new ServerHint();
+        }
+    }
+
+    private async Task<string?> TryResolveServerNameAsync(string address, CancellationToken cancellationToken)
+    {
+        if (!TryBuildServerBaseUri(address, out Uri? baseUri))
+            return null;
+
+        // Project name is usually available from info.json.
+        JsonDocument? info = await TryReadJsonAsync(new Uri(baseUri, "/info.json"), cancellationToken);
+        if (info is not null)
+        {
+            using (info)
+            {
+                if (info.RootElement.TryGetProperty("vars", out JsonElement vars) && vars.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (string property in new[] { "sv_projectName", "sv_hostname", "serverName" })
+                    {
+                        string? parsed = TryGetCleanString(vars, property);
+                        if (!string.IsNullOrWhiteSpace(parsed) && !ServerSessionInfo.IsGenericServerName(parsed))
+                            return parsed;
+                    }
+                }
+
+                foreach (string property in new[] { "serverName", "hostname", "name" })
+                {
+                    string? parsed = TryGetCleanString(info.RootElement, property);
+                    if (!string.IsNullOrWhiteSpace(parsed) && !ServerSessionInfo.IsGenericServerName(parsed))
+                        return parsed;
+                }
+            }
+        }
+
+        // FiveM's dynamic endpoint explicitly exposes sv_hostname and is a useful
+        // fallback when info.json does not include a friendly name.
+        JsonDocument? dynamic = await TryReadJsonAsync(new Uri(baseUri, "/dynamic.json"), cancellationToken);
+        if (dynamic is not null)
+        {
+            using (dynamic)
+            {
+                string? parsed = TryGetCleanString(dynamic.RootElement, "hostname");
+                if (!string.IsNullOrWhiteSpace(parsed) && !ServerSessionInfo.IsGenericServerName(parsed))
+                    return parsed;
+            }
         }
 
         return null;
+    }
+
+    private async Task<JsonDocument?> TryReadJsonAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linked.CancelAfter(TimeSpan.FromMilliseconds(1000));
+            string json = await _http.GetStringAsync(uri, linked.Token);
+            return JsonDocument.Parse(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool TryBuildServerBaseUri(string address, out Uri? baseUri)
+    {
+        baseUri = null;
+        string candidate = address.Trim();
+
+        if (candidate.StartsWith("udp://", StringComparison.OrdinalIgnoreCase) ||
+            candidate.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+            candidate = candidate[(candidate.IndexOf("://", StringComparison.Ordinal) + 3)..];
+
+        if (!candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            candidate = "http://" + candidate;
+
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out Uri? parsed) ||
+            (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps))
+            return false;
+
+        baseUri = parsed;
+        return true;
+    }
+
+    private static string? TryGetCleanString(JsonElement parent, string property)
+    {
+        if (!parent.TryGetProperty(property, out JsonElement value)) return null;
+        if (value.ValueKind != JsonValueKind.String) return null;
+        return CleanServerName(NullIfBlank(value.GetString()));
     }
 
     private static string? CleanServerName(string? value)
@@ -253,21 +334,18 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         string cleaned = string.Join(" ", builder.ToString()
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned.Trim();
+
+        if (string.IsNullOrWhiteSpace(cleaned) || ServerSessionInfo.IsGenericServerName(cleaned))
+            return null;
+
+        return cleaned.Trim();
     }
+
+    private static string NormalizeAddress(string address)
+        => address.Trim().TrimEnd('/').ToLowerInvariant();
 
     private static string? NullIfBlank(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static bool IsGenericTitle(string? title)
-    {
-        if (string.IsNullOrWhiteSpace(title)) return true;
-        string normalized = title.Trim();
-        return string.Equals(normalized, "FiveM", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(normalized, "Cfx.re", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(normalized, "root", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(normalized, "NUI", StringComparison.OrdinalIgnoreCase);
-    }
 
     private static bool IsLoopback(Uri uri)
     {
@@ -353,5 +431,11 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     {
         await ResetAsync();
         _http.Dispose();
+    }
+
+    private sealed class ServerHint
+    {
+        public string? Address { get; set; }
+        public string? Name { get; set; }
     }
 }

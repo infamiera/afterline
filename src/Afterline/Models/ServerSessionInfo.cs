@@ -2,14 +2,27 @@ namespace Afterline.Models;
 
 public sealed class ServerSessionInfo
 {
+    private static readonly string[] GenericServerNames =
+    {
+        "CitizenFX root UI",
+        "CitizenFX",
+        "FiveM",
+        "Cfx.re",
+        "root",
+        "NUI",
+        "cfx-nui-client"
+    };
+
     public string? Name { get; init; }
     public string? Address { get; init; }
 
-    public string DisplayName => string.IsNullOrWhiteSpace(Name)
-        ? "Unknown Server"
-        : Name.Trim();
+    public bool HasFriendlyName =>
+        !string.IsNullOrWhiteSpace(Name) &&
+        !IsGenericServerName(Name);
 
-    public bool HasFriendlyName => !string.Equals(DisplayName, "Unknown Server", StringComparison.OrdinalIgnoreCase);
+    public string DisplayName => HasFriendlyName
+        ? Name!.Trim()
+        : "Unknown Server";
 
     public string ArchiveLabel
     {
@@ -52,6 +65,15 @@ public sealed class ServerSessionInfo
 
             return "unknown";
         }
+    }
+
+    public static bool IsGenericServerName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        string normalized = value.Trim();
+
+        return GenericServerNames.Any(name =>
+            string.Equals(normalized, name, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string NormalizeAddress(string address)
