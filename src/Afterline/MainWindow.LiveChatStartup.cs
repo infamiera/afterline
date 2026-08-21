@@ -5,6 +5,7 @@ public partial class MainWindow
     protected override void OnContentRendered(EventArgs e)
     {
         base.OnContentRendered(e);
+        EnsureFirstRunSetup();
         EnsureLiveChatEnhancements();
         EnsureOocExportFiltering();
         EnsureCachedReplayUi();
@@ -25,8 +26,8 @@ public partial class MainWindow
         EnsureEditorV041();
         EnsureSettingsButtonPlacement();
         EnsureThemeAndAbout();
-        EnsureSettingsLayoutPolish();
         EnsureUnifiedChatPresentation();
         EnsureEditorPreferences();
+        EnsureQolV050();
     }
 }

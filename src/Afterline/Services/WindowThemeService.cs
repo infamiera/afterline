@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Afterline.Models;
@@ -19,6 +20,12 @@ public static class WindowThemeService
         window.Background = Brush(theme.Background);
         window.Foreground = Brush(theme.PrimaryText);
 
+        if (window is not global::Afterline.MainWindow)
+        {
+            window.PreviewKeyDown -= PopupWindow_PreviewKeyDown;
+            window.PreviewKeyDown += PopupWindow_PreviewKeyDown;
+        }
+
         IntPtr handle = new WindowInteropHelper(window).Handle;
         if (handle != IntPtr.Zero)
         {
@@ -28,6 +35,13 @@ public static class WindowThemeService
 
         window.SourceInitialized -= Window_SourceInitialized;
         window.SourceInitialized += Window_SourceInitialized;
+    }
+
+    private static void PopupWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || sender is not Window window) return;
+        e.Handled = true;
+        window.Close();
     }
 
     private static void Window_SourceInitialized(object? sender, EventArgs e)

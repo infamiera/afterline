@@ -19,6 +19,13 @@ public sealed class AppSettings
     public int MaxLiveMessages { get; set; } = 2000;
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;
+
+    // Existing installations deserialize this as true when the property is absent.
+    // SettingsService explicitly sets it to false only when no settings file exists.
+    public bool FirstRunCompleted { get; set; } = true;
+    public List<string> RecentLogPaths { get; set; } = new();
+    public List<string> PinnedLogPaths { get; set; } = new();
+
     public EditorPreferences Editor { get; set; } = new();
     public ThemePreferences Theme { get; set; } = new();
 }
