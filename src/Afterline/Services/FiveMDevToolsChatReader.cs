@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Afterline.Models;
 
 namespace Afterline.Services;
 
@@ -12,16 +13,24 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private const string RootUiUrl = "nui://game/ui/root.html";
     private const string ClientFramePrefix = "https://cfx-nui-client/";
 
-    // Deliberately fixed at compile time. Nothing from chat or the network is interpolated into it.
     private const string ReadChatExpression =
         "JSON.stringify(Array.from(document.querySelectorAll('.chat__messages > li'))" +
         ".map(function(el){return (el.innerText || '').replace(/\\s+/g,' ').trim();})" +
         ".filter(function(x){return x.length > 0;}))";
 
+    private const string ReadServerHintExpression =
+        "JSON.stringify((function(){" +
+        "var d=window.nuiHandoverData||{};" +
+        "return {address:(d.serverAddress||d.endpoint||''),name:(d.serverName||d.projectName||d.hostname||document.title||'')};" +
+        "})())";
+
     private readonly HttpClient _http;
     private ClientWebSocket? _socket;
     private int _contextId;
     private int _requestId;
+    private ServerSessionInfo _currentServer = ServerSessionInfo.Unknown;
+
+    public ServerSessionInfo CurrentServer => _currentServer;
 
     public FiveMDevToolsChatReader()
     {
@@ -70,6 +79,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         _contextId = 0;
         _requestId = 0;
+        _currentServer = ServerSessionInfo.Unknown;
     }
 
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
@@ -84,6 +94,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         using JsonDocument targets = JsonDocument.Parse(targetJson);
 
         string? debuggerUrl = null;
+        string? targetTitle = null;
         foreach (JsonElement target in targets.RootElement.EnumerateArray())
         {
             if (!target.TryGetProperty("url", out JsonElement url) ||
@@ -92,6 +103,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
             if (target.TryGetProperty("webSocketDebuggerUrl", out JsonElement ws))
                 debuggerUrl = ws.GetString();
+            if (target.TryGetProperty("title", out JsonElement title))
+                targetTitle = title.GetString();
             break;
         }
 
@@ -111,6 +124,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         if (string.IsNullOrWhiteSpace(frameId))
             throw new IOException("FiveM client chat frame is not available yet.");
 
+        _currentServer = await DiscoverServerInfoAsync(targetTitle, linked.Token);
+
         JsonElement isolatedWorld = await RequestAsync("Page.createIsolatedWorld", new
         {
             frameId,
@@ -122,6 +137,136 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             throw new IOException("FiveM chat execution context is unavailable.");
 
         _contextId = context.GetInt32();
+    }
+
+    private async Task<ServerSessionInfo> DiscoverServerInfoAsync(string? targetTitle, CancellationToken cancellationToken)
+    {
+        string? address = null;
+        string? name = null;
+
+        try
+        {
+            JsonElement result = await RequestAsync("Runtime.evaluate", new
+            {
+                expression = ReadServerHintExpression,
+                returnByValue = true
+            }, cancellationToken);
+
+            if (result.TryGetProperty("result", out JsonElement runtimeResult) &&
+                runtimeResult.TryGetProperty("value", out JsonElement valueElement))
+            {
+                string? json = valueElement.GetString();
+                if (!string.IsNullOrWhiteSpace(json))
+                {
+                    using JsonDocument hint = JsonDocument.Parse(json);
+                    if (hint.RootElement.TryGetProperty("address", out JsonElement addressElement))
+                        address = NullIfBlank(addressElement.GetString());
+                    if (hint.RootElement.TryGetProperty("name", out JsonElement nameElement))
+                        name = CleanServerName(NullIfBlank(nameElement.GetString()));
+                }
+            }
+        }
+        catch
+        {
+            // Server identity is best-effort. Chat capture should continue if metadata is unavailable.
+        }
+
+        if (IsGenericTitle(name)) name = null;
+        if (string.IsNullOrWhiteSpace(name) && !IsGenericTitle(targetTitle))
+            name = CleanServerName(targetTitle);
+
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            string? resolved = await TryResolveServerNameAsync(address, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(resolved)) name = resolved;
+        }
+
+        return new ServerSessionInfo
+        {
+            Address = address,
+            Name = name
+        };
+    }
+
+    private async Task<string?> TryResolveServerNameAsync(string address, CancellationToken cancellationToken)
+    {
+        try
+        {
+            string candidate = address.Trim();
+            if (!candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                candidate = "http://" + candidate;
+
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out Uri? baseUri) ||
+                (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
+                return null;
+
+            Uri infoUri = new(baseUri, "/info.json");
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linked.CancelAfter(TimeSpan.FromMilliseconds(800));
+            string json = await _http.GetStringAsync(infoUri, linked.Token);
+            using JsonDocument doc = JsonDocument.Parse(json);
+
+            if (doc.RootElement.TryGetProperty("vars", out JsonElement vars) && vars.ValueKind == JsonValueKind.Object)
+            {
+                foreach (string property in new[] { "sv_projectName", "sv_hostname", "serverName" })
+                {
+                    if (vars.TryGetProperty(property, out JsonElement value))
+                    {
+                        string? parsed = CleanServerName(NullIfBlank(value.GetString()));
+                        if (!string.IsNullOrWhiteSpace(parsed)) return parsed;
+                    }
+                }
+            }
+
+            foreach (string property in new[] { "serverName", "hostname", "name" })
+            {
+                if (doc.RootElement.TryGetProperty(property, out JsonElement value) && value.ValueKind == JsonValueKind.String)
+                {
+                    string? parsed = CleanServerName(NullIfBlank(value.GetString()));
+                    if (!string.IsNullOrWhiteSpace(parsed)) return parsed;
+                }
+            }
+        }
+        catch
+        {
+            // Friendly names are optional; retaining the connection state is more important.
+        }
+
+        return null;
+    }
+
+    private static string? CleanServerName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var builder = new StringBuilder(value.Length);
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '^' && i + 1 < value.Length && char.IsDigit(value[i + 1]))
+            {
+                i++;
+                continue;
+            }
+            builder.Append(value[i]);
+        }
+
+        string cleaned = string.Join(" ", builder.ToString()
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(cleaned) ? null : cleaned.Trim();
+    }
+
+    private static string? NullIfBlank(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsGenericTitle(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return true;
+        string normalized = title.Trim();
+        return string.Equals(normalized, "FiveM", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(normalized, "Cfx.re", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(normalized, "root", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(normalized, "NUI", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsLoopback(Uri uri)

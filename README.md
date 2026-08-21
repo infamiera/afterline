@@ -4,26 +4,42 @@ Afterline is an independent Windows utility for capturing, autosaving, archiving
 
 ## Features
 
-- Automatic chat capture while a supported game client is active.
-- Manual **Parse current chat** action for importing messages that are still retained by the game's current chat UI when Afterline is started after login.
+- Automatic chat capture while FiveM is active and connected to a server.
+- Best-effort server detection, including a friendly server name when FiveM exposes enough connection metadata to resolve one.
+- Server-aware chatlog boundaries: leaving or switching servers immediately finalizes the current server log.
+- One readable chatlog per server per calendar day, stored as `Chatlog [Server Name] [21-August-2026].txt`.
+- Rejoining the same server later on the same day continues that server/day file with a `[NEW LOGIN]` divider.
+- `[DISCONNECTED]` and `[NEW LOGIN]` markers are written to the text log and shown in Live Chat.
 - Continuous crash-safe session autosave with a second local recovery copy.
 - Automatic recovery of unfinished sessions after an unexpected shutdown.
-- Immediate disk checkpoint and `[DISCONNECTED]` marker when the game process closes, regardless of reconnect-grace settings.
 - Graceful shutdown finalization when the application is exited normally.
-- Same-day chatlog continuation: later logins append to the existing daily log with a clear `NEW LOGIN - HH:mm:ss` divider.
-- Login and disconnect divider messages are also surfaced in the Live Chat view.
-- Custom chatlog storage directory.
-- Year and month archive organization.
-- Optional live chat display inside Afterline.
+- Custom chatlog storage directory with year and month organization.
+- Optional Live Chat display inside Afterline.
 - Optional Live Chat timestamps.
-- Optional RP-line highlighting: messages whose content begins with `*` or `>` use `#C2A2DA`.
-- One-click independent export of the current captured login to the user's Downloads folder.
+- Optional RP line coloring: lines whose content begins with `*` or `>` use `#C2A2DA`.
+- Right-click any Live Chat line to copy the displayed line to the clipboard.
+- Manual `Parse current chat` action for messages still retained by FiveM's current chat UI.
+- One-click export of the current captured server session to the user's Downloads folder.
 - Archive browsing with recent logs.
 - Multi-term text search for conversations, character names and keywords.
 - Plain-text chatlogs that remain usable outside Afterline.
-- Optional launch at Windows sign-in while capture remains idle until the game is running.
+- Optional launch at Windows sign-in while capture remains idle until FiveM is running.
 
-> **Current-chat import limitation:** Afterline can only import messages still present in the game's NUI/DOM. Messages the game has already discarded cannot be reconstructed by Afterline.
+## Chatlog layout
+
+The folder structure remains organized by year and month:
+
+```text
+Afterline Chatlogs
+└── 2026
+    └── 08 - August
+        ├── Chatlog [Server A] [21-August-2026].txt
+        └── Chatlog [Server B] [21-August-2026].txt
+```
+
+A later login to the same server on the same date continues the existing file instead of creating another copy. Switching to a different server finalizes the current file and uses the other server's own daily file.
+
+Server names are sanitized automatically before being used in Windows filenames. If a friendly name cannot be resolved, Afterline falls back to `Unknown Server` while continuing to capture normally.
 
 ## Windows builds
 

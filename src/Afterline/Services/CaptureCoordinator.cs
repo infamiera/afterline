@@ -13,23 +13,29 @@ public enum CaptureState
 
 public sealed class CaptureCoordinator : IAsyncDisposable
 {
+    private static readonly TimeSpan NuiDisconnectConfirmation = TimeSpan.FromSeconds(1.25);
+
     private readonly FiveMDevToolsChatReader _reader = new();
     private readonly SessionJournal _journal;
     private readonly Func<AppSettings> _settings;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _captureGate = new(1, 1);
+
     private Task? _worker;
     private List<string> _previousVisible = new();
     private DateTime? _disconnectedAt;
-    private bool _needsNewLoginMarker;
+    private DateTime? _nuiUnavailableSince;
+    private ServerSessionInfo? _currentServer;
 
     public CaptureState State { get; private set; } = CaptureState.Stopped;
     public DateTime? LastCaptureAt { get; private set; }
     public string? LastError { get; private set; }
+    public ServerSessionInfo? CurrentServer => _currentServer;
 
     public event EventHandler<ChatEntry>? MessageCaptured;
     public event EventHandler<CaptureState>? StateChanged;
     public event EventHandler<string>? SessionFinalized;
+    public event EventHandler<ServerSessionChangedEventArgs>? ServerSessionChanged;
 
     public CaptureCoordinator(SessionJournal journal, Func<AppSettings> settings)
     {
@@ -54,6 +60,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             AppSettings settings = _settings();
             IReadOnlyList<string> current = await _reader.ReadVisibleLinesAsync(_cts.Token);
+            await HandleObservedServerCoreAsync(_reader.CurrentServer, settings, _cts.Token);
+            _nuiUnavailableSince = null;
+            _disconnectedAt = null;
             SetState(CaptureState.Capturing);
             LastError = null;
             return await CaptureAvailableLinesAsync(current, settings, _cts.Token);
@@ -97,6 +106,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 try
                 {
                     IReadOnlyList<string> current = await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    await HandleObservedServerCoreAsync(_reader.CurrentServer, settings, _cts.Token);
+                    _nuiUnavailableSince = null;
+                    _disconnectedAt = null;
                     SetState(CaptureState.Capturing);
                     LastError = null;
                     await CaptureAvailableLinesAsync(current, settings, _cts.Token);
@@ -108,8 +120,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 catch (Exception ex)
                 {
                     LastError = ex.Message;
-                    SetState(CaptureState.WaitingForNui);
                     await _reader.ResetAsync();
+                    await HandleNuiUnavailableCoreAsync(settings, _cts.Token);
                 }
                 finally
                 {
@@ -144,24 +156,19 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         foreach (string line in current.Skip(overlap))
         {
             var entry = new ChatEntry(DateTime.Now, line);
-            bool hadActiveSession = _journal.HasActiveSession;
 
-            ChatEntry? startMarker = await _journal.EnsureStartedAsync(
-                settings.ArchiveRoot,
-                entry.CapturedAt,
-                cancellationToken);
-
-            if (startMarker is not null)
-                MessageCaptured?.Invoke(this, startMarker);
-            else if (_needsNewLoginMarker && hadActiveSession)
+            if (!_journal.HasActiveSession)
             {
-                ChatEntry? resumeMarker = await _journal.AppendLoginMarkerAsync(entry.CapturedAt, cancellationToken);
-                if (resumeMarker is not null)
-                    MessageCaptured?.Invoke(this, resumeMarker);
-            }
+                ServerSessionInfo server = _currentServer ?? ServerSessionInfo.Unknown;
+                ChatEntry? loginMarker = await _journal.EnsureStartedAsync(
+                    settings.ArchiveRoot,
+                    entry.CapturedAt,
+                    server,
+                    cancellationToken);
 
-            _needsNewLoginMarker = false;
-            _disconnectedAt = null;
+                if (loginMarker is not null)
+                    MessageCaptured?.Invoke(this, loginMarker);
+            }
 
             await _journal.AppendAsync(entry, cancellationToken);
             LastCaptureAt = DateTime.Now;
@@ -176,48 +183,123 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         return captured;
     }
 
+    private async Task HandleObservedServerCoreAsync(
+        ServerSessionInfo observed,
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (_currentServer is null)
+        {
+            _currentServer = observed;
+            NotifyServerChanged();
+            return;
+        }
+
+        if (_currentServer.HasDifferentKnownAddress(observed))
+        {
+            await FinalizeCurrentServerCoreAsync(settings, DateTime.Now, false, cancellationToken);
+            _currentServer = observed;
+            NotifyServerChanged();
+            return;
+        }
+
+        bool metadataImproved =
+            (string.IsNullOrWhiteSpace(_currentServer.Address) && !string.IsNullOrWhiteSpace(observed.Address)) ||
+            (!_currentServer.HasFriendlyName && observed.HasFriendlyName);
+
+        if (metadataImproved)
+        {
+            _currentServer = new ServerSessionInfo
+            {
+                Address = string.IsNullOrWhiteSpace(observed.Address) ? _currentServer.Address : observed.Address,
+                Name = observed.HasFriendlyName ? observed.Name : _currentServer.Name
+            };
+            NotifyServerChanged();
+        }
+    }
+
     private async Task HandleFiveMAbsentAsync(AppSettings settings)
     {
         await _captureGate.WaitAsync(_cts.Token);
         try
         {
             await _reader.ResetAsync();
+            _nuiUnavailableSince = null;
 
-            if (!_journal.HasActiveSession)
-            {
-                SetState(CaptureState.WaitingForFiveM);
-                return;
-            }
+            if (_journal.HasActiveSession || _currentServer is not null)
+                await FinalizeCurrentServerCoreAsync(settings, DateTime.Now, false, _cts.Token);
 
-            if (_disconnectedAt is null)
-            {
-                _disconnectedAt = DateTime.Now;
-                _needsNewLoginMarker = true;
-
-                ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(
-                    _disconnectedAt.Value,
-                    _cts.Token);
-                if (disconnectMarker is not null)
-                    MessageCaptured?.Invoke(this, disconnectMarker);
-            }
-
-            TimeSpan grace = TimeSpan.FromMinutes(Math.Max(0, settings.ReconnectGraceMinutes));
-            if (DateTime.Now - _disconnectedAt.Value < grace)
-            {
-                SetState(CaptureState.ReconnectGrace);
-                return;
-            }
-
-            string? path = await _journal.FinalizeAsync(settings.ArchiveRoot, _cts.Token);
-            if (path is not null) SessionFinalized?.Invoke(this, path);
-            _disconnectedAt = null;
-            SetState(CaptureState.WaitingForFiveM);
+            SetState(GetDisconnectedIdleState(settings, CaptureState.WaitingForFiveM));
         }
         finally
         {
             _captureGate.Release();
         }
     }
+
+    private async Task HandleNuiUnavailableCoreAsync(AppSettings settings, CancellationToken cancellationToken)
+    {
+        if (!_journal.HasActiveSession && _currentServer is null)
+        {
+            SetState(GetDisconnectedIdleState(settings, CaptureState.WaitingForNui));
+            return;
+        }
+
+        _nuiUnavailableSince ??= DateTime.Now;
+        if (DateTime.Now - _nuiUnavailableSince.Value < NuiDisconnectConfirmation)
+        {
+            SetState(CaptureState.WaitingForNui);
+            return;
+        }
+
+        await FinalizeCurrentServerCoreAsync(settings, DateTime.Now, false, cancellationToken);
+        SetState(GetDisconnectedIdleState(settings, CaptureState.WaitingForNui));
+    }
+
+    private async Task FinalizeCurrentServerCoreAsync(
+        AppSettings settings,
+        DateTime observedAt,
+        bool resetReader,
+        CancellationToken cancellationToken)
+    {
+        if (_journal.HasActiveSession)
+        {
+            ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(observedAt, cancellationToken);
+            if (disconnectMarker is not null)
+                MessageCaptured?.Invoke(this, disconnectMarker);
+
+            string? path = await _journal.FinalizeAsync(settings.ArchiveRoot, cancellationToken);
+            if (path is not null)
+                SessionFinalized?.Invoke(this, path);
+        }
+
+        if (resetReader)
+            await _reader.ResetAsync();
+
+        _previousVisible.Clear();
+        _nuiUnavailableSince = null;
+        _disconnectedAt = DateTime.Now;
+
+        if (_currentServer is not null)
+        {
+            _currentServer = null;
+            NotifyServerChanged();
+        }
+    }
+
+    private CaptureState GetDisconnectedIdleState(AppSettings settings, CaptureState fallback)
+    {
+        if (_disconnectedAt is null) return fallback;
+
+        TimeSpan grace = TimeSpan.FromMinutes(Math.Max(0, settings.ReconnectGraceMinutes));
+        if (grace > TimeSpan.Zero && DateTime.Now - _disconnectedAt.Value < grace)
+            return CaptureState.ReconnectGrace;
+
+        return fallback;
+    }
+
+    private void NotifyServerChanged()
+        => ServerSessionChanged?.Invoke(this, new ServerSessionChangedEventArgs(_currentServer));
 
     private void SetState(CaptureState state)
     {
@@ -255,7 +337,22 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         try
         {
-            await _journal.FinalizeAsync(_settings().ArchiveRoot, CancellationToken.None);
+            await _captureGate.WaitAsync();
+            try
+            {
+                if (_journal.HasActiveSession)
+                {
+                    ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(DateTime.Now, CancellationToken.None);
+                    if (disconnectMarker is not null)
+                        MessageCaptured?.Invoke(this, disconnectMarker);
+                }
+
+                await _journal.FinalizeAsync(_settings().ArchiveRoot, CancellationToken.None);
+            }
+            finally
+            {
+                _captureGate.Release();
+            }
         }
         catch (Exception ex)
         {

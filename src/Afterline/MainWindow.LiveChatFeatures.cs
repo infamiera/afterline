@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using Afterline.Models;
 using Afterline.Services;
 
@@ -12,6 +13,7 @@ public partial class MainWindow
     private CheckBox? _roleplayColorsCheck;
     private CheckBox? _showLiveTimestampsCheck;
     private TextBlock? _liveActionStatus;
+    private TextBlock? _serverStatusText;
 
     internal void EnsureLiveChatEnhancements()
     {
@@ -22,10 +24,13 @@ public partial class MainWindow
         ChatEntry.ShowTimestamps = _settings.ShowLiveTimestamps;
 
         ConfigureLiveChatItemTemplate();
+        ConfigureLiveChatContextMenu();
         ConfigureLiveChatHeader();
+        ConfigureServerStatus();
+
         AddSettingHelp(
             ReconnectBox,
-            "How long Afterline keeps a disconnected session open for a quick reconnect. Logs are checkpointed immediately when FiveM closes regardless of this value.");
+            "How long Afterline shows reconnect grace after leaving a server. The current server chatlog is saved and finalized immediately; reconnecting later reopens that server's log for the same day.");
         AddSettingHelp(
             ProcessingBox,
             "How often Afterline refreshes the archive/search index in the background. Chat capture itself is written to disk immediately and is not delayed by this setting.");
@@ -39,6 +44,42 @@ public partial class MainWindow
         textFactory.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         textFactory.SetValue(FrameworkElement.MarginProperty, new Thickness(2));
         LiveChatList.ItemTemplate = new DataTemplate(typeof(ChatEntry)) { VisualTree = textFactory };
+    }
+
+    private void ConfigureLiveChatContextMenu()
+    {
+        LiveChatList.PreviewMouseRightButtonDown += LiveChatList_PreviewMouseRightButtonDown;
+
+        var menu = new ContextMenu();
+        var copyItem = new MenuItem { Header = "Copy line" };
+        copyItem.Click += CopyLiveChatLine_Click;
+        menu.Items.Add(copyItem);
+        LiveChatList.ContextMenu = menu;
+    }
+
+    private void LiveChatList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source) return;
+        if (ItemsControl.ContainerFromElement(LiveChatList, source) is not ListBoxItem item) return;
+
+        item.IsSelected = true;
+        item.Focus();
+    }
+
+    private void CopyLiveChatLine_Click(object sender, RoutedEventArgs e)
+    {
+        if (LiveChatList.SelectedItem is not ChatEntry entry) return;
+
+        try
+        {
+            Clipboard.SetText(entry.Display);
+            if (_liveActionStatus is not null) _liveActionStatus.Text = "Line copied to clipboard.";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to copy Live Chat line to the clipboard.", ex);
+            if (_liveActionStatus is not null) _liveActionStatus.Text = "Unable to copy line.";
+        }
     }
 
     private void ConfigureLiveChatHeader()
@@ -110,7 +151,7 @@ public partial class MainWindow
             Content = "Save copy to Downloads",
             Padding = new Thickness(10, 6, 10, 6),
             Margin = new Thickness(0, 0, 10, 0),
-            ToolTip = "Writes an independent copy of the current captured login to your Downloads folder."
+            ToolTip = "Writes an independent copy of the current captured server session to your Downloads folder."
         };
         exportButton.Click += ExportCurrentLiveLog_Click;
 
@@ -126,6 +167,49 @@ public partial class MainWindow
         actions.Children.Add(exportButton);
         actions.Children.Add(_liveActionStatus);
         leftPanel.Children.Add(actions);
+    }
+
+    private void ConfigureServerStatus()
+    {
+        _capture.ServerSessionChanged += Capture_ServerSessionChanged;
+
+        if (FiveMStateText.Parent is StackPanel panel)
+        {
+            _serverStatusText = new TextBlock
+            {
+                Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
+                FontSize = 11,
+                Margin = new Thickness(0, 5, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            };
+
+            int index = panel.Children.IndexOf(FiveMStateText);
+            panel.Children.Insert(Math.Min(index + 1, panel.Children.Count), _serverStatusText);
+        }
+
+        UpdateServerStatus(_capture.CurrentServer);
+    }
+
+    private void Capture_ServerSessionChanged(object? sender, ServerSessionChangedEventArgs e)
+    {
+        Dispatcher.Invoke(() => UpdateServerStatus(e.Server));
+    }
+
+    private void UpdateServerStatus(ServerSessionInfo? server)
+    {
+        if (_serverStatusText is null) return;
+
+        if (server is null)
+        {
+            _serverStatusText.Text = "No active server connection";
+            _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("MutedText");
+            return;
+        }
+
+        _serverStatusText.Text = server.HasFriendlyName
+            ? $"Server: {server.DisplayName}"
+            : "Connected to a server · name unavailable";
+        _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("Success");
     }
 
     private void RoleplayColorsCheck_Changed(object sender, RoutedEventArgs e)
@@ -160,8 +244,8 @@ public partial class MainWindow
 
     private async void ParseCurrentChat_Click(object sender, RoutedEventArgs e)
     {
-        Button? clickedButton = sender as Button;
-        if (clickedButton is not null) clickedButton.IsEnabled = false;
+        Button? actionButton = sender as Button;
+        if (actionButton is not null) actionButton.IsEnabled = false;
 
         try
         {
@@ -178,14 +262,14 @@ public partial class MainWindow
         }
         finally
         {
-            if (clickedButton is not null) clickedButton.IsEnabled = true;
+            if (actionButton is not null) actionButton.IsEnabled = true;
         }
     }
 
     private async void ExportCurrentLiveLog_Click(object sender, RoutedEventArgs e)
     {
-        Button? clickedButton = sender as Button;
-        if (clickedButton is not null) clickedButton.IsEnabled = false;
+        Button? actionButton = sender as Button;
+        if (actionButton is not null) actionButton.IsEnabled = false;
 
         try
         {
@@ -200,7 +284,7 @@ public partial class MainWindow
         }
         finally
         {
-            if (clickedButton is not null) clickedButton.IsEnabled = true;
+            if (actionButton is not null) actionButton.IsEnabled = true;
         }
     }
 

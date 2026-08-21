@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -9,6 +10,7 @@ public sealed class SessionJournal
 {
     private static readonly Regex TimestampPrefix = new(@"^\[\d{1,2}:\d{2}:\d{2}\]\s+", RegexOptions.Compiled);
     private readonly SemaphoreSlim _gate = new(1, 1);
+
     private string? _activeFile;
     private string? _stateFile;
     private string? _backupFile;
@@ -19,6 +21,7 @@ public sealed class SessionJournal
     public DateTime? LastMessageAt => _state?.LastMessageAt;
     public int MessageCount => _state?.MessageCount ?? 0;
     public string? ActiveFile => _activeFile;
+    public string? ActiveServerName => _state?.ServerName;
 
     public async Task<IReadOnlyList<string>> RecoverAsync(string archiveRoot, CancellationToken cancellationToken)
     {
@@ -46,14 +49,15 @@ public sealed class SessionJournal
             DeleteIfExists(stateFile);
         }
 
-        _activeFile = null;
-        _stateFile = null;
-        _backupFile = null;
-        _state = null;
+        ClearActiveState();
         return previousVisible;
     }
 
-    public async Task<ChatEntry?> EnsureStartedAsync(string archiveRoot, DateTime startedAt, CancellationToken cancellationToken)
+    public async Task<ChatEntry?> EnsureStartedAsync(
+        string archiveRoot,
+        DateTime startedAt,
+        ServerSessionInfo server,
+        CancellationToken cancellationToken)
     {
         if (HasActiveSession) return null;
 
@@ -65,18 +69,23 @@ public sealed class SessionJournal
             Directory.CreateDirectory(AppPaths.ActiveSessionsDirectory);
             Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
 
-            string year = startedAt.ToString("yyyy");
-            string month = startedAt.ToString("MM - MMMM");
-            string monthDir = Path.Combine(archiveRoot, year, month);
-            Directory.CreateDirectory(monthDir);
+            string serverName = server.ArchiveLabel;
+            string requestedPath = GetArchivePath(archiveRoot, serverName, startedAt);
+            bool identityKnown = !string.Equals(server.StableKey, "unknown", StringComparison.Ordinal);
 
-            string? existing = FindSameDayArchive(monthDir, startedAt.Date);
-            bool continuingSameDay = existing is not null;
+            if (!identityKnown && File.Exists(requestedPath))
+            {
+                string folder = Path.GetDirectoryName(requestedPath)!;
+                string baseName = Path.GetFileNameWithoutExtension(requestedPath);
+                _activeFile = UniquePath(folder, baseName, ".txt");
+            }
+            else
+            {
+                _activeFile = requestedPath;
+            }
 
-            _activeFile = existing ?? UniquePath(
-                monthDir,
-                $"Afterline Chatlog [{startedAt:yyyy-MM-dd - HH-mm-ss}]",
-                ".txt");
+            bool continuingSameServerDay = identityKnown && File.Exists(_activeFile);
+            Directory.CreateDirectory(Path.GetDirectoryName(_activeFile)!);
 
             _backupFile = Path.Combine(
                 AppPaths.RecoveryBackupsDirectory,
@@ -89,44 +98,24 @@ public sealed class SessionJournal
             {
                 StartedAt = startedAt,
                 ArchiveFile = _activeFile,
-                BackupFile = _backupFile
+                BackupFile = _backupFile,
+                ServerName = serverName,
+                ServerKey = server.StableKey
             };
 
             await WriteNewFileAsync(
                 _backupFile,
-                $"[AFTERLINE RECOVERY: {startedAt:yyyy-MM-dd HH:mm:ss}]",
+                $"[AFTERLINE RECOVERY: {serverName} · {startedAt:yyyy-MM-dd HH:mm:ss}]",
                 cancellationToken);
 
-            ChatEntry? marker = null;
-            if (continuingSameDay)
-            {
-                marker = await AppendLoginMarkerCoreAsync(startedAt, cancellationToken);
-            }
-            else
+            if (!continuingSameServerDay)
             {
                 await WriteNewFileAsync(
                     _activeFile,
-                    $"[AFTERLINE SESSION: {startedAt:yyyy-MM-dd HH:mm:ss}]",
+                    $"[AFTERLINE SERVER: {serverName}]",
                     cancellationToken);
             }
 
-            await SaveStateAsync(cancellationToken);
-            return marker;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
-    public async Task<ChatEntry?> AppendLoginMarkerAsync(DateTime startedAt, CancellationToken cancellationToken)
-    {
-        if (!HasActiveSession || _state is null) return null;
-
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
-            if (!HasActiveSession || _state is null) return null;
             ChatEntry marker = await AppendLoginMarkerCoreAsync(startedAt, cancellationToken);
             await SaveStateAsync(cancellationToken);
             return marker;
@@ -149,22 +138,7 @@ public sealed class SessionJournal
             DateTime timestamp = _state.LastMessageAt ?? observedAt;
             string marker = $"==================== [DISCONNECTED] - {timestamp:HH:mm:ss} ====================";
 
-            await AppendLineAsync(_activeFile, string.Empty, cancellationToken);
-            await AppendLineAsync(_activeFile, marker, cancellationToken);
-
-            if (_backupFile is not null)
-            {
-                try
-                {
-                    await AppendLineAsync(_backupFile, string.Empty, cancellationToken);
-                    await AppendLineAsync(_backupFile, marker, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    DiagnosticLogger.Error("Failsafe disconnect marker backup write failed.", ex);
-                }
-            }
-
+            await AppendMarkerToBothAsync(marker, cancellationToken);
             await SaveStateAsync(cancellationToken);
             return ChatEntry.System(timestamp, marker);
         }
@@ -237,7 +211,10 @@ public sealed class SessionJournal
         }
     }
 
-    public async Task<string> ExportCurrentLogAsync(string archiveRoot, string downloadsFolder, CancellationToken cancellationToken)
+    public async Task<string> ExportCurrentLogAsync(
+        string archiveRoot,
+        string downloadsFolder,
+        CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -246,14 +223,14 @@ public sealed class SessionJournal
             DateTime now = DateTime.Now;
             string destination = UniquePath(
                 downloadsFolder,
-                $"Afterline Chatlog Export [{now:yyyy-MM-dd - HH-mm-ss}]",
+                $"Chatlog Export [{now:dd-MMMM-yyyy - HH-mm-ss}]",
                 ".txt");
 
             if (_state is not null && !string.IsNullOrWhiteSpace(_backupFile) && File.Exists(_backupFile))
             {
                 string[] sessionLines = File.ReadLines(_backupFile).Skip(1).ToArray();
                 if (sessionLines.Length == 0)
-                    throw new InvalidOperationException("The current login does not contain any captured chat yet.");
+                    throw new InvalidOperationException("The current server session does not contain any captured chat yet.");
 
                 await using FileStream stream = new(
                     destination,
@@ -263,7 +240,7 @@ public sealed class SessionJournal
                     4096,
                     FileOptions.Asynchronous | FileOptions.WriteThrough);
                 await using StreamWriter writer = new(stream, new UTF8Encoding(false));
-                await writer.WriteLineAsync($"[AFTERLINE LIVE EXPORT: {now:yyyy-MM-dd HH:mm:ss}]".AsMemory(), cancellationToken);
+                await writer.WriteLineAsync($"[AFTERLINE LIVE EXPORT: {_state.ServerName} · {now:yyyy-MM-dd HH:mm:ss}]".AsMemory(), cancellationToken);
                 foreach (string line in sessionLines)
                     await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
                 await writer.FlushAsync(cancellationToken);
@@ -271,14 +248,11 @@ public sealed class SessionJournal
                 return destination;
             }
 
-            string year = now.ToString("yyyy");
-            string month = now.ToString("MM - MMMM");
-            string monthDir = Path.Combine(archiveRoot, year, month);
-            string? sameDay = FindSameDayArchive(monthDir, now.Date);
-            if (sameDay is null || !File.Exists(sameDay))
+            string? latest = FindLatestSameDayArchive(archiveRoot, now);
+            if (latest is null)
                 throw new InvalidOperationException("No captured chatlog is available to export yet.");
 
-            File.Copy(sameDay, destination, false);
+            File.Copy(latest, destination, false);
             return destination;
         }
         finally
@@ -300,11 +274,7 @@ public sealed class SessionJournal
 
             DeleteIfExists(_stateFile);
             DeleteIfExists(_backupFile);
-
-            _activeFile = null;
-            _stateFile = null;
-            _backupFile = null;
-            _state = null;
+            ClearActiveState();
             return destination;
         }
         finally
@@ -318,7 +288,15 @@ public sealed class SessionJournal
         if (_activeFile is null)
             throw new InvalidOperationException("No active chatlog is available for a login marker.");
 
-        string marker = $"==================== NEW LOGIN - {startedAt:HH:mm:ss} ====================";
+        string marker = $"==================== [NEW LOGIN] - {startedAt:HH:mm:ss} ====================";
+        await AppendMarkerToBothAsync(marker, cancellationToken);
+        return ChatEntry.System(startedAt, marker);
+    }
+
+    private async Task AppendMarkerToBothAsync(string marker, CancellationToken cancellationToken)
+    {
+        if (_activeFile is null) return;
+
         await AppendLineAsync(_activeFile, string.Empty, cancellationToken);
         await AppendLineAsync(_activeFile, marker, cancellationToken);
 
@@ -331,11 +309,9 @@ public sealed class SessionJournal
             }
             catch (Exception ex)
             {
-                DiagnosticLogger.Error("Failsafe login marker backup write failed.", ex);
+                DiagnosticLogger.Error("Failsafe marker backup write failed.", ex);
             }
         }
-
-        return ChatEntry.System(startedAt, marker);
     }
 
     private static async Task RecoverSessionAsync(SessionState state, string archiveRoot, CancellationToken cancellationToken)
@@ -345,13 +321,7 @@ public sealed class SessionJournal
 
         string archiveFile = state.ArchiveFile;
         if (string.IsNullOrWhiteSpace(archiveFile))
-        {
-            string year = state.StartedAt.ToString("yyyy");
-            string month = state.StartedAt.ToString("MM - MMMM");
-            string monthDir = Path.Combine(archiveRoot, year, month);
-            Directory.CreateDirectory(monthDir);
-            archiveFile = Path.Combine(monthDir, $"Afterline Chatlog [{state.StartedAt:yyyy-MM-dd - HH-mm-ss}].txt");
-        }
+            archiveFile = GetArchivePath(archiveRoot, state.ServerName, state.StartedAt);
 
         string[] backupLines = File.ReadLines(state.BackupFile)
             .Skip(1)
@@ -362,7 +332,7 @@ public sealed class SessionJournal
         {
             await WriteNewFileAsync(
                 archiveFile,
-                $"[AFTERLINE SESSION: {state.StartedAt:yyyy-MM-dd HH:mm:ss}]",
+                $"[AFTERLINE SERVER: {state.ServerName}]",
                 cancellationToken);
             foreach (string line in backupLines)
                 await AppendLineAsync(archiveFile, line, cancellationToken);
@@ -432,15 +402,53 @@ public sealed class SessionJournal
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static string? FindSameDayArchive(string monthDir, DateTime date)
+    private static string GetArchivePath(string archiveRoot, string serverName, DateTime date)
     {
+        string year = date.ToString("yyyy", CultureInfo.InvariantCulture);
+        string month = date.ToString("MM - MMMM", CultureInfo.InvariantCulture);
+        string monthDir = Path.Combine(archiveRoot, year, month);
+        string safeServer = SanitizeFileComponent(serverName);
+        string displayDate = date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture);
+        return Path.Combine(monthDir, $"Chatlog [{safeServer}] [{displayDate}].txt");
+    }
+
+    private static string? FindLatestSameDayArchive(string archiveRoot, DateTime date)
+    {
+        string year = date.ToString("yyyy", CultureInfo.InvariantCulture);
+        string month = date.ToString("MM - MMMM", CultureInfo.InvariantCulture);
+        string monthDir = Path.Combine(archiveRoot, year, month);
         if (!Directory.Exists(monthDir)) return null;
 
-        string prefix = $"Afterline Chatlog [{date:yyyy-MM-dd} - ";
-        return Directory.GetFiles(monthDir, "*.txt", SearchOption.TopDirectoryOnly)
-            .Where(path => Path.GetFileName(path).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        string suffix = $"[{date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture)}].txt";
+        return Directory.GetFiles(monthDir, "Chatlog *.txt", SearchOption.TopDirectoryOnly)
+            .Where(path => Path.GetFileName(path).EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
+    }
+
+    private static string SanitizeFileComponent(string value)
+    {
+        string source = string.IsNullOrWhiteSpace(value) ? "Unknown Server" : value.Trim();
+        char[] invalid = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(source.Length);
+
+        foreach (char c in source)
+        {
+            if (invalid.Contains(c) || c == '[' || c == ']')
+            {
+                builder.Append(' ');
+                continue;
+            }
+            builder.Append(c);
+        }
+
+        string safe = string.Join(" ", builder.ToString()
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .Trim(' ', '.');
+
+        if (string.IsNullOrWhiteSpace(safe)) safe = "Unknown Server";
+        if (safe.Length > 80) safe = safe[..80].TrimEnd();
+        return safe;
     }
 
     private static int FindOverlap(IReadOnlyList<string> oldLines, IReadOnlyList<string> newLines)
@@ -466,6 +474,7 @@ public sealed class SessionJournal
     {
         string path = Path.Combine(folder, baseName + extension);
         if (!File.Exists(path)) return path;
+
         for (int i = 2; ; i++)
         {
             string candidate = Path.Combine(folder, $"{baseName} ({i}){extension}");
@@ -479,6 +488,14 @@ public sealed class SessionJournal
             File.Delete(path);
     }
 
+    private void ClearActiveState()
+    {
+        _activeFile = null;
+        _stateFile = null;
+        _backupFile = null;
+        _state = null;
+    }
+
     private sealed class SessionState
     {
         public DateTime StartedAt { get; set; }
@@ -486,6 +503,8 @@ public sealed class SessionJournal
         public int MessageCount { get; set; }
         public string ArchiveFile { get; set; } = string.Empty;
         public string BackupFile { get; set; } = string.Empty;
+        public string ServerName { get; set; } = "Unknown Server";
+        public string ServerKey { get; set; } = "unknown";
         public List<string> LastVisibleSnapshot { get; set; } = new();
     }
 }
