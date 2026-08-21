@@ -20,6 +20,7 @@ public partial class MainWindow
         {
             _editorChatBitmap = null;
             _editorChatImage.Source = null;
+            RefreshEditorLineColorList(Array.Empty<EditorChatLine>());
             UpdateEditorCanvasSize();
             if (_editorBaseOriginal is null)
                 SetEditorStatus("Paste chat lines to begin. Load an image if you want to edit a full RP screenshot.");
@@ -33,7 +34,8 @@ public partial class MainWindow
             double lineSpacing = _editorLineSpacingSlider?.Value ?? 1;
             double chatWidth = Math.Max(320, _editorChatWidthSlider?.Value ?? 900);
             (FontFamily fontFamily, FontWeight fontWeight) = ResolveEditorFont();
-            IReadOnlyList<EditorChatLine> lines = EditorChatFormatter.FormatLines(input, showTimestamps);
+            IReadOnlyList<EditorChatLine> lines = EditorChatFormatter.FormatLines(input, showTimestamps, _editorLineColorOverrides);
+            RefreshEditorLineColorList(lines);
 
             var stack = new StackPanel
             {
@@ -55,7 +57,7 @@ public partial class MainWindow
                     Padding = new Thickness(0)
                 };
                 TextOptions.SetTextFormattingMode(text, TextFormattingMode.Display);
-                TextOptions.SetTextRenderingMode(text, TextRenderingMode.ClearType);
+                TextOptions.SetTextRenderingMode(text, TextRenderingMode.Grayscale);
 
                 if (line.Segments.Count == 0)
                 {
@@ -87,19 +89,22 @@ public partial class MainWindow
             host.Arrange(new Rect(0, 0, chatWidth, height));
             host.UpdateLayout();
 
-            var bitmap = new RenderTargetBitmap(
+            var baseBitmap = new RenderTargetBitmap(
                 Math.Max(1, (int)Math.Ceiling(chatWidth)),
                 Math.Max(1, (int)Math.Ceiling(height)),
                 96,
                 96,
                 PixelFormats.Pbgra32);
-            bitmap.Render(host);
-            bitmap.Freeze();
+            baseBitmap.Render(host);
+            baseBitmap.Freeze();
 
-            _editorChatBitmap = bitmap;
-            _editorChatImage.Source = bitmap;
+            BitmapSource finalBitmap = ApplyEditorChatTextEffects(baseBitmap);
+            if (finalBitmap.CanFreeze && !finalBitmap.IsFrozen) finalBitmap.Freeze();
+
+            _editorChatBitmap = finalBitmap;
+            _editorChatImage.Source = finalBitmap;
             UpdateEditorCanvasSize();
-            SetEditorStatus($"Rendered {lines.Count:N0} chat lines · {bitmap.PixelWidth:N0} × {bitmap.PixelHeight:N0}px.");
+            SetEditorStatus($"Rendered {lines.Count:N0} chat lines · {finalBitmap.PixelWidth:N0} × {finalBitmap.PixelHeight:N0}px.");
         }
         catch (Exception ex)
         {
@@ -148,6 +153,7 @@ public partial class MainWindow
             ClearEditorMarkup(resetHistory: true);
             ApplyEditorImageAdjustments();
             SetEditorStatus($"Loaded {Path.GetFileName(dialog.FileName)} · {bitmap.PixelWidth:N0} × {bitmap.PixelHeight:N0}px.");
+            if (_editorFitZoom) _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
         }
         catch (Exception ex)
         {

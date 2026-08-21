@@ -21,6 +21,7 @@ public partial class MainWindow
         EnsureDarkSearchCalendarPopups();
         EnsureSessionTrayNotification();
         EnsureEditor();
+        EnsureEditorV041();
         EnsureSettingsButtonPlacement();
     }
 }
