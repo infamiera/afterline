@@ -49,6 +49,31 @@ public sealed class NotesBookmarksService
         return saved;
     }
 
+    public async Task<NoteBookmarkEntry> AddForKnownLineAsync(
+        SavedMarkerKind kind,
+        ChatEntry entry,
+        string serverName,
+        string filePath,
+        int lineNumber,
+        string? noteText,
+        CancellationToken cancellationToken)
+    {
+        var saved = new NoteBookmarkEntry
+        {
+            Kind = kind,
+            CreatedAt = DateTime.Now,
+            ChatTimestamp = entry.CapturedAt,
+            ServerName = string.IsNullOrWhiteSpace(serverName) ? "Unknown Server" : serverName,
+            FilePath = filePath,
+            LineText = entry.Display,
+            NoteText = noteText?.Trim() ?? string.Empty,
+            LineNumber = Math.Max(1, lineNumber)
+        };
+
+        await AddAsync(saved, cancellationToken);
+        return saved;
+    }
+
     public async Task<NoteBookmarkEntry> AddSessionNoteAsync(
         string noteText,
         string serverName,

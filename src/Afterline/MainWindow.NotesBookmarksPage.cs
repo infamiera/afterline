@@ -46,7 +46,7 @@ public partial class MainWindow
         heading.Children.Add(new TextBlock { Text = "Notes & bookmarks", FontSize = 17, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock
         {
-            Text = "Bookmark useful lines or attach notes to moments in a chatlog. Double-click an entry to reopen its source line.",
+            Text = "Bookmark useful lines or attach notes to moments in a chatlog. Double-click an entry to reopen its source line in Log Reader.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 0)
@@ -127,6 +127,7 @@ public partial class MainWindow
         SearchPage.Visibility = Visibility.Collapsed;
         ArchivePage.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
+        if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
         if (_notesBookmarksPage is not null) _notesBookmarksPage.Visibility = Visibility.Visible;
         PageTitle.Text = "Notes & Bookmarks";
         PageSubtitle.Text = "Saved RP moments linked back to their chatlogs";
@@ -153,13 +154,13 @@ public partial class MainWindow
         }
     }
 
-    private void NotesBookmarksList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        => OpenSelectedNoteSource();
+    private async void NotesBookmarksList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        => await OpenSelectedNoteSourceAsync();
 
-    private void OpenSelectedNoteSource_Click(object sender, RoutedEventArgs e)
-        => OpenSelectedNoteSource();
+    private async void OpenSelectedNoteSource_Click(object sender, RoutedEventArgs e)
+        => await OpenSelectedNoteSourceAsync();
 
-    private void OpenSelectedNoteSource()
+    private async Task OpenSelectedNoteSourceAsync()
     {
         if (_notesBookmarksList?.SelectedItem is not NoteBookmarkEntry entry) return;
         string? source = ResolveSavedMarkerSource(entry);
@@ -169,8 +170,7 @@ public partial class MainWindow
             return;
         }
 
-        var viewer = new LogViewerWindow(source, entry.LineNumber) { Owner = this };
-        viewer.Show();
+        await OpenLogInReaderAsync(source, entry.LineNumber);
     }
 
     private string? ResolveSavedMarkerSource(NoteBookmarkEntry entry)

@@ -10,8 +10,11 @@ public partial class MainWindow
         EnsureCachedReplayUi();
         EnsureUiBehaviorFixes();
         EnsureLiveContextBookmarks();
+        EnsureLiveChatContextMenuRepair();
         EnsureExportChoices();
         EnsureNotesBookmarksPage();
+        EnsureLogReader();
+        EnsureLogReaderPresentationSync();
         EnsureLiveSessionInfo();
         EnsureQolSearchRecoveryStats();
         EnsureSessionTrayNotification();

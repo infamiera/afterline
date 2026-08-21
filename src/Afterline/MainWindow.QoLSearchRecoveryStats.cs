@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Afterline.Models;
@@ -45,6 +46,14 @@ public partial class MainWindow
     {
         if (ExtendedSearchPanel.Parent is not Grid optionsGrid) return;
 
+        // Explicitly align the stock search checkboxes with the controls around them.
+        CaseSensitiveCheck.VerticalAlignment = VerticalAlignment.Center;
+        CaseSensitiveCheck.VerticalContentAlignment = VerticalAlignment.Center;
+        CaseSensitiveCheck.Margin = new Thickness(14, 0, 0, 0);
+        ExtendedSearchCheck.VerticalAlignment = VerticalAlignment.Center;
+        ExtendedSearchCheck.VerticalContentAlignment = VerticalAlignment.Center;
+        ExtendedSearchCheck.Margin = new Thickness(16, 0, 0, 0);
+
         optionsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         int row = optionsGrid.RowDefinitions.Count - 1;
 
@@ -59,12 +68,18 @@ public partial class MainWindow
         };
         Grid.SetRow(filterBorder, row);
 
-        var filters = new WrapPanel { VerticalAlignment = VerticalAlignment.Center };
+        var filters = new WrapPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            ItemHeight = 36
+        };
 
         filters.Children.Add(CreateSearchFilterLabel("Server"));
         _searchServerFilterBox = new TextBox
         {
             Width = 185,
+            Height = 34,
+            VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 14, 0),
             ToolTip = "Only search chatlogs whose archived server name contains this text."
         };
@@ -72,12 +87,12 @@ public partial class MainWindow
         filters.Children.Add(_searchServerFilterBox);
 
         filters.Children.Add(CreateSearchFilterLabel("From"));
-        _searchFromDatePicker = new DatePicker { Width = 130, Margin = new Thickness(0, 0, 12, 0) };
+        _searchFromDatePicker = CreateDarkSearchDatePicker(new Thickness(0, 0, 12, 0));
         _searchFromDatePicker.SelectedDateChanged += (_, _) => _searchService.FromDateFilter = _searchFromDatePicker.SelectedDate;
         filters.Children.Add(_searchFromDatePicker);
 
         filters.Children.Add(CreateSearchFilterLabel("To"));
-        _searchToDatePicker = new DatePicker { Width = 130, Margin = new Thickness(0, 0, 16, 0) };
+        _searchToDatePicker = CreateDarkSearchDatePicker(new Thickness(0, 0, 16, 0));
         _searchToDatePicker.SelectedDateChanged += (_, _) => _searchService.ToDateFilter = _searchToDatePicker.SelectedDate;
         filters.Children.Add(_searchToDatePicker);
 
@@ -85,6 +100,8 @@ public partial class MainWindow
         _searchHistoryBox = new ComboBox
         {
             Width = 190,
+            Height = 34,
+            VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
             ToolTip = "Choose one of your recent searches."
         };
@@ -94,7 +111,9 @@ public partial class MainWindow
         var clearHistory = new Button
         {
             Content = "Clear history",
+            Height = 34,
             Padding = new Thickness(9, 5, 9, 5),
+            VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "Remove all saved search history."
         };
         clearHistory.Click += (_, _) =>
@@ -112,6 +131,54 @@ public partial class MainWindow
         Button? searchButton = FindButtonByContent(SearchPage, "Search");
         if (searchButton is not null) searchButton.Click += (_, _) => RememberCurrentSearch();
         SearchQueryBox.KeyDown += SearchHistory_KeyDown;
+    }
+
+    private DatePicker CreateDarkSearchDatePicker(Thickness margin)
+    {
+        var picker = new DatePicker
+        {
+            Width = 138,
+            Height = 34,
+            VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)FindResource("Text"),
+            Background = (Brush)FindResource("Raised"),
+            BorderBrush = (Brush)FindResource("Border"),
+            BorderThickness = new Thickness(1),
+            SelectedDateFormat = DatePickerFormat.Short,
+            Margin = margin
+        };
+
+        picker.Loaded += (_, _) => ApplyDarkDatePickerParts(picker);
+        return picker;
+    }
+
+    private void ApplyDarkDatePickerParts(DatePicker picker)
+    {
+        picker.ApplyTemplate();
+
+        if (picker.Template.FindName("PART_TextBox", picker) is DatePickerTextBox textBox)
+        {
+            textBox.Foreground = (Brush)FindResource("Text");
+            textBox.Background = (Brush)FindResource("Raised");
+            textBox.BorderThickness = new Thickness(0);
+            textBox.Padding = new Thickness(8, 0, 4, 0);
+            textBox.VerticalContentAlignment = VerticalAlignment.Center;
+            textBox.CaretBrush = (Brush)FindResource("Accent");
+        }
+
+        if (picker.Template.FindName("PART_Button", picker) is Button button)
+        {
+            button.Width = 34;
+            button.Height = 32;
+            button.Padding = new Thickness(0);
+            button.Margin = new Thickness(0);
+            button.Background = (Brush)FindResource("Raised");
+            button.Foreground = (Brush)FindResource("Text");
+            button.BorderBrush = (Brush)FindResource("Border");
+            button.BorderThickness = new Thickness(1, 0, 0, 0);
+            button.VerticalAlignment = VerticalAlignment.Center;
+        }
     }
 
     private TextBlock CreateSearchFilterLabel(string text)
@@ -160,12 +227,11 @@ public partial class MainWindow
         SearchResultsList.PreviewMouseDoubleClick += SearchResultsList_OpenExactLine;
     }
 
-    private void SearchResultsList_OpenExactLine(object sender, MouseButtonEventArgs e)
+    private async void SearchResultsList_OpenExactLine(object sender, MouseButtonEventArgs e)
     {
         if (SearchResultsList.SelectedItem is not SearchHit hit || !File.Exists(hit.FilePath)) return;
         e.Handled = true;
-        var viewer = new LogViewerWindow(hit.FilePath, hit.LineNumber) { Owner = this };
-        viewer.Show();
+        await OpenLogInReaderAsync(hit.FilePath, hit.LineNumber);
     }
 
     private void ConfigureRecoveryCenter()
@@ -236,6 +302,7 @@ public partial class MainWindow
             UpdateVisibleLiveCount();
 
             if (_notesBookmarksPage is not null) _notesBookmarksPage.Visibility = Visibility.Collapsed;
+            if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
             ShowPage(LivePage, "Live Chat", "Recovered last captured session");
             SetLiveActionStatus($"Replayed {entries.Count:N0} cached message{(entries.Count == 1 ? string.Empty : "s")}.");
         }
