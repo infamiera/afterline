@@ -27,6 +27,14 @@ internal static class EditorChatFormatter
     private static readonly Regex HashNumberToken = new(@"#(?:NUMBER|\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex CommandToken = new(@"/[A-Za-z][A-Za-z0-9_-]*", RegexOptions.Compiled);
     private static readonly Regex DateToken = new(@"\[(?:\d{1,2})/[A-Za-z]{3,9}/(?:\d{2,4})\]", RegexOptions.Compiled);
+    private static readonly Regex AutoCloseDurationToken = new(@"\b\d+(?:\.\d+)?\s+seconds?\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex TemperatureValueToken = new(@"-?\d+(?:\.\d+)?(?:°C|F)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex WindSpeedValueToken = new(@"-?\d+(?:\.\d+)?\s*(?:km/h|mph)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex HumidityValueToken = new(@"\b\d+(?:\.\d+)?\s*%", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex PrecipitationValueToken = new(@"\b\d+(?:\.\d+)?\s*mm\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex MotdLine = new(
+        @"^(?<prefix>\s*\(\(\s*)(?<motd>MOTD)(?<middle>:\s*.*\s+-\s+)(?<name>.+?)(?<suffix>\s*\)\)\s*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // Palette sampled from the supplied RP reference image. Keeping these exact values
     // makes automatic output line up much more closely with the in-game chat look.
@@ -122,10 +130,53 @@ internal static class EditorChatFormatter
     internal static EditorColorPreset? FindPreset(Color color)
         => ColorPresets.FirstOrDefault(preset => preset.Color == color);
 
+    internal static bool IsSessionBoundaryMarker(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        string value = text.Trim();
+        Match timestampMatch = TimestampPrefix.Match(value);
+        if (timestampMatch.Success)
+            value = timestampMatch.Groups["body"].Value.Trim();
+
+        return value.StartsWith("=", StringComparison.Ordinal) &&
+               ContainsAny(value, "[NEW LOGIN]", "[DISCONNECTED]", "[LOGOUT]");
+    }
+
     private static IReadOnlyList<EditorChatSegment> FormatBody(string body)
     {
         string trimmed = body.TrimStart();
         if (trimmed.Length == 0) return Array.Empty<EditorChatSegment>();
+
+        if (IsSessionBoundaryMarker(trimmed))
+            return Single(body, Blue);
+
+        Match motdMatch = MotdLine.Match(body);
+        if (motdMatch.Success)
+            return FormatMotdLine(motdMatch);
+
+        if (trimmed.Equals("You unlocked the property door.", StringComparison.OrdinalIgnoreCase))
+            return Single(body, Green);
+
+        if (trimmed.Equals("You locked the property door.", StringComparison.OrdinalIgnoreCase))
+            return Single(body, Red);
+
+        if (trimmed.StartsWith("You unlocked the door.", StringComparison.OrdinalIgnoreCase))
+            return FormatDoorActionLine(body, "unlocked", Green);
+
+        if (trimmed.Equals("You locked the door lock.", StringComparison.OrdinalIgnoreCase))
+            return FormatDoorActionLine(body, "locked", Red);
+
+        if (trimmed.StartsWith("Welcome to GTA World", StringComparison.OrdinalIgnoreCase))
+            return HighlightPhrase(body, "GTA World", Yellow, White);
+
+        if (trimmed.StartsWith("Weather forecast:", StringComparison.OrdinalIgnoreCase))
+            return Single(body, Blue);
+
+        if (trimmed.StartsWith("Temperature:", StringComparison.OrdinalIgnoreCase))
+            return FormatTemperatureLine(body);
+
+        if (trimmed.StartsWith("Wind:", StringComparison.OrdinalIgnoreCase))
+            return FormatWindLine(body);
 
         if (trimmed.StartsWith("((", StringComparison.Ordinal))
         {
@@ -256,6 +307,98 @@ internal static class EditorChatFormatter
         return result;
     }
 
+    private static IReadOnlyList<EditorChatSegment> FormatMotdLine(Match match)
+        => Segments(
+            (match.Groups["prefix"].Value, Gray),
+            (match.Groups["motd"].Value, Yellow),
+            (match.Groups["middle"].Value, Gray),
+            (match.Groups["name"].Value, Blue),
+            (match.Groups["suffix"].Value, Gray));
+
+    private static IReadOnlyList<EditorChatSegment> FormatDoorActionLine(string body, string action, Color actionColor)
+    {
+        var highlights = new List<(int Index, int Length, Color Color)>();
+        int actionIndex = body.IndexOf(action, StringComparison.OrdinalIgnoreCase);
+        if (actionIndex >= 0)
+            highlights.Add((actionIndex, action.Length, actionColor));
+
+        Match duration = AutoCloseDurationToken.Match(body);
+        if (duration.Success)
+            highlights.Add((duration.Index, duration.Length, Yellow));
+
+        return HighlightRanges(body, White, highlights);
+    }
+
+    private static IReadOnlyList<EditorChatSegment> FormatTemperatureLine(string body)
+    {
+        var highlights = TemperatureValueToken.Matches(body)
+            .Cast<Match>()
+            .Select(match => (match.Index, match.Length, Green))
+            .ToList();
+
+        int currentlyIndex = body.IndexOf("currently", StringComparison.OrdinalIgnoreCase);
+        if (currentlyIndex >= 0)
+        {
+            int weatherStart = currentlyIndex + "currently".Length;
+            while (weatherStart < body.Length && char.IsWhiteSpace(body[weatherStart])) weatherStart++;
+            if (weatherStart < body.Length)
+                highlights.Add((weatherStart, body.Length - weatherStart, Green));
+        }
+
+        return HighlightRanges(body, White, highlights);
+    }
+
+    private static IReadOnlyList<EditorChatSegment> FormatWindLine(string body)
+    {
+        var highlights = new List<(int Index, int Length, Color Color)>();
+        AddRegexHighlights(highlights, WindSpeedValueToken, body, Green);
+        AddRegexHighlights(highlights, HumidityValueToken, body, Green);
+        AddRegexHighlights(highlights, PrecipitationValueToken, body, Green);
+        return HighlightRanges(body, White, highlights);
+    }
+
+    private static IReadOnlyList<EditorChatSegment> HighlightPhrase(string body, string phrase, Color phraseColor, Color baseColor)
+    {
+        int index = body.IndexOf(phrase, StringComparison.OrdinalIgnoreCase);
+        if (index < 0) return Single(body, baseColor);
+        return HighlightRanges(body, baseColor, new[] { (index, phrase.Length, phraseColor) });
+    }
+
+    private static void AddRegexHighlights(
+        List<(int Index, int Length, Color Color)> highlights,
+        Regex regex,
+        string text,
+        Color color)
+    {
+        foreach (Match match in regex.Matches(text))
+            highlights.Add((match.Index, match.Length, color));
+    }
+
+    private static IReadOnlyList<EditorChatSegment> HighlightRanges(
+        string text,
+        Color baseColor,
+        IEnumerable<(int Index, int Length, Color Color)> highlights)
+    {
+        var result = new List<EditorChatSegment>();
+        int cursor = 0;
+        foreach ((int index, int length, Color color) in highlights
+                     .Where(value => value.Index >= 0 && value.Length > 0 && value.Index < text.Length)
+                     .OrderBy(value => value.Index))
+        {
+            if (index < cursor) continue;
+            if (index > cursor)
+                result.Add(new EditorChatSegment(text[cursor..index], baseColor));
+
+            int safeLength = Math.Min(length, text.Length - index);
+            result.Add(new EditorChatSegment(text.Substring(index, safeLength), color));
+            cursor = index + safeLength;
+        }
+
+        if (cursor < text.Length)
+            result.Add(new EditorChatSegment(text[cursor..], baseColor));
+        return result.Count == 0 ? Single(text, baseColor) : result;
+    }
+
     private static IReadOnlyList<EditorChatSegment> FormatEmergencyDetail(string body)
     {
         int colon = body.IndexOf(':');
@@ -327,7 +470,10 @@ internal static class EditorChatFormatter
             if (match.Index > cursor)
                 result.Add(new EditorChatSegment(body[cursor..match.Index], White));
 
-            result.Add(new EditorChatSegment(match.Value, match.Value.StartsWith("/", StringComparison.Ordinal) ? Blue : Green));
+            Color color = match.Value.StartsWith("/", StringComparison.Ordinal)
+                ? ResolveCommandHighlight(match.Value)
+                : Green;
+            result.Add(new EditorChatSegment(match.Value, color));
             cursor = match.Index + match.Length;
         }
         if (cursor < body.Length) result.Add(new EditorChatSegment(body[cursor..], White));
@@ -351,7 +497,9 @@ internal static class EditorChatFormatter
             if (match.Index < cursor) continue;
             if (match.Index > cursor) result.Add(new EditorChatSegment(text[cursor..match.Index], baseColor));
 
-            Color highlight = match.Value.StartsWith("/", StringComparison.Ordinal) ? Blue : Green;
+            Color highlight = match.Value.StartsWith("/", StringComparison.Ordinal)
+                ? ResolveCommandHighlight(match.Value)
+                : Green;
             result.Add(new EditorChatSegment(match.Value, highlight));
             cursor = match.Index + match.Length;
         }
@@ -369,13 +517,16 @@ internal static class EditorChatFormatter
             Color color = command.Equals("/pickup", StringComparison.OrdinalIgnoreCase) ? Green
                 : command.Equals("/hangup", StringComparison.OrdinalIgnoreCase) ? Red
                 : command.Equals("/phonecursor", StringComparison.OrdinalIgnoreCase) ? Orange
-                : Blue;
+                : ResolveCommandHighlight(command);
             result.Add(new EditorChatSegment(command, color));
             cursor = match.Index + match.Length;
         }
         if (cursor < text.Length) result.Add(new EditorChatSegment(text[cursor..], baseColor));
         if (result.Count == 0) result.Add(new EditorChatSegment(text, baseColor));
     }
+
+    private static Color ResolveCommandHighlight(string command)
+        => command.Equals("/motdcheck", StringComparison.OrdinalIgnoreCase) ? Yellow : Blue;
 
     private static IReadOnlyList<EditorChatSegment> SplitAtClosingTag(string body, Color tagColor, Color remainderColor)
     {

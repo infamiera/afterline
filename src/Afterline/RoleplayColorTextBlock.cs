@@ -74,6 +74,16 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             return;
         }
 
+        // Session boundaries are presentation markers rather than captured chat. Keep them
+        // consistently blue in Live Chat and Log Reader even if automatic colors are disabled.
+        if (IsSystemMessage && EditorChatFormatter.IsSessionBoundaryMarker(text))
+        {
+            var markerBrush = new SolidColorBrush(EditorChatFormatter.Blue);
+            markerBrush.Freeze();
+            Inlines.Add(new Run(text) { Foreground = markerBrush });
+            return;
+        }
+
         if (!UseAutomaticColors || IsSystemMessage)
         {
             Inlines.Add(new Run(text) { Foreground = fallback });
