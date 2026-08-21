@@ -29,23 +29,32 @@ internal static class UnifiedChatFormatter
                 continue;
             }
 
-            if (!CharacterStatsChatFormatter.TryFormat(line.PlainText, out IReadOnlyList<EditorChatSegment> statsSegments))
+            IReadOnlyList<EditorChatSegment> recognizedSegments;
+            if (ChatColorRefinementsV045.TryFormat(line.PlainText, out IReadOnlyList<EditorChatSegment> refinements))
+            {
+                recognizedSegments = refinements;
+            }
+            else if (CharacterStatsChatFormatter.TryFormat(line.PlainText, out IReadOnlyList<EditorChatSegment> statsSegments))
+            {
+                recognizedSegments = statsSegments;
+            }
+            else
             {
                 result.Add(line);
                 continue;
             }
 
-            IReadOnlyList<EditorChatSegment> finalSegments = statsSegments;
+            IReadOnlyList<EditorChatSegment> finalSegments = recognizedSegments;
             if (showTimestamps && line.SourceIndex >= 0 && line.SourceIndex < sourceLines.Length)
             {
                 Match timestamp = TimestampPrefix.Match(sourceLines[line.SourceIndex]);
                 if (timestamp.Success)
                 {
-                    var withTimestamp = new List<EditorChatSegment>(statsSegments.Count + 1)
+                    var withTimestamp = new List<EditorChatSegment>(recognizedSegments.Count + 1)
                     {
                         new(timestamp.Groups["timestamp"].Value + " ", EditorChatFormatter.MutedTimestamp)
                     };
-                    withTimestamp.AddRange(statsSegments);
+                    withTimestamp.AddRange(recognizedSegments);
                     finalSegments = withTimestamp;
                 }
             }

@@ -13,6 +13,7 @@ public partial class MainWindow
         EnsureLiveChatContextMenuRepair();
         EnsureExportChoices();
         EnsureNotesBookmarksPage();
+        EnsureNotesBookmarksPresentation();
         EnsureLogReader();
         EnsureLogReaderPresentationSync();
         EnsureLogReaderToolbar();
@@ -24,5 +25,6 @@ public partial class MainWindow
         EnsureEditorV041();
         EnsureSettingsButtonPlacement();
         EnsureUnifiedChatPresentation();
+        EnsureEditorPreferences();
     }
 }
