@@ -36,6 +36,9 @@ public partial class MainWindow
         Button? notes = navigationPanel.Children
             .OfType<Button>()
             .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Notes & Bookmarks", StringComparison.Ordinal));
+        Button? editor = _editorNavButton ?? navigationPanel.Children
+            .OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Editor", StringComparison.Ordinal));
 
         if (notes is not null)
         {
@@ -57,6 +60,9 @@ public partial class MainWindow
         var libraryButtons = new List<Button> { SearchNav, ArchiveNav };
         if (notes is not null) libraryButtons.Add(notes);
         AddSidebarSection(navigationPanel, "LIBRARY", libraryButtons);
+
+        if (editor is not null)
+            AddSidebarSection(navigationPanel, "RP SCREEN CREATION", new[] { editor });
 
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         int settingsRow = sidebarGrid.RowDefinitions.Count - 1;

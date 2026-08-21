@@ -20,6 +20,7 @@ public partial class MainWindow
         EnsureQolSearchRecoveryStats();
         EnsureDarkSearchCalendarPopups();
         EnsureSessionTrayNotification();
+        EnsureEditor();
         EnsureSettingsButtonPlacement();
     }
 }
