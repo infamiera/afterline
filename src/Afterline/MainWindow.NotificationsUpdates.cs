@@ -155,7 +155,7 @@ public partial class MainWindow
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
             if (!cancellationToken.IsCancellationRequested)
                 Dispatcher.Invoke(() => HideExportNotification(true));
         }

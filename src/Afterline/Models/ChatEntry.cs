@@ -9,7 +9,13 @@ public sealed class ChatEntry
         @"^\[(?<hour>\d{1,2}):(?<minute>\d{2}):(?<second>\d{2})\]\s*",
         RegexOptions.Compiled);
 
+    private static readonly Regex PrivateMessagePrefix = new(
+        @"^\(\(\s*PM\s+(?:to|from)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
+    private static readonly Brush PrivateMessageBrush = CreateFrozenBrush(0xFB, 0xF7, 0x24);
+    private static readonly Brush OocBrush = CreateFrozenBrush(0xB8, 0xBE, 0xC7);
     private static readonly Brush DefaultBrush = CreateFrozenBrush(0xED, 0xF2, 0xF7);
 
     public static bool ShowTimestamps { get; set; } = true;
@@ -32,6 +38,22 @@ public sealed class ChatEntry
         }
     }
 
+    public bool IsPrivateMessage
+        => !IsSystemMessage && PrivateMessagePrefix.IsMatch(ContentWithoutTimestamp);
+
+    public bool IsOocChatLine
+    {
+        get
+        {
+            if (IsSystemMessage || IsPrivateMessage) return false;
+            string content = ContentWithoutTimestamp.Trim();
+            return content.StartsWith("((", StringComparison.Ordinal) &&
+                   content.EndsWith("))", StringComparison.Ordinal);
+        }
+    }
+
+    public bool IsOocLine => IsPrivateMessage || IsOocChatLine;
+
     public string Display
     {
         get
@@ -42,9 +64,16 @@ public sealed class ChatEntry
         }
     }
 
-    public Brush Foreground => ColorizeRoleplayLines && IsRoleplayLine
-        ? RoleplayBrush
-        : DefaultBrush;
+    public Brush Foreground
+    {
+        get
+        {
+            if (IsPrivateMessage) return PrivateMessageBrush;
+            if (IsOocChatLine) return OocBrush;
+            if (ColorizeRoleplayLines && IsRoleplayLine) return RoleplayBrush;
+            return DefaultBrush;
+        }
+    }
 
     public ChatEntry(DateTime capturedAt, string text, bool isSystemMessage = false)
     {

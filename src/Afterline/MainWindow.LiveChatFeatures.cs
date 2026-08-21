@@ -10,6 +10,7 @@ namespace Afterline;
 public partial class MainWindow
 {
     private bool _liveChatFeaturesInitialized;
+    private CheckBox? _showOocChatCheck;
     private CheckBox? _roleplayColorsCheck;
     private CheckBox? _showLiveTimestampsCheck;
     private TextBlock? _liveActionStatus;
@@ -24,9 +25,11 @@ public partial class MainWindow
         ChatEntry.ShowTimestamps = _settings.ShowLiveTimestamps;
 
         ConfigureLiveChatItemTemplate();
+        ConfigureLiveChatFiltering();
         ConfigureLiveChatContextMenu();
         ConfigureLiveChatHeader();
         ConfigureServerStatus();
+        ConfigureSearchClearBehavior();
         EnsureNotificationAndUpdateUi();
 
         AddSettingHelp(
@@ -47,12 +50,52 @@ public partial class MainWindow
         LiveChatList.ItemTemplate = new DataTemplate(typeof(ChatEntry)) { VisualTree = textFactory };
     }
 
+    private void ConfigureLiveChatFiltering()
+    {
+        LiveChatList.Items.Filter = item =>
+            item is not ChatEntry entry || _settings.ShowOocChat || !entry.IsOocLine;
+
+        LiveMessages.CollectionChanged += (_, _) =>
+            Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(UpdateVisibleLiveCount));
+
+        UpdateVisibleLiveCount();
+    }
+
+    private void UpdateVisibleLiveCount()
+    {
+        if (!IsLoaded) return;
+        int count = LiveChatList.Items.Count;
+        LiveCountText.Text = $"{count:N0} message{(count == 1 ? string.Empty : "s")} shown";
+    }
+
     private void ConfigureLiveChatContextMenu()
     {
         LiveChatList.PreviewMouseRightButtonDown += LiveChatList_PreviewMouseRightButtonDown;
 
-        var menu = new ContextMenu();
-        var copyItem = new MenuItem { Header = "Copy line" };
+        var menu = new ContextMenu
+        {
+            Background = (System.Windows.Media.Brush)FindResource("Raised"),
+            Foreground = (System.Windows.Media.Brush)FindResource("Text"),
+            BorderBrush = (System.Windows.Media.Brush)FindResource("Border"),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(2)
+        };
+
+        var copyHeader = new TextBlock
+        {
+            Text = "Copy line",
+            Foreground = (System.Windows.Media.Brush)FindResource("Text")
+        };
+
+        var copyItem = new MenuItem
+        {
+            Header = copyHeader,
+            Foreground = (System.Windows.Media.Brush)FindResource("Text"),
+            Background = (System.Windows.Media.Brush)FindResource("Raised"),
+            Padding = new Thickness(12, 7, 12, 7)
+        };
         copyItem.Click += CopyLiveChatLine_Click;
         menu.Items.Add(copyItem);
         LiveChatList.ContextMenu = menu;
@@ -101,6 +144,17 @@ public partial class MainWindow
         };
         Grid.SetColumn(optionsPanel, 1);
 
+        _showOocChatCheck = new CheckBox
+        {
+            Content = "Show OOC chat",
+            IsChecked = _settings.ShowOocChat,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 18, 0),
+            ToolTip = "Show or hide OOC and private-message lines in Live Chat. Capture and archived logs are never affected."
+        };
+        _showOocChatCheck.Checked += ShowOocChatCheck_Changed;
+        _showOocChatCheck.Unchecked += ShowOocChatCheck_Changed;
+
         _roleplayColorsCheck = new CheckBox
         {
             Content = "RP line colors",
@@ -124,6 +178,7 @@ public partial class MainWindow
         ShowLiveChatCheck.VerticalAlignment = VerticalAlignment.Center;
         ShowLiveChatCheck.Margin = new Thickness(0);
 
+        optionsPanel.Children.Add(_showOocChatCheck);
         optionsPanel.Children.Add(_roleplayColorsCheck);
         optionsPanel.Children.Add(_showLiveTimestampsCheck);
         optionsPanel.Children.Add(ShowLiveChatCheck);
@@ -213,6 +268,15 @@ public partial class MainWindow
         _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("Success");
     }
 
+    private void ShowOocChatCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_showOocChatCheck is null) return;
+        _settings.ShowOocChat = _showOocChatCheck.IsChecked == true;
+        LiveChatList.Items.Refresh();
+        UpdateVisibleLiveCount();
+        SaveLivePresentationSettings();
+    }
+
     private void RoleplayColorsCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_roleplayColorsCheck is null) return;
@@ -241,6 +305,19 @@ public partial class MainWindow
         {
             DiagnosticLogger.Error("Unable to persist Live Chat presentation settings.", ex);
         }
+    }
+
+    private void ConfigureSearchClearBehavior()
+    {
+        SearchQueryBox.TextChanged += SearchQueryBox_TextChanged;
+    }
+
+    private void SearchQueryBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(SearchQueryBox.Text)) return;
+
+        SearchResults.Clear();
+        SearchSummaryText.Text = "Enter a keyword to search your chatlogs.";
     }
 
     private async void ParseCurrentChat_Click(object sender, RoutedEventArgs e)

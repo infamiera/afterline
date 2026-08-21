@@ -12,6 +12,7 @@ public sealed class AppSettings
     public bool AutoDetectFiveM { get; set; } = true;
     public bool AutoCapture { get; set; } = true;
     public bool ShowLiveChat { get; set; } = true;
+    public bool ShowOocChat { get; set; } = true;
     public bool ColorizeRoleplayLines { get; set; } = true;
     public bool ShowLiveTimestamps { get; set; } = true;
     public bool AutoScrollLiveChat { get; set; } = true;
