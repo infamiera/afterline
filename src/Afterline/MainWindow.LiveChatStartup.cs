@@ -7,5 +7,6 @@ public partial class MainWindow
         base.OnContentRendered(e);
         EnsureLiveChatEnhancements();
         EnsureOocExportFiltering();
+        EnsureCachedReplayUi();
     }
 }

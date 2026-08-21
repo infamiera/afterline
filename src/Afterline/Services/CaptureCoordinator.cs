@@ -17,6 +17,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private readonly FiveMDevToolsChatReader _reader = new();
     private readonly SessionJournal _journal;
+    private readonly LastSessionCacheService _lastSessionCache = new();
     private readonly Func<AppSettings> _settings;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _captureGate = new(1, 1);
@@ -36,6 +37,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public event EventHandler<CaptureState>? StateChanged;
     public event EventHandler<string>? SessionFinalized;
     public event EventHandler<ServerSessionChangedEventArgs>? ServerSessionChanged;
+    public event EventHandler? CachedSessionReplayStarting;
 
     public CaptureCoordinator(SessionJournal journal, Func<AppSettings> settings)
     {
@@ -52,20 +54,54 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     public async Task<int> ParseCurrentChatAsync()
     {
-        if (!FiveMProcessService.IsRunning())
-            throw new InvalidOperationException("FiveM is not currently running.");
-
         await _captureGate.WaitAsync(_cts.Token);
         try
         {
-            AppSettings settings = _settings();
-            IReadOnlyList<string> current = await _reader.ReadVisibleLinesAsync(_cts.Token);
-            await HandleObservedServerCoreAsync(_reader.CurrentServer, settings, _cts.Token);
-            _nuiUnavailableSince = null;
-            _disconnectedAt = null;
-            SetState(CaptureState.Capturing);
+            Exception? liveReadError = null;
+
+            if (FiveMProcessService.IsRunning())
+            {
+                try
+                {
+                    AppSettings settings = _settings();
+                    IReadOnlyList<string> current = await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    await HandleObservedServerCoreAsync(_reader.CurrentServer, settings, _cts.Token);
+                    _nuiUnavailableSince = null;
+                    _disconnectedAt = null;
+                    SetState(CaptureState.Capturing);
+                    LastError = null;
+                    return await CaptureAvailableLinesAsync(current, settings, _cts.Token);
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    liveReadError = ex;
+                    LastError = ex.Message;
+                    await _reader.ResetAsync();
+                }
+            }
+
+            IReadOnlyList<ChatEntry> cachedEntries = await _lastSessionCache.ReadAsync(_cts.Token);
+            if (cachedEntries.Count == 0)
+            {
+                if (liveReadError is not null)
+                    throw new InvalidOperationException(
+                        "Unable to read the current FiveM chat and no cached previous session is available.",
+                        liveReadError);
+
+                throw new InvalidOperationException(
+                    "No cached chat session is available yet. Afterline must have captured the session while it was running.");
+            }
+
+            CachedSessionReplayStarting?.Invoke(this, EventArgs.Empty);
+            foreach (ChatEntry entry in cachedEntries)
+                MessageCaptured?.Invoke(this, entry);
+
             LastError = null;
-            return await CaptureAvailableLinesAsync(current, settings, _cts.Token);
+            return cachedEntries.Count;
         }
         finally
         {
@@ -167,10 +203,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     cancellationToken);
 
                 if (loginMarker is not null)
+                {
+                    await TryBeginLastSessionCacheAsync(server, entry.CapturedAt, cancellationToken);
+                    await TryAppendLastSessionCacheAsync(loginMarker, cancellationToken);
                     MessageCaptured?.Invoke(this, loginMarker);
+                }
             }
 
             await _journal.AppendAsync(entry, cancellationToken);
+            await TryAppendLastSessionCacheAsync(entry, cancellationToken);
             LastCaptureAt = DateTime.Now;
             MessageCaptured?.Invoke(this, entry);
             captured++;
@@ -266,7 +307,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(observedAt, cancellationToken);
             if (disconnectMarker is not null)
+            {
+                await TryAppendLastSessionCacheAsync(disconnectMarker, cancellationToken);
                 MessageCaptured?.Invoke(this, disconnectMarker);
+            }
 
             string? path = await _journal.FinalizeAsync(settings.ArchiveRoot, cancellationToken);
             if (path is not null)
@@ -284,6 +328,35 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             _currentServer = null;
             NotifyServerChanged();
+        }
+    }
+
+    private async Task TryBeginLastSessionCacheAsync(
+        ServerSessionInfo server,
+        DateTime startedAt,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _lastSessionCache.BeginAsync(server, startedAt, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to initialize the persistent last-session cache.", ex);
+        }
+    }
+
+    private async Task TryAppendLastSessionCacheAsync(
+        ChatEntry entry,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _lastSessionCache.AppendAsync(entry, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to update the persistent last-session cache.", ex);
         }
     }
 
@@ -344,7 +417,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 {
                     ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(DateTime.Now, CancellationToken.None);
                     if (disconnectMarker is not null)
+                    {
+                        await TryAppendLastSessionCacheAsync(disconnectMarker, CancellationToken.None);
                         MessageCaptured?.Invoke(this, disconnectMarker);
+                    }
                 }
 
                 await _journal.FinalizeAsync(_settings().ArchiveRoot, CancellationToken.None);
