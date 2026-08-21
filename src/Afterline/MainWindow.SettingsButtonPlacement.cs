@@ -7,14 +7,48 @@ namespace Afterline;
 public partial class MainWindow
 {
     private bool _settingsButtonRelocated;
+    private ColumnDefinition? _sidebarColumn;
+    private Grid? _sidebarGrid;
+    private Button? _sidebarToggleButton;
+    private GridLength _sidebarExpandedWidth;
+    private Thickness _sidebarExpandedMargin;
+    private bool _sidebarCollapsed;
 
     private void EnsureSettingsButtonPlacement()
     {
         if (_settingsButtonRelocated) return;
-        if (SettingsNav.Parent is not Panel navigationPanel || navigationPanel.Parent is not Grid sidebarGrid) return;
+        if (SettingsNav.Parent is not StackPanel navigationPanel ||
+            navigationPanel.Parent is not Grid sidebarGrid ||
+            sidebarGrid.Parent is not Border sidebarBorder ||
+            sidebarBorder.Parent is not Grid rootGrid ||
+            rootGrid.ColumnDefinitions.Count < 2)
+            return;
 
         _settingsButtonRelocated = true;
+        _sidebarGrid = sidebarGrid;
+        _sidebarColumn = rootGrid.ColumnDefinitions[0];
+        _sidebarExpandedWidth = _sidebarColumn.Width;
+        _sidebarExpandedMargin = sidebarGrid.Margin;
+
+        Button? logReader = _logReaderNavButton ?? navigationPanel.Children
+            .OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Log Reader", StringComparison.Ordinal));
+        Button? notes = navigationPanel.Children
+            .OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Notes & Bookmarks", StringComparison.Ordinal));
+
         navigationPanel.Children.Remove(SettingsNav);
+        navigationPanel.Children.Clear();
+
+        AddSidebarSection(navigationPanel, "OVERVIEW", new[] { DashboardNav });
+
+        var chatButtons = new List<Button> { LiveNav };
+        if (logReader is not null) chatButtons.Add(logReader);
+        AddSidebarSection(navigationPanel, "CHAT", chatButtons);
+
+        var libraryButtons = new List<Button> { SearchNav, ArchiveNav };
+        if (notes is not null) libraryButtons.Add(notes);
+        AddSidebarSection(navigationPanel, "LIBRARY", libraryButtons);
 
         sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         int settingsRow = sidebarGrid.RowDefinitions.Count - 1;
@@ -26,12 +60,105 @@ public partial class MainWindow
         SettingsNav.Height = 38;
         SettingsNav.Padding = new Thickness(0);
         SettingsNav.Margin = new Thickness(0, 10, 0, 0);
-        SettingsNav.HorizontalAlignment = HorizontalAlignment.Left;
+        SettingsNav.HorizontalAlignment = HorizontalAlignment.Right;
         SettingsNav.HorizontalContentAlignment = HorizontalAlignment.Center;
         SettingsNav.VerticalContentAlignment = VerticalAlignment.Center;
         SettingsNav.ToolTip = "Settings";
 
         Grid.SetRow(SettingsNav, settingsRow);
         sidebarGrid.Children.Add(SettingsNav);
+
+        _sidebarToggleButton = new Button
+        {
+            Content = "\uE76B",
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            FontSize = 12,
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            ToolTip = "Hide sidebar"
+        };
+        _sidebarToggleButton.Click += (_, _) => ToggleSidebar();
+        Grid.SetRow(_sidebarToggleButton, 0);
+        Panel.SetZIndex(_sidebarToggleButton, 20);
+        sidebarGrid.Children.Add(_sidebarToggleButton);
+    }
+
+    private void AddSidebarSection(StackPanel navigationPanel, string title, IEnumerable<Button> buttons)
+    {
+        Button[] entries = buttons.Distinct().ToArray();
+        if (entries.Length == 0) return;
+
+        var header = new Grid
+        {
+            Margin = new Thickness(2, navigationPanel.Children.Count == 0 ? 0 : 8, 2, 7),
+            Height = 18
+        };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(9) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var label = new TextBlock
+        {
+            Text = title,
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        header.Children.Add(label);
+
+        var divider = new Border
+        {
+            Height = 1,
+            Background = (Brush)FindResource("Border"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(divider, 2);
+        header.Children.Add(divider);
+        navigationPanel.Children.Add(header);
+
+        foreach (Button button in entries)
+        {
+            button.HorizontalContentAlignment = HorizontalAlignment.Left;
+            button.Margin = new Thickness(0, 0, 0, 8);
+            navigationPanel.Children.Add(button);
+        }
+    }
+
+    private void ToggleSidebar()
+    {
+        if (_sidebarColumn is null || _sidebarGrid is null || _sidebarToggleButton is null) return;
+
+        _sidebarCollapsed = !_sidebarCollapsed;
+        if (_sidebarCollapsed)
+        {
+            _sidebarColumn.Width = new GridLength(52);
+            _sidebarGrid.Margin = new Thickness(10, _sidebarExpandedMargin.Top, 10, _sidebarExpandedMargin.Bottom);
+
+            foreach (UIElement child in _sidebarGrid.Children)
+            {
+                if (!ReferenceEquals(child, _sidebarToggleButton)) child.Visibility = Visibility.Collapsed;
+            }
+
+            _sidebarToggleButton.Visibility = Visibility.Visible;
+            _sidebarToggleButton.Content = "\uE76C";
+            _sidebarToggleButton.HorizontalAlignment = HorizontalAlignment.Center;
+            _sidebarToggleButton.ToolTip = "Show sidebar";
+        }
+        else
+        {
+            _sidebarColumn.Width = _sidebarExpandedWidth;
+            _sidebarGrid.Margin = _sidebarExpandedMargin;
+
+            foreach (UIElement child in _sidebarGrid.Children)
+                child.Visibility = Visibility.Visible;
+
+            _sidebarToggleButton.Content = "\uE76B";
+            _sidebarToggleButton.HorizontalAlignment = HorizontalAlignment.Right;
+            _sidebarToggleButton.ToolTip = "Hide sidebar";
+        }
     }
 }

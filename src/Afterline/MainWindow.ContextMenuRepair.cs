@@ -26,21 +26,62 @@ public partial class MainWindow
     }
 
     private ContextMenu CreateAfterlineContextMenu()
-        => new()
+    {
+        var menu = new ContextMenu
         {
             Background = (Brush)FindResource("Raised"),
             Foreground = (Brush)FindResource("Text"),
             BorderBrush = (Brush)FindResource("Border"),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(4)
+            Padding = new Thickness(4),
+            OverridesDefaultStyle = true,
+            SnapsToDevicePixels = true
         };
+
+        var panelFactory = new FrameworkElementFactory(typeof(StackPanel));
+        panelFactory.SetValue(StackPanel.OrientationProperty, Orientation.Vertical);
+        var itemsPanel = new ItemsPanelTemplate { VisualTree = panelFactory };
+        menu.ItemsPanel = itemsPanel;
+
+        var root = new FrameworkElementFactory(typeof(Border));
+        root.SetBinding(Border.BackgroundProperty, new Binding(nameof(Control.Background))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        root.SetBinding(Border.BorderBrushProperty, new Binding(nameof(Control.BorderBrush))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        root.SetBinding(Border.BorderThicknessProperty, new Binding(nameof(Control.BorderThickness))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        root.SetBinding(Border.PaddingProperty, new Binding(nameof(Control.Padding))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        root.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        root.SetValue(Border.SnapsToDevicePixelsProperty, true);
+
+        var presenter = new FrameworkElementFactory(typeof(ItemsPresenter));
+        root.AppendChild(presenter);
+
+        menu.Template = new ControlTemplate(typeof(ContextMenu)) { VisualTree = root };
+        return menu;
+    }
 
     private MenuItem CreateAfterlineContextMenuItem(string text, RoutedEventHandler handler)
     {
         var item = new MenuItem
         {
-            Header = text,
-            Style = CreateAfterlineMenuItemStyle()
+            Header = new TextBlock
+            {
+                Text = text,
+                Foreground = (Brush)FindResource("Text"),
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            Style = CreateAfterlineMenuItemStyle(),
+            MinWidth = 172
         };
         item.Click += handler;
         return item;
@@ -53,6 +94,8 @@ public partial class MainWindow
         style.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 7, 16, 7)));
         style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+        style.Setters.Add(new Setter(FrameworkElement.OverridesDefaultStyleProperty, true));
+        style.Setters.Add(new Setter(FrameworkElement.SnapsToDevicePixelsProperty, true));
 
         var root = new FrameworkElementFactory(typeof(Border));
         root.SetBinding(Border.BackgroundProperty, new Binding(nameof(Control.Background))
@@ -71,10 +114,10 @@ public partial class MainWindow
             RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
         });
         presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        presenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
         root.AppendChild(presenter);
 
-        var template = new ControlTemplate(typeof(MenuItem)) { VisualTree = root };
-        style.Setters.Add(new Setter(Control.TemplateProperty, template));
+        style.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(MenuItem)) { VisualTree = root }));
 
         var highlighted = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
         highlighted.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x29, 0x3B, 0x50))));
@@ -88,7 +131,11 @@ public partial class MainWindow
 
     private Separator CreateAfterlineContextMenuSeparator()
     {
-        var separator = new Separator();
+        var separator = new Separator
+        {
+            OverridesDefaultStyle = true,
+            IsHitTestVisible = false
+        };
         var style = new Style(typeof(Separator));
 
         var line = new FrameworkElementFactory(typeof(Border));

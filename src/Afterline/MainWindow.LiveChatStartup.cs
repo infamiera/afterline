@@ -15,8 +15,10 @@ public partial class MainWindow
         EnsureNotesBookmarksPage();
         EnsureLogReader();
         EnsureLogReaderPresentationSync();
+        EnsureLogReaderToolbar();
         EnsureLiveSessionInfo();
         EnsureQolSearchRecoveryStats();
+        EnsureDarkSearchCalendarPopups();
         EnsureSessionTrayNotification();
         EnsureSettingsButtonPlacement();
     }
