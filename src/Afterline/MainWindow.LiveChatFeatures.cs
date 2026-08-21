@@ -160,7 +160,9 @@ public partial class MainWindow
 
     private async void ParseCurrentChat_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button button) button.IsEnabled = false;
+        Button? clickedButton = sender as Button;
+        if (clickedButton is not null) clickedButton.IsEnabled = false;
+
         try
         {
             if (_liveActionStatus is not null) _liveActionStatus.Text = "Reading current chat…";
@@ -176,13 +178,15 @@ public partial class MainWindow
         }
         finally
         {
-            if (sender is Button button) button.IsEnabled = true;
+            if (clickedButton is not null) clickedButton.IsEnabled = true;
         }
     }
 
     private async void ExportCurrentLiveLog_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button button) button.IsEnabled = false;
+        Button? clickedButton = sender as Button;
+        if (clickedButton is not null) clickedButton.IsEnabled = false;
+
         try
         {
             string downloads = GetDownloadsFolder();
@@ -196,7 +200,7 @@ public partial class MainWindow
         }
         finally
         {
-            if (sender is Button button) button.IsEnabled = true;
+            if (clickedButton is not null) clickedButton.IsEnabled = true;
         }
     }
 
