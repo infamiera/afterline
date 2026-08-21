@@ -36,28 +36,44 @@ public partial class MainWindow
         var text = new StackPanel();
         text.Children.Add(new TextBlock
         {
-            Text = "Theme Creator",
+            Text = "Themes",
             FontSize = 18,
             FontWeight = FontWeights.SemiBold
         });
         text.Children.Add(new TextBlock
         {
-            Text = "Customize safe interface colors without changing layout or roleplay chat colors. Text colors can be adjusted separately for light themes.",
+            Text = "Choose a ready-made theme template or safely customize interface and text colors yourself. Layout and roleplay chat colors are kept separate.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 5, 18, 0)
         });
         content.Children.Add(text);
 
-        var open = new Button
+        var actions = new StackPanel
         {
-            Content = "Open Theme Creator",
-            Padding = new Thickness(12, 7, 12, 7),
+            Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center
         };
+
+        var templates = new Button
+        {
+            Content = "Templates",
+            Padding = new Thickness(12, 7, 12, 7),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        templates.Click += (_, _) => OpenThemeTemplates();
+        actions.Children.Add(templates);
+
+        var open = new Button
+        {
+            Content = "Customize",
+            Padding = new Thickness(12, 7, 12, 7)
+        };
         open.Click += (_, _) => OpenThemeCreator();
-        Grid.SetColumn(open, 1);
-        content.Children.Add(open);
+        actions.Children.Add(open);
+
+        Grid.SetColumn(actions, 1);
+        content.Children.Add(actions);
 
         var card = new Border
         {
@@ -103,6 +119,16 @@ public partial class MainWindow
         }
 
         return null;
+    }
+
+    private void OpenThemeTemplates()
+    {
+        var window = new ThemeTemplatesWindow(this, _settings, _settingsService);
+        window.ShowDialog();
+        ThemeService.Apply(_settings.Theme);
+
+        if (window.CustomizeRequested)
+            OpenThemeCreator();
     }
 
     private void OpenThemeCreator()
