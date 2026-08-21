@@ -18,5 +18,6 @@ public partial class MainWindow
         EnsureLiveSessionInfo();
         EnsureQolSearchRecoveryStats();
         EnsureSessionTrayNotification();
+        EnsureSettingsButtonPlacement();
     }
 }
