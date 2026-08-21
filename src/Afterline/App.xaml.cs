@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using Afterline.Services;
 
 namespace Afterline;
 
@@ -7,6 +8,16 @@ public partial class App : System.Windows.Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        try
+        {
+            var settings = new SettingsService().Load();
+            ThemeService.Apply(settings.Theme);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to apply the saved theme during startup.", ex);
+        }
+
         base.OnStartup(e);
         Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(TryInitializeMainWindowEnhancements));
     }

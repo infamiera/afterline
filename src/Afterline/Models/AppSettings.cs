@@ -20,6 +20,7 @@ public sealed class AppSettings
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;
     public EditorPreferences Editor { get; set; } = new();
+    public ThemePreferences Theme { get; set; } = new();
 }
 
 public sealed class EditorPreferences
@@ -46,4 +47,19 @@ public sealed class EditorPreferences
 
     public string PaintColor { get; set; } = "White";
     public double BrushSize { get; set; } = 5;
+}
+
+public sealed class ThemePreferences
+{
+    public string Background { get; set; } = "#11151B";
+    public string Sidebar { get; set; } = "#0E1217";
+    public string Panel { get; set; } = "#181E26";
+    public string Raised { get; set; } = "#202832";
+    public string Inset { get; set; } = "#141A21";
+    public string Border { get; set; } = "#2C3744";
+    public string Accent { get; set; } = "#5B9FEF";
+    public string AccentHover { get; set; } = "#70AEF2";
+    public string ControlHover { get; set; } = "#293544";
+    public string PrimaryText { get; set; } = "#EDF2F7";
+    public string SecondaryText { get; set; } = "#AAB6C3";
 }
