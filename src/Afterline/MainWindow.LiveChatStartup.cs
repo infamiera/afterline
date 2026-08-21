@@ -29,5 +29,6 @@ public partial class MainWindow
         EnsureUnifiedChatPresentation();
         EnsureEditorPreferences();
         EnsureQolV050();
+        EnsureChangelogUi();
     }
 }
