@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install .NET 8 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -38,9 +38,9 @@ jobs:
             -o publish/Afterline
 
       - name: Upload Afterline application
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: Afterline-v0.2.6-Windows-x64
+          name: Afterline-v0.2.7-Windows-x64
           path: publish/Afterline/Afterline.exe
           if-no-files-found: error
           compression-level: 9

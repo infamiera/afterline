@@ -10,7 +10,11 @@ public sealed class ChatEntry
         RegexOptions.Compiled);
 
     private static readonly Regex PrivateMessagePrefix = new(
-        @"^\(\(\s*PM\s+(?:to|from)\b",
+        @"^(?:\(\(\s*PM\s+(?:to|from)\b|/pm\b)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex OocCommandPrefix = new(
+        @"^/b(?:\s|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
@@ -47,8 +51,8 @@ public sealed class ChatEntry
         {
             if (IsSystemMessage || IsPrivateMessage) return false;
             string content = ContentWithoutTimestamp.Trim();
-            return content.StartsWith("((", StringComparison.Ordinal) &&
-                   content.EndsWith("))", StringComparison.Ordinal);
+            return content.StartsWith("((", StringComparison.Ordinal) ||
+                   OocCommandPrefix.IsMatch(content);
         }
     }
 

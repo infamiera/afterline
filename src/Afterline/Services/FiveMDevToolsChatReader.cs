@@ -289,7 +289,9 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         }
     }
 
-    private static bool TryBuildServerBaseUri(string address, out Uri? baseUri)
+    private static bool TryBuildServerBaseUri(
+        string address,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Uri? baseUri)
     {
         baseUri = null;
         string candidate = address.Trim();
