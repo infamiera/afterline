@@ -296,7 +296,7 @@ public partial class MainWindow
                 LogReaderLineItem? target = _logReaderLines.FirstOrDefault(item => item.LineNumber == requested);
                 if (target is not null)
                 {
-                    Dispatcher.BeginInvoke(new Action(() =>
+                    _ = Dispatcher.BeginInvoke(new Action(() =>
                     {
                         if (_logReaderView.Contains(target))
                         {
