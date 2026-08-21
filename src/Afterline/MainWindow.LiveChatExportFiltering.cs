@@ -18,7 +18,7 @@ public partial class MainWindow
 
         exportButton.Click -= ExportCurrentLiveLog_Click;
         exportButton.Click += ExportFilteredLiveLog_Click;
-        exportButton.ToolTip = "Writes an independent copy of the current Live Chat to your Downloads folder. The Show OOC chat toggle is respected in the exported copy.";
+        exportButton.ToolTip = "Exports exactly what is currently visible in Live Chat. OOC/INFO visibility and the timestamp toggle are respected.";
         _oocExportFilteringInitialized = true;
     }
 
@@ -59,8 +59,7 @@ public partial class MainWindow
         DateTime now = DateTime.Now;
         string destination = GetUniqueLiveExportPath(downloadsFolder, now);
 
-        string serverName = _capture.CurrentServer?.DisplayName ?? _journal.ActiveServerName ?? "Unknown Server";
-        if (string.IsNullOrWhiteSpace(serverName)) serverName = "Unknown Server";
+        string serverName = GetCurrentServerDisplayName();
 
         await using FileStream stream = new(
             destination,
@@ -79,7 +78,9 @@ public partial class MainWindow
         {
             string line = entry.IsSystemMessage
                 ? entry.Text
-                : $"[{entry.CapturedAt:HH:mm:ss}] {entry.ContentWithoutTimestamp}";
+                : _settings.ShowLiveTimestamps
+                    ? $"[{entry.CapturedAt:HH:mm:ss}] {entry.ContentWithoutTimestamp}"
+                    : entry.ContentWithoutTimestamp;
             await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
         }
 
@@ -88,9 +89,10 @@ public partial class MainWindow
         return destination;
     }
 
-    private static string GetUniqueLiveExportPath(string folder, DateTime timestamp)
+    private string GetUniqueLiveExportPath(string folder, DateTime timestamp)
     {
-        string baseName = $"Chatlog Export [{timestamp:dd-MMMM-yyyy - HH-mm-ss}]";
+        string serverName = SanitizeExportFileComponent(GetCurrentServerDisplayName());
+        string baseName = $"Chatlog [{serverName}] [{timestamp:dd-MMMM-yyyy}]";
         string path = Path.Combine(folder, baseName + ".txt");
         if (!File.Exists(path)) return path;
 
@@ -99,6 +101,22 @@ public partial class MainWindow
             string candidate = Path.Combine(folder, $"{baseName} ({i}).txt");
             if (!File.Exists(candidate)) return candidate;
         }
+    }
+
+    private string GetCurrentServerDisplayName()
+    {
+        string serverName = _capture.CurrentServer?.DisplayName ?? _journal.ActiveServerName ?? "Unknown Server";
+        return string.IsNullOrWhiteSpace(serverName) ? "Unknown Server" : serverName;
+    }
+
+    private static string SanitizeExportFileComponent(string value)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        var chars = value.Trim().Select(c => invalid.Contains(c) || c is '[' or ']' ? ' ' : c).ToArray();
+        string safe = string.Join(" ", new string(chars).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim(' ', '.');
+        if (string.IsNullOrWhiteSpace(safe)) safe = "Unknown Server";
+        if (safe.Length > 80) safe = safe[..80].TrimEnd();
+        return safe;
     }
 
     private static Button? FindButtonByContent(DependencyObject root, string content)

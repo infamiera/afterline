@@ -9,6 +9,11 @@ public partial class MainWindow
         EnsureOocExportFiltering();
         EnsureCachedReplayUi();
         EnsureUiBehaviorFixes();
-        EnsureFiveMCloseSaveConfirmation();
+        EnsureLiveContextBookmarks();
+        EnsureExportChoices();
+        EnsureNotesBookmarksPage();
+        EnsureLiveSessionInfo();
+        EnsureQolSearchRecoveryStats();
+        EnsureSessionTrayNotification();
     }
 }

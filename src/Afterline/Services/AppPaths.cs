@@ -9,6 +9,8 @@ public static class AppPaths
     public static string DiagnosticLog => Path.Combine(LocalDataRoot, "Logs", "afterline.log");
     public static string ArchiveIndexFile => Path.Combine(LocalDataRoot, "Cache", "archive-index.json");
     public static string LastSessionCacheFile => Path.Combine(LocalDataRoot, "Cache", "last-session.txt");
+    public static string NotesBookmarksFile => Path.Combine(LocalDataRoot, "Cache", "notes-bookmarks.json");
+    public static string SearchHistoryFile => Path.Combine(LocalDataRoot, "Cache", "search-history.json");
     public static string ActiveSessionsDirectory => Path.Combine(LocalDataRoot, "Active Sessions");
     public static string RecoveryBackupsDirectory => Path.Combine(LocalDataRoot, "Recovery Backups");
 

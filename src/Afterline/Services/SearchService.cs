@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Afterline.Models;
 
@@ -13,6 +14,14 @@ public enum SearchMode
 
 public sealed class SearchService
 {
+    private static readonly Regex ArchiveName = new(
+        @"^Chatlog \[(?<server>.+)\] \[(?<date>\d{2}-[A-Za-z]+-\d{4})\](?: \(\d+\))?\.txt$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public string ServerFilter { get; set; } = string.Empty;
+    public DateTime? FromDateFilter { get; set; }
+    public DateTime? ToDateFilter { get; set; }
+
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(
         string root,
         SearchCriteria criteria,
@@ -21,6 +30,10 @@ public sealed class SearchService
         string query = criteria.PrimaryTerm.Trim();
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root) || string.IsNullOrWhiteSpace(query))
             return Array.Empty<SearchHit>();
+
+        string serverFilter = ServerFilter.Trim();
+        DateTime? fromDate = FromDateFilter?.Date;
+        DateTime? toDate = ToDateFilter?.Date;
 
         StringComparison comparison = criteria.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
         Regex? regex = criteria.Mode switch
@@ -40,6 +53,8 @@ public sealed class SearchService
         foreach (string file in Directory.EnumerateFiles(root, "*.txt", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!MatchesArchiveFilters(file, serverFilter, fromDate, toDate)) continue;
+
             string[] lines;
             try { lines = await File.ReadAllLinesAsync(file, cancellationToken); }
             catch { continue; }
@@ -72,5 +87,33 @@ public sealed class SearchService
         }
 
         return hits;
+    }
+
+    private static bool MatchesArchiveFilters(
+        string filePath,
+        string serverFilter,
+        DateTime? fromDate,
+        DateTime? toDate)
+    {
+        string fileName = Path.GetFileName(filePath);
+        Match match = ArchiveName.Match(fileName);
+        string serverName = match.Success ? match.Groups["server"].Value : fileName;
+
+        if (!string.IsNullOrWhiteSpace(serverFilter) &&
+            !serverName.Contains(serverFilter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        DateTime fileDate = File.GetLastWriteTime(filePath).Date;
+        if (match.Success && DateTime.TryParseExact(
+                match.Groups["date"].Value,
+                "dd-MMMM-yyyy",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateTime parsedDate))
+            fileDate = parsedDate.Date;
+
+        if (fromDate is DateTime from && fileDate < from) return false;
+        if (toDate is DateTime to && fileDate > to) return false;
+        return true;
     }
 }

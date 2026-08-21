@@ -40,7 +40,7 @@ jobs:
       - name: Upload Afterline application
         uses: actions/upload-artifact@v6
         with:
-          name: Afterline-v0.2.9-Windows-x64
+          name: Afterline-v0.3.0-Windows-x64
           path: publish/Afterline/Afterline.exe
           if-no-files-found: error
           compression-level: 9
