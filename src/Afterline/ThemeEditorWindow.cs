@@ -140,6 +140,7 @@ internal sealed class ThemeEditorWindow : Window
         root.Children.Add(footer);
 
         Content = root;
+        ThemeService.ApplyWindow(this);
         RefreshRows();
         Closing += ThemeEditorWindow_Closing;
     }

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Afterline.Services;
 
 namespace Afterline;
 
@@ -12,9 +13,9 @@ internal sealed class AboutWindow : Window
         Owner = owner;
         Title = "About Afterline";
         Width = 570;
-        Height = 540;
+        Height = 500;
         MinWidth = 520;
-        MinHeight = 480;
+        MinHeight = 450;
         ResizeMode = ResizeMode.CanResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
@@ -89,7 +90,7 @@ internal sealed class AboutWindow : Window
         });
         disclaimerStack.Children.Add(new TextBlock
         {
-            Text = "Afterline is an independent, private application created for personal use. It is not affiliated with, endorsed by, or sponsored by any game, platform, server, company, or brand. Redistribution, resale, or re-uploading without the owner's permission is not permitted. Unauthorized re-uploads may be subject to a DMCA takedown request.",
+            Text = "Afterline is an independent, private application created for personal use. It is not affiliated with any server, company, or brand. Redistribution, resale, or re-uploading without the owner's permission is not permitted. Unauthorized re-uploads are subject to takedown requests.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 6, 0, 0)
@@ -116,6 +117,7 @@ internal sealed class AboutWindow : Window
         root.Children.Add(close);
 
         Content = root;
+        ThemeService.ApplyWindow(this);
     }
 
     private Border CreateCard(string title, string text)

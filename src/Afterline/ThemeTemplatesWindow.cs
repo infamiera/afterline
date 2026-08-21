@@ -97,11 +97,11 @@ internal sealed class ThemeTemplatesWindow : Window
         _settingsService = settingsService;
         _savedTheme = ThemeService.Clone(settings.Theme);
 
-        Title = "Afterline Theme Templates";
-        Width = 620;
-        Height = 500;
-        MinWidth = 560;
-        MinHeight = 440;
+        Title = "Afterline Themes";
+        Width = 640;
+        Height = 510;
+        MinWidth = 580;
+        MinHeight = 450;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
 
@@ -115,7 +115,7 @@ internal sealed class ThemeTemplatesWindow : Window
         var header = new StackPanel();
         header.Children.Add(new TextBlock
         {
-            Text = "Theme Templates",
+            Text = "Themes",
             FontSize = 25,
             FontWeight = FontWeights.SemiBold
         });
@@ -206,14 +206,23 @@ internal sealed class ThemeTemplatesWindow : Window
         use.Click += (_, _) => SaveSelectedTemplate(false);
         footer.Children.Add(use);
 
-        var customize = new Button
+        var customizeTemplate = new Button
         {
             Content = "Use & customize",
             Padding = new Thickness(12, 7, 12, 7),
             Margin = new Thickness(0, 0, 8, 0)
         };
-        customize.Click += (_, _) => SaveSelectedTemplate(true);
-        footer.Children.Add(customize);
+        customizeTemplate.Click += (_, _) => SaveSelectedTemplate(true);
+        footer.Children.Add(customizeTemplate);
+
+        var customizeCurrent = new Button
+        {
+            Content = "Customize current",
+            Padding = new Thickness(12, 7, 12, 7),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        customizeCurrent.Click += (_, _) => CustomizeCurrentTheme();
+        footer.Children.Add(customizeCurrent);
 
         var close = new Button { Content = "Close", Padding = new Thickness(12, 7, 12, 7) };
         close.Click += (_, _) => Close();
@@ -223,6 +232,7 @@ internal sealed class ThemeTemplatesWindow : Window
         root.Children.Add(footer);
 
         Content = root;
+        ThemeService.ApplyWindow(this);
         Closing += ThemeTemplatesWindow_Closing;
         _templateBox.SelectedIndex = 0;
     }
@@ -239,6 +249,13 @@ internal sealed class ThemeTemplatesWindow : Window
     {
         ThemeService.Apply(_savedTheme);
         SetStatus("Returned to your currently saved theme.", "MutedText");
+    }
+
+    private void CustomizeCurrentTheme()
+    {
+        ThemeService.Apply(_savedTheme);
+        CustomizeRequested = true;
+        Close();
     }
 
     private void SaveSelectedTemplate(bool customize)

@@ -11,6 +11,8 @@ public static class ThemeService
 
     public static ThemePreferences CreateDefault() => new();
 
+    public static ThemePreferences Current => Clone(_previousApplied);
+
     public static ThemePreferences Clone(ThemePreferences? source)
     {
         ThemePreferences normalized = Normalize(source);
@@ -69,6 +71,8 @@ public static class ThemeService
 
     public static void Apply(ThemePreferences? preferences)
     {
+        ThemeUiStyles.Ensure();
+
         ThemePreferences current = Normalize(preferences);
         ThemePreferences previous = Clone(_previousApplied);
 
@@ -80,15 +84,24 @@ public static class ThemeService
         SetApplicationBrush("AccentHover", current.AccentHover);
         SetApplicationBrush("Text", current.PrimaryText);
         SetApplicationBrush("MutedText", current.SecondaryText);
+        SetApplicationBrush("AfterlineSidebar", current.Sidebar);
+        SetApplicationBrush("AfterlineInset", current.Inset);
+        SetApplicationBrush("AfterlineControlHover", current.ControlHover);
 
         if (System.Windows.Application.Current is not null)
         {
             foreach (Window window in System.Windows.Application.Current.Windows)
+            {
                 ApplyToTree(window, current, previous);
+                WindowThemeService.Apply(window, current);
+            }
         }
 
         _previousApplied = Clone(current);
     }
+
+    public static void ApplyWindow(Window window)
+        => WindowThemeService.Apply(window, Current);
 
     private static string NormalizeColor(string? value, string fallback)
     {
@@ -162,7 +175,8 @@ public static class ThemeService
         if (Matches(hex, defaults.AccentHover, previous.AccentHover)) return NewBrush(current.AccentHover);
         if (Matches(hex, defaults.ControlHover, previous.ControlHover) ||
             Matches(hex, "#242E3A", previous.ControlHover) ||
-            Matches(hex, "#293B50", previous.ControlHover))
+            Matches(hex, "#293B50", previous.ControlHover) ||
+            Matches(hex, "#293544", previous.ControlHover))
             return NewBrush(current.ControlHover);
 
         return brush;
