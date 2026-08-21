@@ -52,35 +52,17 @@ public partial class MainWindow
         navigationPanel.Children.Clear();
 
         AddSidebarSection(navigationPanel, "OVERVIEW", new[] { DashboardNav });
-
-        var chatButtons = new List<Button> { LiveNav };
-        if (logReader is not null) chatButtons.Add(logReader);
-        AddSidebarSection(navigationPanel, "CHAT", chatButtons);
+        AddSidebarSection(navigationPanel, "CHAT", new[] { LiveNav });
 
         var libraryButtons = new List<Button> { SearchNav, ArchiveNav };
+        if (logReader is not null) libraryButtons.Add(logReader);
         if (notes is not null) libraryButtons.Add(notes);
         AddSidebarSection(navigationPanel, "LIBRARY", libraryButtons);
 
         if (editor is not null)
             AddSidebarSection(navigationPanel, "RP SCREEN CREATION", new[] { editor });
 
-        sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        int settingsRow = sidebarGrid.RowDefinitions.Count - 1;
-
-        SettingsNav.Content = "\uE713";
-        SettingsNav.FontFamily = new FontFamily("Segoe MDL2 Assets");
-        SettingsNav.FontSize = 18;
-        SettingsNav.Width = 38;
-        SettingsNav.Height = 38;
-        SettingsNav.Padding = new Thickness(0);
-        SettingsNav.Margin = new Thickness(0, 10, 0, 0);
-        SettingsNav.HorizontalAlignment = HorizontalAlignment.Right;
-        SettingsNav.HorizontalContentAlignment = HorizontalAlignment.Center;
-        SettingsNav.VerticalContentAlignment = VerticalAlignment.Center;
-        SettingsNav.ToolTip = "Settings";
-
-        Grid.SetRow(SettingsNav, settingsRow);
-        sidebarGrid.Children.Add(SettingsNav);
+        PlaceSettingsInMainFooter();
 
         _sidebarToggleButton = new Button
         {
@@ -98,6 +80,33 @@ public partial class MainWindow
         Grid.SetRow(_sidebarToggleButton, 0);
         Panel.SetZIndex(_sidebarToggleButton, 20);
         sidebarGrid.Children.Add(_sidebarToggleButton);
+    }
+
+    private void PlaceSettingsInMainFooter()
+    {
+        if (SettingsNav.Parent is Panel currentParent)
+            currentParent.Children.Remove(SettingsNav);
+
+        if (BottomStatusText.Parent is not Grid footerGrid) return;
+
+        if (footerGrid.ColumnDefinitions.Count < 3)
+            footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        SettingsNav.Content = "\uE713";
+        SettingsNav.FontFamily = new FontFamily("Segoe MDL2 Assets");
+        SettingsNav.FontSize = 16;
+        SettingsNav.Width = 30;
+        SettingsNav.Height = 28;
+        SettingsNav.Padding = new Thickness(0);
+        SettingsNav.Margin = new Thickness(10, 0, 0, 0);
+        SettingsNav.HorizontalAlignment = HorizontalAlignment.Right;
+        SettingsNav.VerticalAlignment = VerticalAlignment.Center;
+        SettingsNav.HorizontalContentAlignment = HorizontalAlignment.Center;
+        SettingsNav.VerticalContentAlignment = VerticalAlignment.Center;
+        SettingsNav.ToolTip = "Settings";
+
+        Grid.SetColumn(SettingsNav, 2);
+        footerGrid.Children.Add(SettingsNav);
     }
 
     private void AddSidebarSection(StackPanel navigationPanel, string title, IEnumerable<Button> buttons)

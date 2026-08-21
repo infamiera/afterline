@@ -16,11 +16,9 @@ public partial class MainWindow
     private TextBlock? _exportToastFileText;
     private CancellationTokenSource? _exportToastCts;
     private string? _lastExportPath;
-    private TextBlock? _updateVersionText;
-    private TextBlock? _updateStateText;
-    private Hyperlink? _downloadLatestLink;
+    private TextBlock? _currentBuildText;
+    private TextBlock? _latestBuildText;
     private Button? _checkUpdatesButton;
-    private string? _latestBuildUrl;
 
     private void EnsureNotificationAndUpdateUi()
     {
@@ -216,47 +214,55 @@ public partial class MainWindow
 
         panel.Children.Add(new Separator { Margin = new Thickness(0, 11, 0, 10) });
 
+        _currentBuildText = new TextBlock
+        {
+            FontSize = 10.5,
+            TextWrapping = TextWrapping.Wrap
+        };
+        panel.Children.Add(_currentBuildText);
+
+        _latestBuildText = new TextBlock
+        {
+            FontSize = 10.5,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
+        panel.Children.Add(_latestBuildText);
+
         _checkUpdatesButton = new Button
         {
             Content = "Check for updates",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(9, 6, 9, 6)
+            Padding = new Thickness(9, 6, 9, 6),
+            Margin = new Thickness(0, 10, 0, 0)
         };
         _checkUpdatesButton.Click += CheckForUpdates_Click;
         panel.Children.Add(_checkUpdatesButton);
 
-        _updateVersionText = new TextBlock
-        {
-            Text = $"Current Build: {GetCurrentBuildVersion()} · Latest: checking…",
-            Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
-            FontSize = 10.5,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 8, 0, 0)
-        };
-        panel.Children.Add(_updateVersionText);
+        SetUpdateBuildLines(GetCurrentBuildVersion(), "Checking…");
+    }
 
-        _updateStateText = new TextBlock
+    private void SetUpdateBuildLines(string current, string latest)
+    {
+        if (_currentBuildText is not null)
         {
-            Text = "Checking for the latest build…",
-            Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
-            FontSize = 10.5,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 3, 0, 0)
-        };
-        panel.Children.Add(_updateStateText);
+            _currentBuildText.Inlines.Clear();
+            _currentBuildText.Inlines.Add(new Run("Current Build: ") { FontWeight = FontWeights.SemiBold });
+            _currentBuildText.Inlines.Add(new Run(current)
+            {
+                Foreground = (System.Windows.Media.Brush)FindResource("Success")
+            });
+        }
 
-        var downloadText = new TextBlock
+        if (_latestBuildText is not null)
         {
-            FontSize = 10.5,
-            Margin = new Thickness(0, 5, 0, 0)
-        };
-        _downloadLatestLink = new Hyperlink(new Run("Download latest build"))
-        {
-            Foreground = (System.Windows.Media.Brush)FindResource("Accent")
-        };
-        _downloadLatestLink.Click += (_, _) => OpenLatestBuildPage();
-        downloadText.Inlines.Add(_downloadLatestLink);
-        panel.Children.Add(downloadText);
+            _latestBuildText.Inlines.Clear();
+            _latestBuildText.Inlines.Add(new Run("Latest: ") { FontWeight = FontWeights.SemiBold });
+            _latestBuildText.Inlines.Add(new Run(latest)
+            {
+                Foreground = (System.Windows.Media.Brush)FindResource("Accent")
+            });
+        }
     }
 
     private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
@@ -266,82 +272,24 @@ public partial class MainWindow
     {
         if (_checkUpdatesButton is not null) _checkUpdatesButton.IsEnabled = false;
         string current = GetCurrentBuildVersion();
-
-        if (_updateVersionText is not null)
-            _updateVersionText.Text = $"Current Build: {current} · Latest: checking…";
-        if (_updateStateText is not null)
-            _updateStateText.Text = userInitiated ? "Checking for updates…" : "Checking latest build…";
+        SetUpdateBuildLines(current, "Checking…");
 
         try
         {
             UpdateCheckResult result = await _updateService.CheckAsync(CancellationToken.None);
-            _latestBuildUrl = result.BuildUrl;
-
-            if (string.IsNullOrWhiteSpace(result.LatestVersion))
-            {
-                if (_updateVersionText is not null)
-                    _updateVersionText.Text = $"Current Build: {current} · Latest: unavailable";
-                if (_updateStateText is not null)
-                {
-                    _updateStateText.Text = result.Error ?? "Unable to check for updates.";
-                    _updateStateText.Foreground = (System.Windows.Media.Brush)FindResource("MutedText");
-                }
-                if (_downloadLatestLink is not null)
-                {
-                    _downloadLatestLink.Inlines.Clear();
-                    _downloadLatestLink.Inlines.Add(new Run("Open latest builds"));
-                }
-                return;
-            }
-
-            if (_updateVersionText is not null)
-                _updateVersionText.Text = $"Current Build: {current} · Latest: {result.LatestVersion}";
-
-            bool newer = UpdateService.IsNewer(result.LatestVersion, current);
-            if (_updateStateText is not null)
-            {
-                _updateStateText.Text = newer
-                    ? "A newer build is available."
-                    : "You're on the latest build.";
-                _updateStateText.Foreground = (System.Windows.Media.Brush)FindResource(newer ? "Warning" : "Success");
-            }
-
-            if (_downloadLatestLink is not null)
-            {
-                _downloadLatestLink.Inlines.Clear();
-                _downloadLatestLink.Inlines.Add(new Run(newer ? "Download latest build" : "Open latest build"));
-            }
+            string latest = string.IsNullOrWhiteSpace(result.LatestVersion)
+                ? "Unavailable"
+                : result.LatestVersion;
+            SetUpdateBuildLines(current, latest);
         }
         catch (Exception ex)
         {
             DiagnosticLogger.Error("Update check failed.", ex);
-            if (_updateVersionText is not null)
-                _updateVersionText.Text = $"Current Build: {current} · Latest: unavailable";
-            if (_updateStateText is not null)
-            {
-                _updateStateText.Text = "Unable to check for updates.";
-                _updateStateText.Foreground = (System.Windows.Media.Brush)FindResource("MutedText");
-            }
+            SetUpdateBuildLines(current, "Unavailable");
         }
         finally
         {
             if (_checkUpdatesButton is not null) _checkUpdatesButton.IsEnabled = true;
-        }
-    }
-
-    private void OpenLatestBuildPage()
-    {
-        string url = string.IsNullOrWhiteSpace(_latestBuildUrl)
-            ? UpdateService.WorkflowPageUrl
-            : _latestBuildUrl;
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Error("Unable to open the latest build page.", ex);
         }
     }
 
