@@ -241,19 +241,19 @@ internal sealed class ThemeTemplatesWindow : Window
     {
         if (_templateBox.SelectedItem is not ThemeTemplate template) return;
         _descriptionText.Text = template.Description;
-        ThemeService.Apply(template.Theme);
+        ApplyPreviewTheme(template.Theme);
         SetStatus($"Previewing {template.Name}.", "MutedText");
     }
 
     private void RevertPreview()
     {
-        ThemeService.Apply(_savedTheme);
+        ApplyPreviewTheme(_savedTheme);
         SetStatus("Returned to your currently saved theme.", "MutedText");
     }
 
     private void CustomizeCurrentTheme()
     {
-        ThemeService.Apply(_savedTheme);
+        ApplyPreviewTheme(_savedTheme);
         CustomizeRequested = true;
         Close();
     }
@@ -267,7 +267,7 @@ internal sealed class ThemeTemplatesWindow : Window
             _settings.Theme = ThemeService.Clone(template.Theme);
             _settingsService.Save(_settings);
             _savedTheme = ThemeService.Clone(_settings.Theme);
-            ThemeService.Apply(_savedTheme);
+            ApplyPreviewTheme(_savedTheme);
             SetStatus($"{template.Name} saved locally.", "Success");
 
             if (customize)
@@ -282,6 +282,24 @@ internal sealed class ThemeTemplatesWindow : Window
             SetStatus("Unable to save the selected template.", "Warning");
         }
     }
+
+    private void ApplyPreviewTheme(ThemePreferences preferences)
+    {
+        ThemePreferences theme = ThemeService.Normalize(preferences);
+        ThemeService.Apply(theme);
+        ThemeService.ApplyWindow(this);
+
+        // Keep the selector on explicit current-theme brushes. The stock WPF
+        // template can otherwise retain brushes from the previously selected
+        // theme, which makes light presets appear to hide the control.
+        _templateBox.Background = ThemeBrush(theme.Raised, Colors.White);
+        _templateBox.Foreground = ThemeBrush(theme.PrimaryText, Colors.Black);
+        _templateBox.BorderBrush = ThemeBrush(theme.Border, Colors.Gray);
+        _templateBox.InvalidateVisual();
+    }
+
+    private static SolidColorBrush ThemeBrush(string value, Color fallback)
+        => new(ThemeService.ParseColor(value, fallback));
 
     private void SetStatus(string text, string resourceKey)
     {

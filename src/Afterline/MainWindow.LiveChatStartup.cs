@@ -25,6 +25,7 @@ public partial class MainWindow
         EnsureEditorV041();
         EnsureSettingsButtonPlacement();
         EnsureThemeAndAbout();
+        EnsureSettingsLayoutPolish();
         EnsureUnifiedChatPresentation();
         EnsureEditorPreferences();
     }

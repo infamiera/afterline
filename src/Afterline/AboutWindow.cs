@@ -12,10 +12,10 @@ internal sealed class AboutWindow : Window
     {
         Owner = owner;
         Title = "About Afterline";
-        Width = 570;
-        Height = 500;
-        MinWidth = 520;
-        MinHeight = 450;
+        Width = 600;
+        Height = 650;
+        MinWidth = 540;
+        MinHeight = 610;
         ResizeMode = ResizeMode.CanResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
@@ -90,7 +90,7 @@ internal sealed class AboutWindow : Window
         });
         disclaimerStack.Children.Add(new TextBlock
         {
-            Text = "Afterline is an independent, private application created for personal use. It is not affiliated with any server, company, or brand. Redistribution, resale, or re-uploading without the owner's permission is not permitted. Unauthorized re-uploads are subject to takedown requests.",
+            Text = "Afterline is an independent, private application created for personal use. It is not affiliated with any server, company, or brand. Redistribution, resale, or re-uploading without the owner's permission is prohibited. Unauthorized re-uploads may be subject to takedown requests.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 6, 0, 0)
@@ -98,13 +98,8 @@ internal sealed class AboutWindow : Window
         disclaimer.Child = disclaimerStack;
         body.Children.Add(disclaimer);
 
-        var scroll = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = body
-        };
-        Grid.SetRow(scroll, 2);
-        root.Children.Add(scroll);
+        Grid.SetRow(body, 2);
+        root.Children.Add(body);
 
         var close = new Button
         {
