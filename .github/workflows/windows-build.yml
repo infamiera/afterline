@@ -1,0 +1,55 @@
+name: Build Afterline for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish single-file Windows x64 build
+        shell: pwsh
+        run: |
+          dotnet publish src/Afterline/Afterline.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PublishReadyToRun=false `
+            -p:DebugSymbols=false `
+            -p:DebugType=None `
+            -p:SatelliteResourceLanguages=en `
+            -o publish/Afterline
+
+      - name: Prepare clean distribution
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item publish/Afterline/Afterline.exe dist/Afterline.exe -Force
+          $hash = (Get-FileHash dist/Afterline.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Afterline.exe" | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload clean Afterline package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Afterline-v0.2.2-Windows-x64
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 9
