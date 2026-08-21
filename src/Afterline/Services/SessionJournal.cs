@@ -16,6 +16,7 @@ public sealed class SessionJournal
 
     public bool HasActiveSession => _activeFile is not null && File.Exists(_activeFile);
     public DateTime? StartedAt => _state?.StartedAt;
+    public DateTime? LastMessageAt => _state?.LastMessageAt;
     public int MessageCount => _state?.MessageCount ?? 0;
     public string? ActiveFile => _activeFile;
 
@@ -52,14 +53,14 @@ public sealed class SessionJournal
         return previousVisible;
     }
 
-    public async Task EnsureStartedAsync(string archiveRoot, DateTime startedAt, CancellationToken cancellationToken)
+    public async Task<ChatEntry?> EnsureStartedAsync(string archiveRoot, DateTime startedAt, CancellationToken cancellationToken)
     {
-        if (HasActiveSession) return;
+        if (HasActiveSession) return null;
 
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (HasActiveSession) return;
+            if (HasActiveSession) return null;
 
             Directory.CreateDirectory(AppPaths.ActiveSessionsDirectory);
             Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
@@ -72,20 +73,18 @@ public sealed class SessionJournal
             string? existing = FindSameDayArchive(monthDir, startedAt.Date);
             bool continuingSameDay = existing is not null;
 
-            if (existing is not null)
-            {
-                _activeFile = existing;
-            }
-            else
-            {
-                string baseName = $"Afterline Chatlog [{startedAt:yyyy-MM-dd - HH-mm-ss}]";
-                _activeFile = UniquePath(monthDir, baseName, ".txt");
-            }
+            _activeFile = existing ?? UniquePath(
+                monthDir,
+                $"Afterline Chatlog [{startedAt:yyyy-MM-dd - HH-mm-ss}]",
+                ".txt");
 
-            _backupFile = Path.Combine(AppPaths.RecoveryBackupsDirectory,
+            _backupFile = Path.Combine(
+                AppPaths.RecoveryBackupsDirectory,
                 $"Afterline Recovery [{startedAt:yyyy-MM-dd - HH-mm-ss}].txt");
-            _stateFile = Path.Combine(AppPaths.ActiveSessionsDirectory,
+            _stateFile = Path.Combine(
+                AppPaths.ActiveSessionsDirectory,
                 $"Afterline [{startedAt:yyyy-MM-dd - HH-mm-ss}].state.json");
+
             _state = new SessionState
             {
                 StartedAt = startedAt,
@@ -93,24 +92,81 @@ public sealed class SessionJournal
                 BackupFile = _backupFile
             };
 
+            await WriteNewFileAsync(
+                _backupFile,
+                $"[AFTERLINE RECOVERY: {startedAt:yyyy-MM-dd HH:mm:ss}]",
+                cancellationToken);
+
+            ChatEntry? marker = null;
             if (continuingSameDay)
             {
-                await AppendLineAsync(_activeFile, string.Empty, cancellationToken);
-                await AppendLineAsync(_activeFile,
-                    $"==================== NEW LOGIN - {startedAt:HH:mm:ss} ====================",
-                    cancellationToken);
+                marker = await AppendLoginMarkerCoreAsync(startedAt, cancellationToken);
             }
             else
             {
-                await WriteNewFileAsync(_activeFile,
+                await WriteNewFileAsync(
+                    _activeFile,
                     $"[AFTERLINE SESSION: {startedAt:yyyy-MM-dd HH:mm:ss}]",
                     cancellationToken);
             }
 
-            await WriteNewFileAsync(_backupFile,
-                $"[AFTERLINE RECOVERY: {startedAt:yyyy-MM-dd HH:mm:ss}]",
-                cancellationToken);
             await SaveStateAsync(cancellationToken);
+            return marker;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<ChatEntry?> AppendLoginMarkerAsync(DateTime startedAt, CancellationToken cancellationToken)
+    {
+        if (!HasActiveSession || _state is null) return null;
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!HasActiveSession || _state is null) return null;
+            ChatEntry marker = await AppendLoginMarkerCoreAsync(startedAt, cancellationToken);
+            await SaveStateAsync(cancellationToken);
+            return marker;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<ChatEntry?> MarkDisconnectedAsync(DateTime observedAt, CancellationToken cancellationToken)
+    {
+        if (!HasActiveSession || _state is null || _activeFile is null) return null;
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!HasActiveSession || _state is null || _activeFile is null) return null;
+
+            DateTime timestamp = _state.LastMessageAt ?? observedAt;
+            string marker = $"==================== [DISCONNECTED] - {timestamp:HH:mm:ss} ====================";
+
+            await AppendLineAsync(_activeFile, string.Empty, cancellationToken);
+            await AppendLineAsync(_activeFile, marker, cancellationToken);
+
+            if (_backupFile is not null)
+            {
+                try
+                {
+                    await AppendLineAsync(_backupFile, string.Empty, cancellationToken);
+                    await AppendLineAsync(_backupFile, marker, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.Error("Failsafe disconnect marker backup write failed.", ex);
+                }
+            }
+
+            await SaveStateAsync(cancellationToken);
+            return ChatEntry.System(timestamp, marker);
         }
         finally
         {
@@ -167,11 +223,63 @@ public sealed class SessionJournal
     public async Task UpdateVisibleSnapshotAsync(IReadOnlyList<string> snapshot, CancellationToken cancellationToken)
     {
         if (_state is null) return;
+
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            if (_state is null) return;
             _state.LastVisibleSnapshot = snapshot.TakeLast(250).ToList();
             await SaveStateAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<string> ExportCurrentLogAsync(string archiveRoot, string downloadsFolder, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            Directory.CreateDirectory(downloadsFolder);
+            DateTime now = DateTime.Now;
+            string destination = UniquePath(
+                downloadsFolder,
+                $"Afterline Chatlog Export [{now:yyyy-MM-dd - HH-mm-ss}]",
+                ".txt");
+
+            if (_state is not null && !string.IsNullOrWhiteSpace(_backupFile) && File.Exists(_backupFile))
+            {
+                string[] sessionLines = File.ReadLines(_backupFile).Skip(1).ToArray();
+                if (sessionLines.Length == 0)
+                    throw new InvalidOperationException("The current login does not contain any captured chat yet.");
+
+                await using FileStream stream = new(
+                    destination,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.Read,
+                    4096,
+                    FileOptions.Asynchronous | FileOptions.WriteThrough);
+                await using StreamWriter writer = new(stream, new UTF8Encoding(false));
+                await writer.WriteLineAsync($"[AFTERLINE LIVE EXPORT: {now:yyyy-MM-dd HH:mm:ss}]".AsMemory(), cancellationToken);
+                foreach (string line in sessionLines)
+                    await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
+                await writer.FlushAsync(cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                return destination;
+            }
+
+            string year = now.ToString("yyyy");
+            string month = now.ToString("MM - MMMM");
+            string monthDir = Path.Combine(archiveRoot, year, month);
+            string? sameDay = FindSameDayArchive(monthDir, now.Date);
+            if (sameDay is null || !File.Exists(sameDay))
+                throw new InvalidOperationException("No captured chatlog is available to export yet.");
+
+            File.Copy(sameDay, destination, false);
+            return destination;
         }
         finally
         {
@@ -205,6 +313,31 @@ public sealed class SessionJournal
         }
     }
 
+    private async Task<ChatEntry> AppendLoginMarkerCoreAsync(DateTime startedAt, CancellationToken cancellationToken)
+    {
+        if (_activeFile is null)
+            throw new InvalidOperationException("No active chatlog is available for a login marker.");
+
+        string marker = $"==================== NEW LOGIN - {startedAt:HH:mm:ss} ====================";
+        await AppendLineAsync(_activeFile, string.Empty, cancellationToken);
+        await AppendLineAsync(_activeFile, marker, cancellationToken);
+
+        if (_backupFile is not null)
+        {
+            try
+            {
+                await AppendLineAsync(_backupFile, string.Empty, cancellationToken);
+                await AppendLineAsync(_backupFile, marker, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error("Failsafe login marker backup write failed.", ex);
+            }
+        }
+
+        return ChatEntry.System(startedAt, marker);
+    }
+
     private static async Task RecoverSessionAsync(SessionState state, string archiveRoot, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(state.BackupFile) || !File.Exists(state.BackupFile))
@@ -227,7 +360,8 @@ public sealed class SessionJournal
 
         if (!File.Exists(archiveFile))
         {
-            await WriteNewFileAsync(archiveFile,
+            await WriteNewFileAsync(
+                archiveFile,
                 $"[AFTERLINE SESSION: {state.StartedAt:yyyy-MM-dd HH:mm:ss}]",
                 cancellationToken);
             foreach (string line in backupLines)
@@ -269,8 +403,13 @@ public sealed class SessionJournal
     private static async Task WriteNewFileAsync(string path, string firstLine, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await using FileStream stream = new(path, FileMode.Create, FileAccess.Write, FileShare.Read,
-            4096, FileOptions.Asynchronous | FileOptions.WriteThrough);
+        await using FileStream stream = new(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.Read,
+            4096,
+            FileOptions.Asynchronous | FileOptions.WriteThrough);
         await using StreamWriter writer = new(stream, new UTF8Encoding(false));
         await writer.WriteLineAsync(firstLine.AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
@@ -280,8 +419,13 @@ public sealed class SessionJournal
     private static async Task AppendLineAsync(string path, string line, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await using FileStream stream = new(path, FileMode.Append, FileAccess.Write, FileShare.Read,
-            4096, FileOptions.Asynchronous | FileOptions.WriteThrough);
+        await using FileStream stream = new(
+            path,
+            FileMode.Append,
+            FileAccess.Write,
+            FileShare.Read,
+            4096,
+            FileOptions.Asynchronous | FileOptions.WriteThrough);
         await using StreamWriter writer = new(stream, new UTF8Encoding(false));
         await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);

@@ -12,8 +12,10 @@ public sealed class AppSettings
     public bool AutoDetectFiveM { get; set; } = true;
     public bool AutoCapture { get; set; } = true;
     public bool ShowLiveChat { get; set; } = true;
+    public bool ColorizeRoleplayLines { get; set; } = true;
+    public bool ShowLiveTimestamps { get; set; } = true;
     public bool AutoScrollLiveChat { get; set; } = true;
     public int MaxLiveMessages { get; set; } = 2000;
-    public int ReconnectGraceMinutes { get; set; } = 5;
+    public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;
 }
