@@ -100,6 +100,32 @@ public static class ThemeUiStyles
             </Trigger>
         </Style.Triggers>
     </Style>
+
+    <Style TargetType="{x:Type ToolTip}">
+        <Setter Property="Background" Value="{DynamicResource Raised}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="MaxWidth" Value="440"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToolTip}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="7"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>
 """;
 
@@ -110,7 +136,7 @@ public static class ThemeUiStyles
         }
         catch (Exception ex)
         {
-            DiagnosticLogger.Error("Unable to install themed scrollbar styles.", ex);
+            DiagnosticLogger.Error("Unable to install themed scrollbar and tooltip styles.", ex);
         }
     }
 }

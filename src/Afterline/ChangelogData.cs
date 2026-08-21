@@ -13,6 +13,9 @@ internal static class ChangelogData
             "Added an in-app Changelog button directly beneath Check for updates.",
             "Added a themed, scrollable release-history window with the newest patch notes first.",
             "Backfilled patch notes for previous Afterline releases.",
+            "Fixed Live Chat and Log Reader search so Enter jumps to the next matching line, scrolls it into view and briefly highlights it; Shift+Enter searches backwards.",
+            "Changed active-chat search from hiding non-matching lines to navigation-style finding, preserving the surrounding chat while searching.",
+            "Added theme-aware tooltip styling so chatlog hover hints and other tooltips remain readable in dark, light and custom themes.",
             "Added a release checklist reminder in source so future builds update the changelog before release."
         }),
         new("0.5.0", "21/AUG/2026", new[]
@@ -23,7 +26,7 @@ internal static class ChangelogData
             "Added pinned and recently opened logs for faster archive access.",
             "Added Ctrl/Shift multi-line selection in Live Chat and Log Reader.",
             "Added a one-time first-run setup for archive location, startup behaviour and theme.",
-            "Added search bars for filtering the chat currently loaded in Live Chat or Log Reader."
+            "Added search bars for working with the chat currently loaded in Live Chat or Log Reader."
         }),
         new("0.4.10", "21/AUG/2026", new[]
         {

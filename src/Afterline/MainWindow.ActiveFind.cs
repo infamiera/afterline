@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Afterline.Models;
 using Afterline.Services;
 
@@ -12,39 +14,62 @@ public partial class MainWindow
     private TextBox? _logReaderFindBoxV050;
     private TextBlock? _liveFindStatusV050;
     private TextBlock? _logReaderFindStatusV050;
+    private int _liveFindMatchIndexV051 = -1;
+    private int _logReaderFindMatchIndexV051 = -1;
+    private ListBoxItem? _liveFindHighlightedContainerV051;
+    private ListBoxItem? _logReaderFindHighlightedContainerV051;
 
     private void ConfigureActiveChatSearchV050()
     {
-        LiveChatList.Items.Filter = LiveFilterV050;
-
         if (_liveActionStatus?.Parent is WrapPanel liveActions && liveActions.Parent is StackPanel leftPanel)
         {
-            FrameworkElement find = BuildFindRowV050("Find in live chat", out _liveFindBoxV050, out _liveFindStatusV050,
-                (_, _) => _liveFindBoxV050?.Clear(), (_, _) => CopySelectedLiveLinesV050());
+            FrameworkElement find = BuildFindRowV050(
+                "Find in live chat",
+                out _liveFindBoxV050,
+                out _liveFindStatusV050,
+                (_, _) => _liveFindBoxV050?.Clear(),
+                (_, _) => CopySelectedLiveLinesV050());
             leftPanel.Children.Add(find);
+
             _liveFindBoxV050.TextChanged += (_, _) =>
             {
-                LiveChatList.Items.Refresh();
-                UpdateVisibleLiveCount();
-                UpdateFindStatusV050(_liveFindStatusV050, _liveFindBoxV050, LiveChatList.Items.Count);
+                _liveFindMatchIndexV051 = -1;
+                ClearFindHighlightV051(live: true);
+                UpdateLiveFindStatusV051();
+            };
+            _liveFindBoxV050.KeyDown += (_, e) =>
+            {
+                if (e.Key != Key.Enter) return;
+                e.Handled = true;
+                FindNextLiveMatchV051((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
             };
         }
 
-        if (_logReaderView is not null) _logReaderView.Filter = LogReaderFilterV050;
         if (_logReaderStatusText?.Parent is Grid header)
         {
             header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            FrameworkElement find = BuildFindRowV050("Find in loaded log", out _logReaderFindBoxV050, out _logReaderFindStatusV050,
-                (_, _) => _logReaderFindBoxV050?.Clear(), (_, _) => CopySelectedLogLinesV050());
+            FrameworkElement find = BuildFindRowV050(
+                "Find in loaded log",
+                out _logReaderFindBoxV050,
+                out _logReaderFindStatusV050,
+                (_, _) => _logReaderFindBoxV050?.Clear(),
+                (_, _) => CopySelectedLogLinesV050());
             find.Margin = new Thickness(0, 9, 0, 0);
             Grid.SetRow(find, header.RowDefinitions.Count - 1);
             Grid.SetColumnSpan(find, 2);
             header.Children.Add(find);
+
             _logReaderFindBoxV050.TextChanged += (_, _) =>
             {
-                _logReaderView?.Refresh();
-                UpdateLogReaderStatus();
-                UpdateFindStatusV050(_logReaderFindStatusV050, _logReaderFindBoxV050, _logReaderList?.Items.Count ?? 0);
+                _logReaderFindMatchIndexV051 = -1;
+                ClearFindHighlightV051(live: false);
+                UpdateLogReaderFindStatusV051();
+            };
+            _logReaderFindBoxV050.KeyDown += (_, e) =>
+            {
+                if (e.Key != Key.Enter) return;
+                e.Handled = true;
+                FindNextLogReaderMatchV051((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
             };
         }
     }
@@ -72,14 +97,21 @@ public partial class MainWindow
             Height = 32,
             Padding = new Thickness(9, 5, 9, 5),
             VerticalContentAlignment = VerticalAlignment.Center,
-            ToolTip = "Filter the messages currently loaded on this page."
+            ToolTip = "Type a keyword and press Enter to jump to the next matching line. Shift+Enter searches backwards."
         };
         box.SetResourceReference(Control.BackgroundProperty, "Raised");
         box.SetResourceReference(Control.ForegroundProperty, "Text");
         box.SetResourceReference(Control.BorderBrushProperty, "Border");
         row.Children.Add(box);
 
-        var clear = new Button { Content = "Clear", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(7, 0, 0, 0), MinHeight = 32 };
+        var clear = new Button
+        {
+            Content = "Clear",
+            Padding = new Thickness(9, 5, 9, 5),
+            Margin = new Thickness(7, 0, 0, 0),
+            MinHeight = 32,
+            ToolTip = "Clear the current find text."
+        };
         clear.Click += clearHandler;
         row.Children.Add(clear);
 
@@ -105,26 +137,139 @@ public partial class MainWindow
         return row;
     }
 
-    private bool LiveFilterV050(object item)
+    private void UpdateLiveFindStatusV051()
     {
-        if (item is not ChatEntry entry) return true;
-        if (!_settings.ShowOocChat && entry.IsOocLine) return false;
-        string query = _liveFindBoxV050?.Text.Trim() ?? string.Empty;
-        return query.Length == 0 || entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase) || entry.Display.Contains(query, StringComparison.OrdinalIgnoreCase);
+        if (_liveFindStatusV050 is null || _liveFindBoxV050 is null) return;
+        string query = _liveFindBoxV050.Text.Trim();
+        if (query.Length == 0)
+        {
+            _liveFindStatusV050.Text = string.Empty;
+            return;
+        }
+
+        int count = LiveChatList.Items.OfType<ChatEntry>().Count(entry => LiveFindMatchesV051(entry, query));
+        _liveFindStatusV050.Text = count == 0
+            ? "No matches"
+            : $"{count:N0} match{(count == 1 ? string.Empty : "es")} · Enter: next";
     }
 
-    private bool LogReaderFilterV050(object item)
+    private void UpdateLogReaderFindStatusV051()
     {
-        if (item is not LogReaderLineItem line) return true;
-        if (!_settings.ShowOocChat && line.IsOocLine) return false;
-        string query = _logReaderFindBoxV050?.Text.Trim() ?? string.Empty;
-        return query.Length == 0 || line.RawLine.Contains(query, StringComparison.OrdinalIgnoreCase) || line.Display.Contains(query, StringComparison.OrdinalIgnoreCase);
+        if (_logReaderFindStatusV050 is null || _logReaderFindBoxV050 is null || _logReaderList is null) return;
+        string query = _logReaderFindBoxV050.Text.Trim();
+        if (query.Length == 0)
+        {
+            _logReaderFindStatusV050.Text = string.Empty;
+            return;
+        }
+
+        int count = _logReaderList.Items.OfType<LogReaderLineItem>().Count(line => LogReaderFindMatchesV051(line, query));
+        _logReaderFindStatusV050.Text = count == 0
+            ? "No matches"
+            : $"{count:N0} match{(count == 1 ? string.Empty : "es")} · Enter: next";
     }
 
-    private static void UpdateFindStatusV050(TextBlock? status, TextBox? box, int count)
+    private void FindNextLiveMatchV051(bool reverse)
     {
-        if (status is null) return;
-        status.Text = string.IsNullOrWhiteSpace(box?.Text) ? string.Empty : $"{count:N0} match{(count == 1 ? string.Empty : "es")}";
+        if (_liveFindBoxV050 is null || _liveFindStatusV050 is null) return;
+        string query = _liveFindBoxV050.Text.Trim();
+        if (query.Length == 0) return;
+
+        List<ChatEntry> matches = LiveChatList.Items
+            .OfType<ChatEntry>()
+            .Where(entry => LiveFindMatchesV051(entry, query))
+            .ToList();
+
+        if (matches.Count == 0)
+        {
+            _liveFindMatchIndexV051 = -1;
+            _liveFindStatusV050.Text = "No matches";
+            return;
+        }
+
+        _liveFindMatchIndexV051 = AdvanceFindIndexV051(_liveFindMatchIndexV051, matches.Count, reverse);
+        ChatEntry target = matches[_liveFindMatchIndexV051];
+        _liveFindStatusV050.Text = $"{_liveFindMatchIndexV051 + 1:N0} of {matches.Count:N0}";
+        _ = FlashFindMatchV051(LiveChatList, target, live: true);
+    }
+
+    private void FindNextLogReaderMatchV051(bool reverse)
+    {
+        if (_logReaderFindBoxV050 is null || _logReaderFindStatusV050 is null || _logReaderList is null) return;
+        string query = _logReaderFindBoxV050.Text.Trim();
+        if (query.Length == 0) return;
+
+        List<LogReaderLineItem> matches = _logReaderList.Items
+            .OfType<LogReaderLineItem>()
+            .Where(line => LogReaderFindMatchesV051(line, query))
+            .ToList();
+
+        if (matches.Count == 0)
+        {
+            _logReaderFindMatchIndexV051 = -1;
+            _logReaderFindStatusV050.Text = "No matches";
+            return;
+        }
+
+        _logReaderFindMatchIndexV051 = AdvanceFindIndexV051(_logReaderFindMatchIndexV051, matches.Count, reverse);
+        LogReaderLineItem target = matches[_logReaderFindMatchIndexV051];
+        _logReaderFindStatusV050.Text = $"{_logReaderFindMatchIndexV051 + 1:N0} of {matches.Count:N0}";
+        _ = FlashFindMatchV051(_logReaderList, target, live: false);
+    }
+
+    private static int AdvanceFindIndexV051(int current, int count, bool reverse)
+    {
+        if (count <= 0) return -1;
+        if (reverse)
+            return current <= 0 ? count - 1 : current - 1;
+        return current < 0 || current >= count - 1 ? 0 : current + 1;
+    }
+
+    private static bool LiveFindMatchesV051(ChatEntry entry, string query)
+        => entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+           entry.Display.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private static bool LogReaderFindMatchesV051(LogReaderLineItem line, string query)
+        => line.RawLine.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+           line.Display.Contains(query, StringComparison.OrdinalIgnoreCase);
+
+    private async Task FlashFindMatchV051(ListBox list, object item, bool live)
+    {
+        ClearFindHighlightV051(live);
+        list.ScrollIntoView(item);
+        await Dispatcher.InvokeAsync(() => list.UpdateLayout(), DispatcherPriority.Loaded);
+
+        if (list.ItemContainerGenerator.ContainerFromItem(item) is not ListBoxItem container)
+            return;
+
+        container.SetResourceReference(Control.BackgroundProperty, "Accent");
+        if (live)
+            _liveFindHighlightedContainerV051 = container;
+        else
+            _logReaderFindHighlightedContainerV051 = container;
+
+        await Task.Delay(TimeSpan.FromSeconds(1));
+
+        ListBoxItem? current = live ? _liveFindHighlightedContainerV051 : _logReaderFindHighlightedContainerV051;
+        if (!ReferenceEquals(current, container)) return;
+
+        container.ClearValue(Control.BackgroundProperty);
+        if (live)
+            _liveFindHighlightedContainerV051 = null;
+        else
+            _logReaderFindHighlightedContainerV051 = null;
+    }
+
+    private void ClearFindHighlightV051(bool live)
+    {
+        ListBoxItem? container = live ? _liveFindHighlightedContainerV051 : _logReaderFindHighlightedContainerV051;
+        if (container is not null)
+            container.ClearValue(Control.BackgroundProperty);
+
+        if (live)
+            _liveFindHighlightedContainerV051 = null;
+        else
+            _logReaderFindHighlightedContainerV051 = null;
     }
 
     private void CopySelectedLiveLinesV050()
