@@ -146,8 +146,10 @@ internal sealed class ThemeTemplatesWindow : Window
         {
             ItemsSource = Templates,
             DisplayMemberPath = nameof(ThemeTemplate.Name),
-            HorizontalAlignment = HorizontalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 34
         };
+        BindSelectorToThemeResources();
         _templateBox.SelectionChanged += TemplateBox_SelectionChanged;
         content.Children.Add(_templateBox);
 
@@ -289,17 +291,24 @@ internal sealed class ThemeTemplatesWindow : Window
         ThemeService.Apply(theme);
         ThemeService.ApplyWindow(this);
 
-        // Keep the selector on explicit current-theme brushes. The stock WPF
-        // template can otherwise retain brushes from the previously selected
-        // theme, which makes light presets appear to hide the control.
-        _templateBox.Background = ThemeBrush(theme.Raised, Colors.White);
-        _templateBox.Foreground = ThemeBrush(theme.PrimaryText, Colors.Black);
-        _templateBox.BorderBrush = ThemeBrush(theme.Border, Colors.Gray);
+        // Keep the selector bound to live theme resources instead of assigning
+        // one-off brushes. WPF can freeze brushes from the shared ComboBox style;
+        // a light-theme preview may then leave the selector using stale colors.
+        // Dynamic resource references survive resource replacement and update as
+        // soon as a different template is previewed.
+        BindSelectorToThemeResources();
+        _templateBox.ApplyTemplate();
+        _templateBox.InvalidateMeasure();
+        _templateBox.InvalidateArrange();
         _templateBox.InvalidateVisual();
     }
 
-    private static SolidColorBrush ThemeBrush(string value, Color fallback)
-        => new(ThemeService.ParseColor(value, fallback));
+    private void BindSelectorToThemeResources()
+    {
+        _templateBox.SetResourceReference(Control.BackgroundProperty, "Raised");
+        _templateBox.SetResourceReference(Control.ForegroundProperty, "Text");
+        _templateBox.SetResourceReference(Control.BorderBrushProperty, "Border");
+    }
 
     private void SetStatus(string text, string resourceKey)
     {
