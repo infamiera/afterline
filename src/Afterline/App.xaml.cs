@@ -10,6 +10,7 @@ public partial class App : System.Windows.Application
     {
         try
         {
+            RetiredThemeGuard.EnsureUiFilter();
             var settings = new SettingsService().Load();
             ThemeService.Apply(settings.Theme);
         }

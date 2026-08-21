@@ -8,6 +8,12 @@ internal static class ChangelogData
     // The newest release must stay first so the in-app changelog always opens on the latest notes.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.5.2", "22/AUG/2026", new[]
+        {
+            "Disabled the Frost theme template because its light palette can still leave some native/WPF controls unreadable.",
+            "Removed Frost from theme selectors, including the one-time first-run setup.",
+            "Added an automatic migration that returns existing Frost users to the Afterline Default theme on startup."
+        }),
         new("0.5.1", "22/AUG/2026", new[]
         {
             "Added an in-app Changelog button directly beneath Check for updates.",

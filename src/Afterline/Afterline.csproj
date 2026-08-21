@@ -9,7 +9,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Afterline</AssemblyName>
     <RootNamespace>Afterline</RootNamespace>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Afterline.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>

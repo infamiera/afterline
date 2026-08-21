@@ -18,8 +18,26 @@ public sealed class SettingsService
             if (!File.Exists(AppPaths.SettingsFile))
                 return new AppSettings { FirstRunCompleted = false };
 
-            return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), _jsonOptions)
-                   ?? new AppSettings();
+            AppSettings settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), _jsonOptions)
+                                   ?? new AppSettings();
+
+            // Frost is retired because some native/WPF controls can become unreadable
+            // under the light palette. Existing Frost users are returned to the default
+            // theme automatically so they never reopen into a broken interface.
+            if (RetiredThemeGuard.IsRetiredFrost(settings.Theme))
+            {
+                settings.Theme = ThemeService.CreateDefault();
+                try
+                {
+                    Save(settings);
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.Error("Unable to persist the retired Frost theme migration.", ex);
+                }
+            }
+
+            return settings;
         }
         catch (Exception ex)
         {
