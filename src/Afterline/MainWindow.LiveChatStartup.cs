@@ -9,5 +9,6 @@ public partial class MainWindow
         EnsureOocExportFiltering();
         EnsureCachedReplayUi();
         EnsureUiBehaviorFixes();
+        EnsureFiveMCloseSaveConfirmation();
     }
 }

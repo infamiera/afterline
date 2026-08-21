@@ -45,6 +45,10 @@ public sealed class ChatEntry
     public bool IsPrivateMessage
         => !IsSystemMessage && PrivateMessagePrefix.IsMatch(ContentWithoutTimestamp);
 
+    public bool IsInfoLine
+        => !IsSystemMessage &&
+           ContentWithoutTimestamp.TrimStart().StartsWith("[INFO]", StringComparison.OrdinalIgnoreCase);
+
     public bool IsOocChatLine
     {
         get
@@ -56,7 +60,7 @@ public sealed class ChatEntry
         }
     }
 
-    public bool IsOocLine => IsPrivateMessage || IsOocChatLine;
+    public bool IsOocLine => IsPrivateMessage || IsOocChatLine || IsInfoLine;
 
     public string Display
     {
