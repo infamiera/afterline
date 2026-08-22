@@ -20,6 +20,9 @@ public sealed class AppSettings
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;
 
+    public string UpdateChannel { get; set; } = "Stable";
+    public string? InstalledCanaryBuild { get; set; }
+
     // Existing installations deserialize this as true when the property is absent.
     // SettingsService explicitly sets it to false only when no settings file exists.
     public bool FirstRunCompleted { get; set; } = true;
