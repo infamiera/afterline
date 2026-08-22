@@ -30,8 +30,30 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         "return {address:(d||a),name:(h.serverName||h.projectName||h.hostname||'')};" +
         "})())";
 
+    private static readonly JsonSerializerOptions ServerHintJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private static readonly string[] ServerVariableNameProperties =
+    {
+        "sv_projectName",
+        "sv_hostname",
+        "serverName"
+    };
+
+    private static readonly string[] ServerRootNameProperties =
+    {
+        "serverName",
+        "hostname",
+        "name"
+    };
+
+    private static readonly JsonElement EmptyResult = CreateEmptyResult();
+
     private readonly HttpClient _http;
     private readonly Dictionary<string, string> _resolvedNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly byte[] _receiveBuffer = new byte[8192];
     private ClientWebSocket? _socket;
     private int _contextId;
     private int _requestId;
@@ -69,10 +91,9 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         string? json = valueElement.GetString();
         if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
 
-        return JsonSerializer.Deserialize<string[]>(json)?
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .ToArray() ?? Array.Empty<string>();
+        // The evaluated expression already normalizes whitespace, trims each line,
+        // and removes empty entries. Avoid doing the same work a second time in .NET.
+        return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>();
     }
 
     public async Task ResetAsync()
@@ -217,10 +238,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         try
         {
-            return JsonSerializer.Deserialize<ServerHint>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            }) ?? new ServerHint();
+            return JsonSerializer.Deserialize<ServerHint>(json, ServerHintJsonOptions) ?? new ServerHint();
         }
         catch
         {
@@ -241,7 +259,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             {
                 if (info.RootElement.TryGetProperty("vars", out JsonElement vars) && vars.ValueKind == JsonValueKind.Object)
                 {
-                    foreach (string property in new[] { "sv_projectName", "sv_hostname", "serverName" })
+                    foreach (string property in ServerVariableNameProperties)
                     {
                         string? parsed = TryGetCleanString(vars, property);
                         if (!string.IsNullOrWhiteSpace(parsed) && !ServerSessionInfo.IsGenericServerName(parsed))
@@ -249,7 +267,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
                     }
                 }
 
-                foreach (string property in new[] { "serverName", "hostname", "name" })
+                foreach (string property in ServerRootNameProperties)
                 {
                     string? parsed = TryGetCleanString(info.RootElement, property);
                     if (!string.IsNullOrWhiteSpace(parsed) && !ServerSessionInfo.IsGenericServerName(parsed))
@@ -378,7 +396,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
             return response.TryGetProperty("result", out JsonElement result)
                 ? result.Clone()
-                : JsonDocument.Parse("{}").RootElement.Clone();
+                : EmptyResult;
         }
     }
 
@@ -386,21 +404,43 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     {
         if (_socket is null) throw new IOException("FiveM DevTools is not connected.");
 
-        byte[] buffer = new byte[8192];
-        using var stream = new MemoryStream();
+        ValueWebSocketReceiveResult first = await _socket.ReceiveAsync(
+            _receiveBuffer.AsMemory(),
+            cancellationToken);
+        if (first.MessageType == WebSocketMessageType.Close)
+            throw new IOException("FiveM DevTools connection closed.");
+
+        if (first.EndOfMessage)
+        {
+            using JsonDocument document = JsonDocument.Parse(
+                _receiveBuffer.AsMemory(0, first.Count));
+            return document.RootElement.Clone();
+        }
+
+        using var stream = new MemoryStream(Math.Max(16 * 1024, first.Count * 2));
+        stream.Write(_receiveBuffer, 0, first.Count);
 
         while (true)
         {
-            ValueWebSocketReceiveResult result = await _socket.ReceiveAsync(buffer.AsMemory(), cancellationToken);
+            ValueWebSocketReceiveResult result = await _socket.ReceiveAsync(
+                _receiveBuffer.AsMemory(),
+                cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close)
                 throw new IOException("FiveM DevTools connection closed.");
 
-            stream.Write(buffer, 0, result.Count);
+            stream.Write(_receiveBuffer, 0, result.Count);
             if (result.EndOfMessage) break;
         }
 
-        using JsonDocument doc = JsonDocument.Parse(stream.ToArray());
+        using JsonDocument doc = JsonDocument.Parse(
+            stream.GetBuffer().AsMemory(0, checked((int)stream.Length)));
         return doc.RootElement.Clone();
+    }
+
+    private static JsonElement CreateEmptyResult()
+    {
+        using JsonDocument document = JsonDocument.Parse("{}");
+        return document.RootElement.Clone();
     }
 
     private static string? FindClientFrameId(JsonElement result)

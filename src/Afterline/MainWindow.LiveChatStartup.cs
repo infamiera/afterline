@@ -28,11 +28,13 @@ public partial class MainWindow
         EnsureEditor();
         EnsureEditorV041();
         EnsureEditorMediaV060();
+        EnsureEditorPositioningV061();
         EnsureSettingsButtonPlacement();
         EnsureThemeAndAbout();
         EnsureUnifiedChatPresentation();
         EnsureEditorPreferences();
         EnsureQolV050();
         EnsureChangelogUi();
+        EnsureUpdatePanelV061();
     }
 }

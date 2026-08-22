@@ -6,9 +6,16 @@ namespace Afterline.Services;
 
 public sealed class RawCaptureFailsafeService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string _lastServerKey = string.Empty;
     private string[] _lastLines = Array.Empty<string>();
+    private RawCaptureSnapshot? _lastSnapshot;
+    private bool _snapshotNeedsProcessedMark;
 
     public async Task BeginRunAsync(CancellationToken cancellationToken)
     {
@@ -51,23 +58,17 @@ public sealed class RawCaptureFailsafeService
         ServerSessionInfo server,
         CancellationToken cancellationToken)
     {
-        string[] normalized = lines
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select(line => line.Trim())
-            .ToArray();
-
         string serverKey = server.StableKey;
-        if (string.Equals(_lastServerKey, serverKey, StringComparison.Ordinal) &&
-            _lastLines.SequenceEqual(normalized, StringComparer.Ordinal))
+        if (MatchesLastSnapshot(lines, serverKey))
             return;
 
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (string.Equals(_lastServerKey, serverKey, StringComparison.Ordinal) &&
-                _lastLines.SequenceEqual(normalized, StringComparer.Ordinal))
+            if (MatchesLastSnapshot(lines, serverKey))
                 return;
 
+            string[] normalized = NormalizeLines(lines);
             var snapshot = new RawCaptureSnapshot
             {
                 CapturedAt = DateTime.Now,
@@ -87,6 +88,8 @@ public sealed class RawCaptureFailsafeService
             File.Move(temp, AppPaths.RawCaptureCacheFile, true);
             _lastServerKey = serverKey;
             _lastLines = normalized;
+            _lastSnapshot = snapshot;
+            _snapshotNeedsProcessedMark = true;
         }
         finally
         {
@@ -96,16 +99,33 @@ public sealed class RawCaptureFailsafeService
 
     public async Task MarkProcessedAsync(CancellationToken cancellationToken)
     {
+        if (!_snapshotNeedsProcessedMark)
+            return;
+
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            RawCaptureSnapshot? snapshot = await ReadJsonAsync<RawCaptureSnapshot>(
-                AppPaths.RawCaptureCacheFile,
-                cancellationToken);
+            if (!_snapshotNeedsProcessedMark)
+                return;
 
-            if (snapshot is null || snapshot.ProcessedAt is not null) return;
+            RawCaptureSnapshot? snapshot = _lastSnapshot;
+            if (snapshot is null)
+            {
+                snapshot = await ReadJsonAsync<RawCaptureSnapshot>(
+                    AppPaths.RawCaptureCacheFile,
+                    cancellationToken);
+            }
+
+            if (snapshot is null || snapshot.ProcessedAt is not null)
+            {
+                _snapshotNeedsProcessedMark = false;
+                return;
+            }
+
             snapshot.ProcessedAt = DateTime.Now;
             await WriteJsonAtomicAsync(AppPaths.RawCaptureCacheFile, snapshot, cancellationToken);
+            _lastSnapshot = snapshot;
+            _snapshotNeedsProcessedMark = false;
         }
         finally
         {
@@ -166,10 +186,11 @@ public sealed class RawCaptureFailsafeService
         try
         {
             if (!Directory.Exists(AppPaths.RecoveryBackupsDirectory)) return 0;
-            return Directory.GetFiles(
-                AppPaths.RecoveryBackupsDirectory,
-                "Raw Capture [*].json",
-                SearchOption.TopDirectoryOnly).Length;
+            return Directory.EnumerateFiles(
+                    AppPaths.RecoveryBackupsDirectory,
+                    "Raw Capture [*].json",
+                    SearchOption.TopDirectoryOnly)
+                .Count();
         }
         catch
         {
@@ -218,6 +239,38 @@ public sealed class RawCaptureFailsafeService
         {
             _gate.Release();
         }
+    }
+
+    private bool MatchesLastSnapshot(IReadOnlyList<string> lines, string serverKey)
+    {
+        if (!string.Equals(_lastServerKey, serverKey, StringComparison.Ordinal))
+            return false;
+
+        int normalizedIndex = 0;
+        foreach (string line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            if (normalizedIndex >= _lastLines.Length ||
+                !string.Equals(_lastLines[normalizedIndex], line.Trim(), StringComparison.Ordinal))
+                return false;
+
+            normalizedIndex++;
+        }
+
+        return normalizedIndex == _lastLines.Length;
+    }
+
+    private static string[] NormalizeLines(IReadOnlyList<string> lines)
+    {
+        var normalized = new List<string>(lines.Count);
+        foreach (string line in lines)
+        {
+            if (!string.IsNullOrWhiteSpace(line))
+                normalized.Add(line.Trim());
+        }
+        return normalized.ToArray();
     }
 
     private static async Task RecoverInterruptedRawWriteAsync(
@@ -278,7 +331,7 @@ public sealed class RawCaptureFailsafeService
 
         if (Directory.Exists(AppPaths.RecoveryBackupsDirectory))
         {
-            foreach (string path in Directory.GetFiles(
+            foreach (string path in Directory.EnumerateFiles(
                          AppPaths.RecoveryBackupsDirectory,
                          "Raw Capture [*].json",
                          SearchOption.TopDirectoryOnly))
@@ -316,8 +369,17 @@ public sealed class RawCaptureFailsafeService
         try
         {
             if (!File.Exists(path)) return null;
-            string json = await File.ReadAllTextAsync(path, cancellationToken);
-            return JsonSerializer.Deserialize<T>(json);
+            await using FileStream stream = new(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                16 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            return await JsonSerializer.DeserializeAsync<T>(
+                stream,
+                JsonOptions,
+                cancellationToken);
         }
         catch
         {
@@ -341,10 +403,19 @@ public sealed class RawCaptureFailsafeService
         T value,
         CancellationToken cancellationToken)
     {
-        string json = JsonSerializer.Serialize(
+        await using FileStream stream = new(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.Read,
+            16 * 1024,
+            FileOptions.Asynchronous | FileOptions.WriteThrough);
+        await JsonSerializer.SerializeAsync(
+            stream,
             value,
-            new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(path, json, cancellationToken);
+            JsonOptions,
+            cancellationToken);
+        await stream.FlushAsync(cancellationToken);
     }
 
     private static string UniquePath(string folder, string baseName, string extension)

@@ -14,6 +14,8 @@ public partial class MainWindow
     private Button? _recoverRawCaptureButtonV054;
     private Button? _saveRawRecoveryButtonV054;
     private readonly RawCaptureFailsafeService _rawRecoveryServiceV054 = new();
+    private bool _rawRecoveryRefreshInProgressV054;
+    private DateTime _nextRawRecoveryRefreshUtcV054 = DateTime.MinValue;
 
     private void EnsureRawCaptureRecoveryV054()
     {
@@ -81,12 +83,21 @@ public partial class MainWindow
     }
 
     private async void RawRecoveryStatusV054_Tick(object? sender, EventArgs e)
-        => await UpdateRawRecoveryStatusV054Async();
+    {
+        if (SettingsPage.Visibility != Visibility.Visible ||
+            DateTime.UtcNow < _nextRawRecoveryRefreshUtcV054)
+            return;
+
+        _nextRawRecoveryRefreshUtcV054 = DateTime.UtcNow.AddSeconds(5);
+        await UpdateRawRecoveryStatusV054Async();
+    }
 
     private async Task UpdateRawRecoveryStatusV054Async()
     {
-        if (_rawRecoveryStatusV054 is null) return;
+        if (_rawRecoveryStatusV054 is null || _rawRecoveryRefreshInProgressV054)
+            return;
 
+        _rawRecoveryRefreshInProgressV054 = true;
         try
         {
             RawCaptureSnapshot? snapshot =
@@ -123,6 +134,10 @@ public partial class MainWindow
         {
             _rawRecoveryStatusV054.Text = "Raw recovery state could not be read.";
             DiagnosticLogger.Error("Unable to update raw capture recovery status.", ex);
+        }
+        finally
+        {
+            _rawRecoveryRefreshInProgressV054 = false;
         }
     }
 

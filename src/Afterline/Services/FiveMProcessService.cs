@@ -4,7 +4,26 @@ namespace Afterline.Services;
 
 public static class FiveMProcessService
 {
+    private const long CacheDurationMilliseconds = 750;
+    private static readonly object CacheGate = new();
+    private static long _cachedAt = long.MinValue;
+    private static bool _cachedResult;
+
     public static bool IsRunning()
+    {
+        long now = Environment.TickCount64;
+        lock (CacheGate)
+        {
+            if (_cachedAt != long.MinValue && now - _cachedAt < CacheDurationMilliseconds)
+                return _cachedResult;
+
+            _cachedResult = DetectRunning();
+            _cachedAt = now;
+            return _cachedResult;
+        }
+    }
+
+    private static bool DetectRunning()
     {
         Process[] processes = Array.Empty<Process>();
         try
@@ -31,7 +50,8 @@ public static class FiveMProcessService
         }
         finally
         {
-            foreach (Process process in processes) process.Dispose();
+            foreach (Process process in processes)
+                process.Dispose();
         }
     }
 }

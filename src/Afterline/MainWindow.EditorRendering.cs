@@ -191,6 +191,26 @@ public partial class MainWindow
         try
         {
             BitmapSource source = _editorBaseOriginal;
+            double brightnessValue = _editorBrightnessSlider?.Value ?? 0;
+            double contrastValue = _editorContrastSlider?.Value ?? 0;
+            double saturationValue = _editorSaturationSlider?.Value ?? 0;
+            double warmthValue = _editorWarmthSlider?.Value ?? 0;
+            double tintValue = _editorTintSlider?.Value ?? 0;
+            double blurRadius = Math.Max(0, _editorBlurSlider?.Value ?? 0);
+
+            bool neutralTone = Math.Abs(brightnessValue) < 0.001 &&
+                               Math.Abs(contrastValue) < 0.001 &&
+                               Math.Abs(saturationValue) < 0.001 &&
+                               Math.Abs(warmthValue) < 0.001 &&
+                               Math.Abs(tintValue) < 0.001;
+            if (neutralTone)
+            {
+                _editorBaseImage.Source = source;
+                ApplyEditorBlurEffect(blurRadius);
+                UpdateEditorCanvasSize();
+                return;
+            }
+
             var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
             int width = converted.PixelWidth;
             int height = converted.PixelHeight;
@@ -198,11 +218,11 @@ public partial class MainWindow
             byte[] pixels = new byte[stride * height];
             converted.CopyPixels(pixels, stride, 0);
 
-            double brightness = (_editorBrightnessSlider?.Value ?? 0) * 2.55;
-            double contrast = 1.0 + (_editorContrastSlider?.Value ?? 0) / 100.0;
-            double saturation = 1.0 + (_editorSaturationSlider?.Value ?? 0) / 100.0;
-            double warmth = (_editorWarmthSlider?.Value ?? 0) * 0.9;
-            double tint = (_editorTintSlider?.Value ?? 0) * 0.75;
+            double brightness = brightnessValue * 2.55;
+            double contrast = 1.0 + contrastValue / 100.0;
+            double saturation = 1.0 + saturationValue / 100.0;
+            double warmth = warmthValue * 0.9;
+            double tint = tintValue * 0.75;
 
             for (int i = 0; i < pixels.Length; i += 4)
             {
@@ -241,10 +261,7 @@ public partial class MainWindow
             if (adjusted.CanFreeze) adjusted.Freeze();
 
             _editorBaseImage.Source = adjusted;
-            double blurRadius = Math.Max(0, _editorBlurSlider?.Value ?? 0);
-            _editorBaseImage.Effect = blurRadius > 0.1
-                ? new BlurEffect { Radius = blurRadius, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Quality }
-                : null;
+            ApplyEditorBlurEffect(blurRadius);
             UpdateEditorCanvasSize();
         }
         catch (Exception ex)
@@ -252,6 +269,32 @@ public partial class MainWindow
             DiagnosticLogger.Error("Unable to apply Editor image adjustments.", ex);
             SetEditorStatus("Image adjustments could not be applied.");
         }
+    }
+
+    private void ApplyEditorBlurEffect(double blurRadius)
+    {
+        if (_editorBaseImage is null) return;
+
+        blurRadius = Math.Max(0, blurRadius);
+        if (blurRadius <= 0.1)
+        {
+            if (_editorBaseImage.Effect is not null)
+                _editorBaseImage.Effect = null;
+            return;
+        }
+
+        if (_editorBaseImage.Effect is BlurEffect existing &&
+            Math.Abs(existing.Radius - blurRadius) < 0.001 &&
+            existing.KernelType == KernelType.Gaussian &&
+            existing.RenderingBias == RenderingBias.Quality)
+            return;
+
+        _editorBaseImage.Effect = new BlurEffect
+        {
+            Radius = blurRadius,
+            KernelType = KernelType.Gaussian,
+            RenderingBias = RenderingBias.Quality
+        };
     }
 
     private static byte ClampEditorByte(double value)
@@ -364,7 +407,7 @@ public partial class MainWindow
         }
     }
 
-    private RenderTargetBitmap? CaptureEditorCompositeBitmap()
+    private RenderTargetBitmap? CaptureEditorCompositeBitmap(bool refreshChatOverlay = true)
     {
         if (_editorComposition is null) return null;
         if (_editorBaseOriginal is null && _editorChatBitmap is null)
@@ -375,7 +418,8 @@ public partial class MainWindow
 
         _editorChatRenderTimer?.Stop();
         _editorBaseAdjustTimer?.Stop();
-        RenderEditorChatOverlay();
+        if (refreshChatOverlay)
+            RenderEditorChatOverlay();
         ApplyEditorImageAdjustments();
         UpdateEditorCanvasSize();
 

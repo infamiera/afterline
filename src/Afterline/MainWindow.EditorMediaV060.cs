@@ -51,7 +51,6 @@ public partial class MainWindow
         UpdateEditorMediaControlsV060();
     }
 
-
     private void RewireEditorHeaderV060()
     {
         if (_editorPage is null) return;
@@ -110,19 +109,20 @@ public partial class MainWindow
             string extension = Path.GetExtension(path);
             if (string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase))
             {
-                byte[] bytes = File.ReadAllBytes(path);
-                using var stream = new MemoryStream(bytes, writable: false);
+                using FileStream stream = File.OpenRead(path);
                 var decoder = new GifBitmapDecoder(
                     stream,
                     BitmapCreateOptions.PreservePixelFormat,
                     BitmapCacheOption.OnLoad);
 
-                _editorGifFrames = decoder.Frames
-                    .Select(frame => FreezeEditorFrameV060(frame))
-                    .ToList();
-                _editorGifDelays = decoder.Frames
-                    .Select(ReadGifDelayV060)
-                    .ToList();
+                _editorGifFrames = new List<BitmapFrame>(decoder.Frames.Count);
+                _editorGifDelays = new List<TimeSpan>(decoder.Frames.Count);
+                foreach (BitmapFrame sourceFrame in decoder.Frames)
+                {
+                    _editorGifFrames.Add(FreezeEditorFrameV060(sourceFrame));
+                    _editorGifDelays.Add(ReadGifDelayV060(sourceFrame));
+                }
+
                 _editorGifLoopCount = ReadGifLoopCountV060(decoder.Frames.FirstOrDefault());
 
                 if (_editorGifFrames.Count == 0)
@@ -238,7 +238,6 @@ public partial class MainWindow
         _editorGifTimer.Interval = PreviewGifDelayV060(_editorGifDelays[next]);
     }
 
-
     private void ApplyEditorGifPreviewFrameV060()
     {
         if (_editorBaseImage is null || _editorBaseOriginal is null)
@@ -256,15 +255,7 @@ public partial class MainWindow
         }
 
         _editorBaseImage.Source = _editorBaseOriginal;
-        double blurRadius = Math.Max(0, _editorBlurSlider?.Value ?? 0);
-        _editorBaseImage.Effect = blurRadius > 0.1
-            ? new System.Windows.Media.Effects.BlurEffect
-            {
-                Radius = blurRadius,
-                KernelType = System.Windows.Media.Effects.KernelType.Gaussian,
-                RenderingBias = System.Windows.Media.Effects.RenderingBias.Quality
-            }
-            : null;
+        ApplyEditorBlurEffect(Math.Max(0, _editorBlurSlider?.Value ?? 0));
         UpdateEditorCanvasSize();
     }
 
@@ -613,13 +604,15 @@ public partial class MainWindow
         {
             _editorGifExporting = true;
             StopEditorGifPreviewV060();
+            _editorChatRenderTimer?.Stop();
+            RenderEditorChatOverlay();
             SetEditorStatus($"Rendering {_editorGifFrames.Count:N0} GIF frames…");
 
             var encoder = new GifBitmapEncoder();
             for (int i = 0; i < _editorGifFrames.Count; i++)
             {
                 _editorBaseOriginal = _editorGifFrames[i];
-                RenderTargetBitmap? full = CaptureEditorCompositeBitmap();
+                RenderTargetBitmap? full = CaptureEditorCompositeBitmap(refreshChatOverlay: false);
                 if (full is null) throw new InvalidOperationException("The GIF frame could not be rendered.");
                 BitmapSource output = ApplyEditorOutputTransformV060(full);
                 BitmapMetadata metadata = CreateGifMetadataV060(_editorGifDelays[i], i == 0 ? _editorGifLoopCount : null);
