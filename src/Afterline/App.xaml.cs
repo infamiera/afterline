@@ -8,6 +8,14 @@ public partial class App : System.Windows.Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (UpdateService.TryRunUpdaterMode(e.Args))
+        {
+            Environment.Exit(0);
+            return;
+        }
+
+        UpdateService.CleanupCompletedUpdate(e.Args);
+
         try
         {
             RetiredThemeGuard.EnsureUiFilter();

@@ -122,11 +122,11 @@ public partial class MainWindow
     private FrameworkElement BuildEditorV041ImagePanel()
     {
         var content = new StackPanel();
-        content.Children.Add(EditorHelpText("Load a screenshot only when you want to compose the chat directly over an image. Chat-only PNGs work without one."));
+        content.Children.Add(EditorHelpText("Load a screenshot or animated GIF. Chat-only exports still work without one."));
 
         var imageButtons = new WrapPanel();
-        imageButtons.Children.Add(CreateSmallEditorButton("Load Image", EditorLoadImage_Click));
-        _editorRemoveImageButton = CreateSmallEditorButton("Remove Image", EditorRemoveImage_Click);
+        imageButtons.Children.Add(CreateSmallEditorButton("Load Image / GIF", EditorLoadMediaV060_Click));
+        _editorRemoveImageButton = CreateSmallEditorButton("Remove Media", EditorRemoveMediaV060_Click);
         _editorRemoveImageButton.IsEnabled = _editorBaseOriginal is not null;
         imageButtons.Children.Add(_editorRemoveImageButton);
         content.Children.Add(imageButtons);
@@ -182,6 +182,60 @@ public partial class MainWindow
         content.Children.Add(blur.Panel);
 
         content.Children.Add(CreateSmallEditorButton("Reset Image Tone", EditorResetImageTone_Click));
+
+        content.Children.Add(CreateEditorDivider());
+        content.Children.Add(new TextBlock { Text = "CROP & OUTPUT", FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("MutedText"), Margin = new Thickness(0, 0, 0, 8) });
+        content.Children.Add(EditorHelpText("Choose an exact output size, then frame a non-destructive crop. Animated GIFs use the same crop on every frame."));
+
+        _editorOutputPresetBox = new ComboBox { Height = 34 };
+        foreach (string preset in new[] { "Original", "1920 × 1080", "1280 × 720", "1080 × 1080", "1080 × 1350", "Custom" })
+            _editorOutputPresetBox.Items.Add(preset);
+        _editorOutputPresetBox.SelectedIndex = 0;
+        _editorOutputPresetBox.SelectionChanged += EditorOutputPreset_ChangedV060;
+        content.Children.Add(CreateEditorField("Output preset", _editorOutputPresetBox));
+
+        var dimensions = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        dimensions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        dimensions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        dimensions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _editorOutputWidthBox = new TextBox { Height = 32, Text = "1920", ToolTip = "Exact output width in pixels" };
+        _editorOutputHeightBox = new TextBox { Height = 32, Text = "1080", ToolTip = "Exact output height in pixels" };
+        _editorOutputWidthBox.LostFocus += EditorOutputSize_LostFocusV060;
+        _editorOutputHeightBox.LostFocus += EditorOutputSize_LostFocusV060;
+        dimensions.Children.Add(CreateEditorField("Width (px)", _editorOutputWidthBox));
+        var heightField = CreateEditorField("Height (px)", _editorOutputHeightBox);
+        Grid.SetColumn(heightField, 2);
+        dimensions.Children.Add(heightField);
+        content.Children.Add(dimensions);
+
+        _editorOutputLockAspectCheck = new CheckBox
+        {
+            Content = "Lock aspect ratio while editing size",
+            IsChecked = true,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        _editorOutputLockAspectCheck.Checked += EditorOutputAspectLock_ChangedV060;
+        content.Children.Add(_editorOutputLockAspectCheck);
+
+        _editorCropSummaryText = new TextBlock
+        {
+            Text = "Full frame",
+            Foreground = (Brush)FindResource("MutedText"),
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        content.Children.Add(_editorCropSummaryText);
+
+        var cropButtons = new WrapPanel();
+        _editorAdjustCropButton = CreateSmallEditorButton("Adjust Crop", EditorAdjustCrop_ClickV060);
+        _editorResetCropButton = CreateSmallEditorButton("Reset Crop", EditorResetCrop_ClickV060);
+        _editorAdjustCropButton.IsEnabled = _editorBaseOriginal is not null;
+        _editorResetCropButton.IsEnabled = _editorBaseOriginal is not null;
+        cropButtons.Children.Add(_editorAdjustCropButton);
+        cropButtons.Children.Add(_editorResetCropButton);
+        content.Children.Add(cropButtons);
+
         return WrapEditorToolPanel(content);
     }
 
@@ -218,19 +272,27 @@ public partial class MainWindow
     private FrameworkElement BuildEditorV041ExportPanel()
     {
         var content = new StackPanel();
-        content.Children.Add(EditorHelpText("Preview zoom is only for viewing. The exported PNG always uses the composition's original pixel dimensions."));
-        var copy = CreateSmallEditorButton("Copy Image", EditorCopyImage_Click);
+        content.Children.Add(EditorHelpText("Export uses the crop and exact output size selected in Image & Canvas. GIF export renders the same chat, tone, crop and markup across every animation frame."));
+
+        var copy = CreateSmallEditorButton("Copy Current Frame", EditorCopyImageV060_Click);
         copy.HorizontalAlignment = HorizontalAlignment.Stretch;
         content.Children.Add(copy);
+
         var fullscreen = CreateSmallEditorButton("Full Screen Preview", EditorFullscreenPreview_Click);
         fullscreen.HorizontalAlignment = HorizontalAlignment.Stretch;
         content.Children.Add(fullscreen);
-        var export = CreateSmallEditorButton("Export PNG", EditorExportPng_Click);
-        export.Style = (Style)FindResource("PrimaryButton");
-        export.HorizontalAlignment = HorizontalAlignment.Stretch;
-        content.Children.Add(export);
-        content.Children.Add(EditorSubtleNote("Tip: use Fit in the preview when you want to check the complete image before exporting."));
+
+        var exportPng = CreateSmallEditorButton("Export PNG", EditorExportPngV060_Click);
+        exportPng.HorizontalAlignment = HorizontalAlignment.Stretch;
+        content.Children.Add(exportPng);
+
+        _editorExportGifButton = CreateSmallEditorButton("Export GIF", EditorExportGifV060_Click);
+        _editorExportGifButton.Style = (Style)FindResource("PrimaryButton");
+        _editorExportGifButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _editorExportGifButton.IsEnabled = EditorHasAnimatedGifV060;
+        content.Children.Add(_editorExportGifButton);
+
+        content.Children.Add(EditorSubtleNote("PNG captures the currently displayed frame. GIF preserves the animation and applies the same edit settings to every frame."));
         return WrapEditorToolPanel(content);
     }
-
 }

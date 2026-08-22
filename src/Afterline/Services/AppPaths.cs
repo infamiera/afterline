@@ -18,6 +18,7 @@ public static class AppPaths
     public static string RecoveryBackupsDirectory => Path.Combine(LocalDataRoot, "Recovery Backups");
     public static string ProfileDirectory => Path.Combine(LocalDataRoot, "Profile");
     public static string ProfilePictureFile => Path.Combine(ProfileDirectory, "avatar.png");
+    public static string UpdatesDirectory => Path.Combine(LocalDataRoot, "Updates");
 
     public static void EnsureLocalDirectories()
     {
@@ -27,5 +28,6 @@ public static class AppPaths
         Directory.CreateDirectory(ActiveSessionsDirectory);
         Directory.CreateDirectory(RecoveryBackupsDirectory);
         Directory.CreateDirectory(ProfileDirectory);
+        Directory.CreateDirectory(UpdatesDirectory);
     }
 }

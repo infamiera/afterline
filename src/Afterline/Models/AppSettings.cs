@@ -54,6 +54,18 @@ public sealed class EditorPreferences
 
     public string PaintColor { get; set; } = "White";
     public double BrushSize { get; set; } = 5;
+
+    public double ImageBrightness { get; set; }
+    public double ImageContrast { get; set; }
+    public double ImageSaturation { get; set; }
+    public double ImageWarmth { get; set; }
+    public double ImageTint { get; set; }
+    public double ImageBlur { get; set; }
+
+    public string OutputPreset { get; set; } = "Original";
+    public int OutputWidth { get; set; }
+    public int OutputHeight { get; set; }
+    public bool OutputLockAspect { get; set; } = true;
 }
 
 public sealed class ThemePreferences

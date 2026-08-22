@@ -2,7 +2,6 @@ using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 using Afterline.Models;
 using Afterline.Services;
 
@@ -113,14 +112,14 @@ public partial class MainWindow
             _editorPage.AllowDrop = true;
             _editorPage.PreviewDragOver += (_, e) =>
             {
-                e.Effects = DroppedFileV050(e, ".png", ".jpg", ".jpeg", ".bmp") is null ? DragDropEffects.None : DragDropEffects.Copy;
+                e.Effects = DroppedFileV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif") is null ? DragDropEffects.None : DragDropEffects.Copy;
                 e.Handled = true;
             };
             _editorPage.PreviewDrop += (_, e) =>
             {
-                string? path = DroppedFileV050(e, ".png", ".jpg", ".jpeg", ".bmp");
+                string? path = DroppedFileV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif");
                 e.Handled = true;
-                if (path is not null) LoadEditorImageV050(path);
+                if (path is not null) LoadEditorMediaV060(path);
             };
         }
     }
@@ -129,33 +128,6 @@ public partial class MainWindow
     {
         if (!e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetData(DataFormats.FileDrop) is not string[] files) return null;
         return files.FirstOrDefault(path => File.Exists(path) && extensions.Any(ext => string.Equals(Path.GetExtension(path), ext, StringComparison.OrdinalIgnoreCase)));
-    }
-
-    private void LoadEditorImageV050(string path)
-    {
-        try
-        {
-            using FileStream stream = File.OpenRead(path);
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = stream;
-            bitmap.EndInit();
-            if (bitmap.CanFreeze) bitmap.Freeze();
-
-            _editorBaseOriginal = bitmap;
-            if (_editorRemoveImageButton is not null) _editorRemoveImageButton.IsEnabled = true;
-            ResetEditorAdjustmentSliders();
-            ClearEditorMarkup(resetHistory: true);
-            ApplyEditorImageAdjustments();
-            SetEditorStatus($"Loaded {Path.GetFileName(path)} · {bitmap.PixelWidth:N0} × {bitmap.PixelHeight:N0}px.");
-            if (_editorFitZoom) _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Error("Unable to load dropped image into Editor.", ex);
-            System.Windows.MessageBox.Show(this, ex.Message, "Unable to load image", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
     }
 
     private void ConfigureKeyboardShortcutsV050() => PreviewKeyDown += QolV050_PreviewKeyDown;
@@ -199,7 +171,7 @@ public partial class MainWindow
         if (e.Key == Key.S && _editorPage?.Visibility == Visibility.Visible)
         {
             e.Handled = true;
-            EditorExportPng_Click(this, new RoutedEventArgs());
+            EditorExportDefaultV060_Click(this, new RoutedEventArgs());
             return;
         }
 

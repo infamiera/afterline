@@ -43,7 +43,7 @@ internal sealed class ChangelogWindow : Window
         root.Children.Add(heading);
 
         var releaseStack = new StackPanel();
-        foreach (ChangelogEntry entry in ChangelogData.Entries)
+        foreach (ChangelogEntry entry in CurrentReleaseData.Entries.Concat(ChangelogData.Entries))
             releaseStack.Children.Add(BuildReleaseCard(entry));
 
         var scroll = new ScrollViewer

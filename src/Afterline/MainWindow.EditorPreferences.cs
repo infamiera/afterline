@@ -27,7 +27,7 @@ public partial class MainWindow
             if (actions is not null)
             {
                 var reset = CreateEditorHeaderButton("Reset", EditorResetPreferences_Click);
-                reset.ToolTip = "Reset reusable Editor controls to their defaults without clearing your image, chat text, markup, or saved settings.";
+                reset.ToolTip = "Reset reusable Editor controls to their defaults without clearing your image, chat text, markup, crop, or saved settings.";
 
                 var save = CreateEditorHeaderButton("Save Settings", EditorSavePreferences_Click);
                 save.ToolTip = "Save your preferred Editor controls locally so they are restored next time Afterline starts.";
@@ -63,7 +63,9 @@ public partial class MainWindow
     }
 
     private EditorPreferences CaptureEditorPreferences()
-        => new()
+    {
+        TryReadEditorOutputSizeV060(out int outputWidth, out int outputHeight);
+        return new EditorPreferences
         {
             Font = _editorFontBox?.SelectedItem?.ToString() ?? "Arial Bold",
             FontSize = _editorFontSizeSlider?.Value ?? 18,
@@ -83,8 +85,19 @@ public partial class MainWindow
             ShadowY = _editorShadowOffsetYSlider?.Value ?? 2,
             ShadowColor = _editorShadowColorBox?.SelectedItem?.ToString() ?? "Black",
             PaintColor = _editorPaintColorBox?.SelectedItem?.ToString() ?? "White",
-            BrushSize = _editorBrushSizeSlider?.Value ?? 5
+            BrushSize = _editorBrushSizeSlider?.Value ?? 5,
+            ImageBrightness = _editorBrightnessSlider?.Value ?? 0,
+            ImageContrast = _editorContrastSlider?.Value ?? 0,
+            ImageSaturation = _editorSaturationSlider?.Value ?? 0,
+            ImageWarmth = _editorWarmthSlider?.Value ?? 0,
+            ImageTint = _editorTintSlider?.Value ?? 0,
+            ImageBlur = _editorBlurSlider?.Value ?? 0,
+            OutputPreset = _editorOutputPresetBox?.SelectedItem?.ToString() ?? "Original",
+            OutputWidth = outputWidth,
+            OutputHeight = outputHeight,
+            OutputLockAspect = _editorOutputLockAspectCheck?.IsChecked != false
         };
+    }
 
     private void ApplyEditorPreferences(EditorPreferences preferences)
     {
@@ -112,9 +125,19 @@ public partial class MainWindow
         SetEditorComboSelection(_editorPaintColorBox, preferences.PaintColor, "White");
         SetEditorSlider(_editorBrushSizeSlider, preferences.BrushSize);
 
+        SetEditorSlider(_editorBrightnessSlider, preferences.ImageBrightness);
+        SetEditorSlider(_editorContrastSlider, preferences.ImageContrast);
+        SetEditorSlider(_editorSaturationSlider, preferences.ImageSaturation);
+        SetEditorSlider(_editorWarmthSlider, preferences.ImageWarmth);
+        SetEditorSlider(_editorTintSlider, preferences.ImageTint);
+        SetEditorSlider(_editorBlurSlider, preferences.ImageBlur);
+        ApplyEditorOutputPreferencesV060(preferences);
+
         UpdateEditorDrawingAttributes();
         ScheduleEditorChatRender();
+        ApplyEditorImageAdjustments();
         UpdateEditorCanvasSize();
+        UpdateEditorMediaControlsV060();
     }
 
     private static void SetEditorSlider(Slider? slider, double value)

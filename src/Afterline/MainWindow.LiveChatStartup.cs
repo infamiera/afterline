@@ -27,6 +27,7 @@ public partial class MainWindow
         EnsureSessionTrayNotification();
         EnsureEditor();
         EnsureEditorV041();
+        EnsureEditorMediaV060();
         EnsureSettingsButtonPlacement();
         EnsureThemeAndAbout();
         EnsureUnifiedChatPresentation();

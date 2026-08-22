@@ -19,6 +19,7 @@ public partial class MainWindow
     private TextBlock? _currentBuildText;
     private TextBlock? _latestBuildText;
     private Button? _checkUpdatesButton;
+    private bool _updateInstallInProgress;
 
     private void EnsureNotificationAndUpdateUi()
     {
@@ -270,6 +271,7 @@ public partial class MainWindow
 
     private async Task CheckForUpdatesAsync(bool userInitiated)
     {
+        if (_updateInstallInProgress) return;
         if (_checkUpdatesButton is not null) _checkUpdatesButton.IsEnabled = false;
         string current = GetCurrentBuildVersion();
         SetUpdateBuildLines(current, "Checking…");
@@ -281,14 +283,118 @@ public partial class MainWindow
                 ? "Unavailable"
                 : result.LatestVersion;
             SetUpdateBuildLines(current, latest);
+
+            if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                if (userInitiated)
+                {
+                    System.Windows.MessageBox.Show(
+                        this,
+                        result.Error,
+                        "Afterline Update",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(result.LatestVersion)) return;
+            if (!UpdateService.IsNewer(result.LatestVersion, current))
+            {
+                if (userInitiated)
+                {
+                    System.Windows.MessageBox.Show(
+                        this,
+                        $"Afterline {current} is already the latest release.",
+                        "Afterline Update",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            SetUpdateBuildLines(current, result.LatestVersion + " available");
+            if (!userInitiated) return;
+
+            var window = new UpdateAvailableWindow(this, current, result);
+            if (window.ShowDialog() == true && window.InstallRequested)
+                await InstallUpdateAsyncV060(result);
         }
         catch (Exception ex)
         {
             DiagnosticLogger.Error("Update check failed.", ex);
             SetUpdateBuildLines(current, "Unavailable");
+            if (userInitiated)
+            {
+                System.Windows.MessageBox.Show(
+                    this,
+                    ex.Message,
+                    "Unable to check for updates",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
         finally
         {
+            if (_checkUpdatesButton is not null && !_updateInstallInProgress)
+                _checkUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private async Task InstallUpdateAsyncV060(UpdateCheckResult release)
+    {
+        if (!UpdateService.CanSelfUpdate(out string? reason))
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                reason ?? "Afterline cannot update itself from the current folder.",
+                "Unable to self-update",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        _updateInstallInProgress = true;
+        if (_checkUpdatesButton is not null) _checkUpdatesButton.IsEnabled = false;
+        SetUpdateBuildLines(GetCurrentBuildVersion(), "Downloading…");
+
+        try
+        {
+            UpdateDownloadResult download = await _updateService.DownloadVerifiedAsync(release, CancellationToken.None);
+            SetUpdateBuildLines(GetCurrentBuildVersion(), "Verified · restarting…");
+
+            // Start the verified replacement first; it waits for this process to exit.
+            UpdateService.LaunchUpdater(download);
+
+            // Dispose capture/recovery services before terminating this process so
+            // the updater never turns a clean update into an unexpected-shutdown recovery.
+            try { await _capture.DisposeAsync(); }
+            catch (Exception ex) { DiagnosticLogger.Error("Capture shutdown during update failed.", ex); }
+            try { await _processor.DisposeAsync(); }
+            catch (Exception ex) { DiagnosticLogger.Error("Background processor shutdown during update failed.", ex); }
+
+            if (_trayIcon is not null)
+            {
+                _trayIcon.Visible = false;
+                _trayIcon.Dispose();
+                _trayIcon = null;
+            }
+            _trayBrandIcon?.Dispose();
+            _trayBrandIcon = null;
+
+            Environment.Exit(0);
+        }
+        catch (Exception ex)
+        {
+            _updateInstallInProgress = false;
+            DiagnosticLogger.Error("Unable to install the Afterline update.", ex);
+            SetUpdateBuildLines(GetCurrentBuildVersion(), "Update failed");
+            System.Windows.MessageBox.Show(
+                this,
+                ex.Message,
+                "Unable to install update",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
             if (_checkUpdatesButton is not null) _checkUpdatesButton.IsEnabled = true;
         }
     }
