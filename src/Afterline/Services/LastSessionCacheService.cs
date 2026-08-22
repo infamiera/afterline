@@ -12,7 +12,7 @@ public sealed class LastSessionCacheService
         RegexOptions.Compiled);
 
     private static readonly Regex MarkerTimestamp = new(
-        @"\[(?:NEW LOGIN|DISCONNECTED)\]\s*-\s*(?<time>\d{1,2}:\d{2}:\d{2})",
+        @"\[(?:NEW LOGIN|DISCONNECTED|DAY ENDED|DATE ROLLOVER)\]\s*-\s*(?<time>\d{1,2}:\d{2}:\d{2})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -111,7 +111,11 @@ public sealed class LastSessionCacheService
                         DateTimeStyles.None,
                         out DateTime markerTime))
                 {
-                    entries.Add(ChatEntry.System(fallback.Date.Add(markerTime.TimeOfDay), line));
+                    DateTime markerTimestamp = fallback.Date.Add(markerTime.TimeOfDay);
+                    if (markerTimestamp > fallback.AddHours(12))
+                        markerTimestamp = markerTimestamp.AddDays(-1);
+
+                    entries.Add(ChatEntry.System(markerTimestamp, line));
                     continue;
                 }
 

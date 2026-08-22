@@ -18,6 +18,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly FiveMDevToolsChatReader _reader = new();
     private readonly SessionJournal _journal;
     private readonly LastSessionCacheService _lastSessionCache = new();
+    private readonly RawCaptureFailsafeService _rawCaptureFailsafe = new();
     private readonly Func<AppSettings> _settings;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _captureGate = new(1, 1);
@@ -48,7 +49,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public async Task StartAsync()
     {
         if (_worker is not null) return;
-        _previousVisible = (await _journal.RecoverAsync(_settings().ArchiveRoot, _cts.Token)).ToList();
+
+        await TryBeginRawCaptureRunAsync(_cts.Token);
+        _previousVisible = (await _journal.RecoverAsync(
+            _settings().ArchiveRoot,
+            _cts.Token)).ToList();
         _worker = Task.Run(WorkerAsync);
     }
 
@@ -64,13 +69,27 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 try
                 {
                     AppSettings settings = _settings();
-                    IReadOnlyList<string> current = await _reader.ReadVisibleLinesAsync(_cts.Token);
-                    await HandleObservedServerCoreAsync(_reader.CurrentServer, settings, _cts.Token);
+                    IReadOnlyList<string> current =
+                        await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    await TryWriteRawSnapshotAsync(
+                        current,
+                        _reader.CurrentServer,
+                        _cts.Token);
+                    await HandleObservedServerCoreAsync(
+                        _reader.CurrentServer,
+                        settings,
+                        _cts.Token);
                     _nuiUnavailableSince = null;
                     _disconnectedAt = null;
                     SetState(CaptureState.Capturing);
                     LastError = null;
-                    return await CaptureAvailableLinesAsync(current, settings, _cts.Token);
+
+                    int captured = await CaptureAvailableLinesAsync(
+                        current,
+                        settings,
+                        _cts.Token);
+                    await TryMarkRawSnapshotProcessedAsync(_cts.Token);
+                    return captured;
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
@@ -84,7 +103,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 }
             }
 
-            IReadOnlyList<ChatEntry> cachedEntries = await _lastSessionCache.ReadAsync(_cts.Token);
+            IReadOnlyList<ChatEntry> cachedEntries =
+                await _lastSessionCache.ReadAsync(_cts.Token);
+
             if (cachedEntries.Count == 0)
             {
                 if (liveReadError is not null)
@@ -111,8 +132,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     public async Task FinishSessionAsync()
     {
-        string? path = await _journal.FinalizeAsync(_settings().ArchiveRoot, _cts.Token);
-        if (path is not null) SessionFinalized?.Invoke(this, path);
+        string? path = await _journal.FinalizeAsync(
+            _settings().ArchiveRoot,
+            _cts.Token);
+        if (path is not null)
+            SessionFinalized?.Invoke(this, path);
     }
 
     private async Task WorkerAsync()
@@ -122,7 +146,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             try
             {
                 AppSettings settings = _settings();
-                bool fiveMRunning = settings.AutoDetectFiveM && FiveMProcessService.IsRunning();
+                bool fiveMRunning =
+                    settings.AutoDetectFiveM &&
+                    FiveMProcessService.IsRunning();
 
                 if (!fiveMRunning)
                 {
@@ -141,13 +167,26 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 await _captureGate.WaitAsync(_cts.Token);
                 try
                 {
-                    IReadOnlyList<string> current = await _reader.ReadVisibleLinesAsync(_cts.Token);
-                    await HandleObservedServerCoreAsync(_reader.CurrentServer, settings, _cts.Token);
+                    IReadOnlyList<string> current =
+                        await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    await TryWriteRawSnapshotAsync(
+                        current,
+                        _reader.CurrentServer,
+                        _cts.Token);
+                    await HandleObservedServerCoreAsync(
+                        _reader.CurrentServer,
+                        settings,
+                        _cts.Token);
                     _nuiUnavailableSince = null;
                     _disconnectedAt = null;
                     SetState(CaptureState.Capturing);
                     LastError = null;
-                    await CaptureAvailableLinesAsync(current, settings, _cts.Token);
+
+                    await CaptureAvailableLinesAsync(
+                        current,
+                        settings,
+                        _cts.Token);
+                    await TryMarkRawSnapshotProcessedAsync(_cts.Token);
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
@@ -157,7 +196,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 {
                     LastError = ex.Message;
                     await _reader.ResetAsync();
-                    await HandleNuiUnavailableCoreAsync(settings, _cts.Token);
+                    await HandleNuiUnavailableCoreAsync(
+                        settings,
+                        _cts.Token);
                 }
                 finally
                 {
@@ -195,17 +236,24 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
             if (!_journal.HasActiveSession)
             {
-                ServerSessionInfo server = _currentServer ?? ServerSessionInfo.Unknown;
-                ChatEntry? loginMarker = await _journal.EnsureStartedAsync(
-                    settings.ArchiveRoot,
-                    entry.CapturedAt,
-                    server,
-                    cancellationToken);
+                ServerSessionInfo server =
+                    _currentServer ?? ServerSessionInfo.Unknown;
+                ChatEntry? loginMarker =
+                    await _journal.EnsureStartedAsync(
+                        settings.ArchiveRoot,
+                        entry.CapturedAt,
+                        server,
+                        cancellationToken);
 
                 if (loginMarker is not null)
                 {
-                    await TryBeginLastSessionCacheAsync(server, entry.CapturedAt, cancellationToken);
-                    await TryAppendLastSessionCacheAsync(loginMarker, cancellationToken);
+                    await TryBeginLastSessionCacheAsync(
+                        server,
+                        entry.CapturedAt,
+                        cancellationToken);
+                    await TryAppendLastSessionCacheAsync(
+                        loginMarker,
+                        cancellationToken);
                     MessageCaptured?.Invoke(this, loginMarker);
                 }
             }
@@ -219,7 +267,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         _previousVisible = current.ToList();
         if (_journal.HasActiveSession)
-            await _journal.UpdateVisibleSnapshotAsync(_previousVisible, cancellationToken);
+        {
+            await _journal.UpdateVisibleSnapshotAsync(
+                _previousVisible,
+                cancellationToken);
+        }
 
         return captured;
     }
@@ -238,22 +290,31 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         if (_currentServer.HasDifferentKnownAddress(observed))
         {
-            await FinalizeCurrentServerCoreAsync(settings, DateTime.Now, false, cancellationToken);
+            await FinalizeCurrentServerCoreAsync(
+                settings,
+                DateTime.Now,
+                false,
+                cancellationToken);
             _currentServer = observed;
             NotifyServerChanged();
             return;
         }
 
         bool metadataImproved =
-            (string.IsNullOrWhiteSpace(_currentServer.Address) && !string.IsNullOrWhiteSpace(observed.Address)) ||
+            (string.IsNullOrWhiteSpace(_currentServer.Address) &&
+             !string.IsNullOrWhiteSpace(observed.Address)) ||
             (!_currentServer.HasFriendlyName && observed.HasFriendlyName);
 
         if (metadataImproved)
         {
             _currentServer = new ServerSessionInfo
             {
-                Address = string.IsNullOrWhiteSpace(observed.Address) ? _currentServer.Address : observed.Address,
-                Name = observed.HasFriendlyName ? observed.Name : _currentServer.Name
+                Address = string.IsNullOrWhiteSpace(observed.Address)
+                    ? _currentServer.Address
+                    : observed.Address,
+                Name = observed.HasFriendlyName
+                    ? observed.Name
+                    : _currentServer.Name
             };
             NotifyServerChanged();
         }
@@ -268,9 +329,17 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             _nuiUnavailableSince = null;
 
             if (_journal.HasActiveSession || _currentServer is not null)
-                await FinalizeCurrentServerCoreAsync(settings, DateTime.Now, false, _cts.Token);
+            {
+                await FinalizeCurrentServerCoreAsync(
+                    settings,
+                    DateTime.Now,
+                    false,
+                    _cts.Token);
+            }
 
-            SetState(GetDisconnectedIdleState(settings, CaptureState.WaitingForFiveM));
+            SetState(GetDisconnectedIdleState(
+                settings,
+                CaptureState.WaitingForFiveM));
         }
         finally
         {
@@ -278,23 +347,34 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
     }
 
-    private async Task HandleNuiUnavailableCoreAsync(AppSettings settings, CancellationToken cancellationToken)
+    private async Task HandleNuiUnavailableCoreAsync(
+        AppSettings settings,
+        CancellationToken cancellationToken)
     {
         if (!_journal.HasActiveSession && _currentServer is null)
         {
-            SetState(GetDisconnectedIdleState(settings, CaptureState.WaitingForNui));
+            SetState(GetDisconnectedIdleState(
+                settings,
+                CaptureState.WaitingForNui));
             return;
         }
 
         _nuiUnavailableSince ??= DateTime.Now;
-        if (DateTime.Now - _nuiUnavailableSince.Value < NuiDisconnectConfirmation)
+        if (DateTime.Now - _nuiUnavailableSince.Value <
+            NuiDisconnectConfirmation)
         {
             SetState(CaptureState.WaitingForNui);
             return;
         }
 
-        await FinalizeCurrentServerCoreAsync(settings, DateTime.Now, false, cancellationToken);
-        SetState(GetDisconnectedIdleState(settings, CaptureState.WaitingForNui));
+        await FinalizeCurrentServerCoreAsync(
+            settings,
+            DateTime.Now,
+            false,
+            cancellationToken);
+        SetState(GetDisconnectedIdleState(
+            settings,
+            CaptureState.WaitingForNui));
     }
 
     private async Task FinalizeCurrentServerCoreAsync(
@@ -305,14 +385,22 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         if (_journal.HasActiveSession)
         {
-            ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(observedAt, cancellationToken);
+            ChatEntry? disconnectMarker =
+                await _journal.MarkDisconnectedAsync(
+                    observedAt,
+                    cancellationToken);
+
             if (disconnectMarker is not null)
             {
-                await TryAppendLastSessionCacheAsync(disconnectMarker, cancellationToken);
+                await TryAppendLastSessionCacheAsync(
+                    disconnectMarker,
+                    cancellationToken);
                 MessageCaptured?.Invoke(this, disconnectMarker);
             }
 
-            string? path = await _journal.FinalizeAsync(settings.ArchiveRoot, cancellationToken);
+            string? path = await _journal.FinalizeAsync(
+                settings.ArchiveRoot,
+                cancellationToken);
             if (path is not null)
                 SessionFinalized?.Invoke(this, path);
         }
@@ -338,11 +426,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         try
         {
-            await _lastSessionCache.BeginAsync(server, startedAt, cancellationToken);
+            await _lastSessionCache.BeginAsync(
+                server,
+                startedAt,
+                cancellationToken);
         }
         catch (Exception ex)
         {
-            DiagnosticLogger.Error("Unable to initialize the persistent last-session cache.", ex);
+            DiagnosticLogger.Error(
+                "Unable to initialize the persistent last-session cache.",
+                ex);
         }
     }
 
@@ -352,27 +445,87 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     {
         try
         {
-            await _lastSessionCache.AppendAsync(entry, cancellationToken);
+            await _lastSessionCache.AppendAsync(
+                entry,
+                cancellationToken);
         }
         catch (Exception ex)
         {
-            DiagnosticLogger.Error("Unable to update the persistent last-session cache.", ex);
+            DiagnosticLogger.Error(
+                "Unable to update the persistent last-session cache.",
+                ex);
         }
     }
 
-    private CaptureState GetDisconnectedIdleState(AppSettings settings, CaptureState fallback)
+    private async Task TryBeginRawCaptureRunAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _rawCaptureFailsafe.BeginRunAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error(
+                "Unable to initialize the raw capture failsafe.",
+                ex);
+        }
+    }
+
+    private async Task TryWriteRawSnapshotAsync(
+        IReadOnlyList<string> current,
+        ServerSessionInfo server,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _rawCaptureFailsafe.WriteSnapshotAsync(
+                current,
+                server,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error(
+                "Unable to write the pre-parse raw capture failsafe.",
+                ex);
+        }
+    }
+
+    private async Task TryMarkRawSnapshotProcessedAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _rawCaptureFailsafe.MarkProcessedAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error(
+                "Unable to mark the raw capture snapshot as processed.",
+                ex);
+        }
+    }
+
+    private CaptureState GetDisconnectedIdleState(
+        AppSettings settings,
+        CaptureState fallback)
     {
         if (_disconnectedAt is null) return fallback;
 
-        TimeSpan grace = TimeSpan.FromMinutes(Math.Max(0, settings.ReconnectGraceMinutes));
-        if (grace > TimeSpan.Zero && DateTime.Now - _disconnectedAt.Value < grace)
+        TimeSpan grace = TimeSpan.FromMinutes(
+            Math.Max(0, settings.ReconnectGraceMinutes));
+        if (grace > TimeSpan.Zero &&
+            DateTime.Now - _disconnectedAt.Value < grace)
             return CaptureState.ReconnectGrace;
 
         return fallback;
     }
 
     private void NotifyServerChanged()
-        => ServerSessionChanged?.Invoke(this, new ServerSessionChangedEventArgs(_currentServer));
+        => ServerSessionChanged?.Invoke(
+            this,
+            new ServerSessionChangedEventArgs(_currentServer));
 
     private void SetState(CaptureState state)
     {
@@ -381,22 +534,30 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         StateChanged?.Invoke(this, state);
     }
 
-    private static int FindOverlap(IReadOnlyList<string> oldLines, IReadOnlyList<string> newLines)
+    private static int FindOverlap(
+        IReadOnlyList<string> oldLines,
+        IReadOnlyList<string> newLines)
     {
         int max = Math.Min(oldLines.Count, newLines.Count);
+
         for (int length = max; length > 0; length--)
         {
             bool same = true;
             for (int i = 0; i < length; i++)
             {
-                if (!string.Equals(oldLines[oldLines.Count - length + i], newLines[i], StringComparison.Ordinal))
+                if (!string.Equals(
+                        oldLines[oldLines.Count - length + i],
+                        newLines[i],
+                        StringComparison.Ordinal))
                 {
                     same = false;
                     break;
                 }
             }
+
             if (same) return length;
         }
+
         return 0;
     }
 
@@ -405,8 +566,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _cts.Cancel();
         if (_worker is not null)
         {
-            try { await _worker; } catch { }
+            try { await _worker; }
+            catch { }
         }
+
+        bool shutdownFinalized = false;
 
         try
         {
@@ -415,15 +579,24 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 if (_journal.HasActiveSession)
                 {
-                    ChatEntry? disconnectMarker = await _journal.MarkDisconnectedAsync(DateTime.Now, CancellationToken.None);
+                    ChatEntry? disconnectMarker =
+                        await _journal.MarkDisconnectedAsync(
+                            DateTime.Now,
+                            CancellationToken.None);
+
                     if (disconnectMarker is not null)
                     {
-                        await TryAppendLastSessionCacheAsync(disconnectMarker, CancellationToken.None);
+                        await TryAppendLastSessionCacheAsync(
+                            disconnectMarker,
+                            CancellationToken.None);
                         MessageCaptured?.Invoke(this, disconnectMarker);
                     }
                 }
 
-                await _journal.FinalizeAsync(_settings().ArchiveRoot, CancellationToken.None);
+                await _journal.FinalizeAsync(
+                    _settings().ArchiveRoot,
+                    CancellationToken.None);
+                shutdownFinalized = true;
             }
             finally
             {
@@ -432,7 +605,24 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            DiagnosticLogger.Error("Unable to finalize the active chatlog during shutdown. The recovery copy was kept.", ex);
+            DiagnosticLogger.Error(
+                "Unable to finalize the active chatlog during shutdown. The recovery copy was kept.",
+                ex);
+        }
+
+        if (shutdownFinalized)
+        {
+            try
+            {
+                await _rawCaptureFailsafe.MarkRunCleanlyClosedAsync(
+                    CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error(
+                    "Unable to mark the capture run as cleanly closed.",
+                    ex);
+            }
         }
 
         await _reader.DisposeAsync();

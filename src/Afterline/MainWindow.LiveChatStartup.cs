@@ -7,6 +7,7 @@ public partial class MainWindow
         base.OnContentRendered(e);
         EnsureFirstRunSetup();
         EnsureLiveChatEnhancements();
+        EnsureDailyLogRolloverUiV054();
         EnsureOocExportFiltering();
         EnsureCachedReplayUi();
         EnsureUiBehaviorFixes();
@@ -21,6 +22,7 @@ public partial class MainWindow
         EnsureLogReaderToolbar();
         EnsureLiveSessionInfo();
         EnsureQolSearchRecoveryStats();
+        EnsureRawCaptureRecoveryV054();
         EnsureDarkSearchCalendarPopups();
         EnsureSessionTrayNotification();
         EnsureEditor();

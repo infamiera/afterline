@@ -8,6 +8,13 @@ internal static class ChangelogData
     // The newest release must stay first so the in-app changelog always opens on the latest notes.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.5.4", "22/AUG/2026", new[]
+        {
+            "Added automatic daily chatlog rollover at midnight without interrupting the active server session.",
+            "Added clear day-end and date-rollover markers, continuous current-session exports and unobtrusive Live Chat rollover feedback.",
+            "Added a pre-parse raw capture failsafe with current and previous cache generations plus preserved crash snapshots for unexpected shutdowns.",
+            "Expanded Settings recovery options to replay raw captures, save recovery copies and show raw-backup and unexpected-shutdown status."
+        }),
         new("0.5.3", "22/AUG/2026", new[]
         {
             "Added automatic chat coloring for friend-login messages so \"logged in\" is highlighted green.",
