@@ -6,6 +6,10 @@ internal static class CurrentReleaseData
     // release-ready build can evolve without rewriting previous patch history.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.6.3", "23/AUG/2026", new[]
+        {
+            "Fixed Editor Left, Center and Right alignment so it changes text alignment inside the chat block without moving the block itself."
+        }),
         new("0.6.2", "23/AUG/2026", new[]
         {
             "Added Stable and Canary update channels with an in-app opt-in warning and one-click return to Stable.",
