@@ -6,6 +6,10 @@ namespace Afterline;
 public partial class MainWindow
 {
     private bool _editorAlignmentV062Initialized;
+    private TextAlignment _editorChatTextAlignmentV063 = TextAlignment.Left;
+    private Button? _editorTextAlignLeftButtonV063;
+    private Button? _editorTextAlignCenterButtonV063;
+    private Button? _editorTextAlignRightButtonV063;
 
     private void EnsureEditorAlignmentV062()
     {
@@ -23,20 +27,34 @@ public partial class MainWindow
 
         chatContent.Children.Insert(insertAt++, new TextBlock
         {
-            Text = "Horizontal alignment",
+            Text = "Text alignment",
             FontSize = 11,
             Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
             Margin = new Thickness(0, 2, 0, 6)
         });
 
         var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
-        actions.Children.Add(CreateEditorAlignmentButtonV062("Left", "Align chat to the left edge.", () => AlignEditorChatV062(0)));
-        actions.Children.Add(CreateEditorAlignmentButtonV062("Center", "Center chat horizontally in the screenshot.", () => AlignEditorChatV062(1)));
-        actions.Children.Add(CreateEditorAlignmentButtonV062("Right", "Align chat to the right edge of the screenshot.", () => AlignEditorChatV062(2)));
+        _editorTextAlignLeftButtonV063 = CreateEditorAlignmentButtonV063(
+            "Left",
+            "Align text to the left inside the chat block.",
+            TextAlignment.Left);
+        _editorTextAlignCenterButtonV063 = CreateEditorAlignmentButtonV063(
+            "Center",
+            "Center text inside the chat block without moving the block itself.",
+            TextAlignment.Center);
+        _editorTextAlignRightButtonV063 = CreateEditorAlignmentButtonV063(
+            "Right",
+            "Align text to the right inside the chat block without moving the block itself.",
+            TextAlignment.Right);
+
+        actions.Children.Add(_editorTextAlignLeftButtonV063);
+        actions.Children.Add(_editorTextAlignCenterButtonV063);
+        actions.Children.Add(_editorTextAlignRightButtonV063);
         chatContent.Children.Insert(insertAt, actions);
+        RefreshEditorTextAlignmentButtonsV063();
     }
 
-    private Button CreateEditorAlignmentButtonV062(string label, string tooltip, Action action)
+    private Button CreateEditorAlignmentButtonV063(string label, string tooltip, TextAlignment alignment)
     {
         var button = new Button
         {
@@ -46,48 +64,37 @@ public partial class MainWindow
             MinWidth = 62,
             ToolTip = tooltip
         };
-        button.Click += (_, _) => action();
+        button.Click += (_, _) => SetEditorTextAlignmentV063(alignment);
         return button;
     }
 
-    private void AlignEditorChatV062(int alignment)
+    private void SetEditorTextAlignmentV063(TextAlignment alignment)
     {
-        if (_editorChatBitmap is null || _editorChatXSlider is null)
-        {
-            SetEditorStatus("Add chat text before changing its alignment.");
-            return;
-        }
-
-        double canvasWidth;
-        if (_editorBaseOriginal is not null)
-        {
-            canvasWidth = Math.Max(1, _editorBaseOriginal.PixelWidth);
-        }
-        else
-        {
-            double compositionWidth = _editorComposition?.Width ?? 0;
-            if (!double.IsFinite(compositionWidth) || compositionWidth <= 0)
-                compositionWidth = _editorChatBitmap.PixelWidth;
-            canvasWidth = Math.Max(_editorChatBitmap.PixelWidth, compositionWidth);
-        }
-
-        double available = Math.Max(0, canvasWidth - _editorChatBitmap.PixelWidth);
-        double x = alignment switch
-        {
-            1 => available / 2.0,
-            2 => available,
-            _ => 0
-        };
-
-        _editorChatXSlider.Value = Math.Clamp(x, _editorChatXSlider.Minimum, _editorChatXSlider.Maximum);
-        UpdateEditorCanvasSize();
+        _editorChatTextAlignmentV063 = alignment;
+        RefreshEditorTextAlignmentButtonsV063();
+        ScheduleEditorChatRender();
 
         string name = alignment switch
         {
-            1 => "centered",
-            2 => "aligned right",
+            TextAlignment.Center => "centered",
+            TextAlignment.Right => "aligned right",
             _ => "aligned left"
         };
-        SetEditorStatus($"Chat block {name}.");
+        SetEditorStatus($"Chat text {name} within its block.");
+    }
+
+    private void RefreshEditorTextAlignmentButtonsV063()
+    {
+        SetEditorTextAlignmentButtonStateV063(_editorTextAlignLeftButtonV063, TextAlignment.Left);
+        SetEditorTextAlignmentButtonStateV063(_editorTextAlignCenterButtonV063, TextAlignment.Center);
+        SetEditorTextAlignmentButtonStateV063(_editorTextAlignRightButtonV063, TextAlignment.Right);
+    }
+
+    private void SetEditorTextAlignmentButtonStateV063(Button? button, TextAlignment alignment)
+    {
+        if (button is null) return;
+        bool selected = _editorChatTextAlignmentV063 == alignment;
+        button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+        button.Opacity = selected ? 1.0 : 0.78;
     }
 }
