@@ -39,6 +39,7 @@ public sealed class EditorPreferences
     public double FontSize { get; set; } = 18;
     public double LineSpacing { get; set; } = 1;
     public double ChatWidth { get; set; } = 900;
+    public string ChatTextAlignment { get; set; } = "Left";
     public bool ShowTimestamps { get; set; }
     public string CanvasBackground { get; set; } = "Black";
     public double ChatHorizontalPosition { get; set; }

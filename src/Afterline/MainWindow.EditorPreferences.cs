@@ -71,6 +71,7 @@ public partial class MainWindow
             FontSize = _editorFontSizeSlider?.Value ?? 18,
             LineSpacing = _editorLineSpacingSlider?.Value ?? 1,
             ChatWidth = _editorChatWidthSlider?.Value ?? 900,
+            ChatTextAlignment = _editorChatTextAlignmentV063.ToString(),
             ShowTimestamps = _editorShowTimestampsCheck?.IsChecked == true,
             CanvasBackground = _editorBackgroundBox?.SelectedItem?.ToString() ?? "Black",
             ChatHorizontalPosition = _editorChatXSlider?.Value ?? 0,
@@ -105,6 +106,8 @@ public partial class MainWindow
         SetEditorSlider(_editorFontSizeSlider, preferences.FontSize);
         SetEditorSlider(_editorLineSpacingSlider, preferences.LineSpacing);
         SetEditorSlider(_editorChatWidthSlider, preferences.ChatWidth);
+        _editorChatTextAlignmentV063 = ParseEditorTextAlignmentV063(preferences.ChatTextAlignment);
+        RefreshEditorTextAlignmentButtonsV063();
         if (_editorShowTimestampsCheck is not null) _editorShowTimestampsCheck.IsChecked = preferences.ShowTimestamps;
 
         SetEditorComboSelection(_editorBackgroundBox, preferences.CanvasBackground, "Black");
@@ -139,6 +142,14 @@ public partial class MainWindow
         UpdateEditorCanvasSize();
         UpdateEditorMediaControlsV060();
     }
+
+    private static TextAlignment ParseEditorTextAlignmentV063(string? value)
+        => value?.Trim().ToLowerInvariant() switch
+        {
+            "center" => TextAlignment.Center,
+            "right" => TextAlignment.Right,
+            _ => TextAlignment.Left
+        };
 
     private static void SetEditorSlider(Slider? slider, double value)
     {
