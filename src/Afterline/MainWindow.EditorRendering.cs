@@ -50,6 +50,7 @@ public partial class MainWindow
                     FontFamily = fontFamily,
                     FontWeight = fontWeight,
                     FontSize = fontSize,
+                    TextAlignment = _editorChatTextAlignmentV063,
                     TextWrapping = TextWrapping.Wrap,
                     LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
                     LineHeight = Math.Max(fontSize + lineSpacing, fontSize + 0.5),
