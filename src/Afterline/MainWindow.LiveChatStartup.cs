@@ -12,6 +12,7 @@ public partial class MainWindow
         EnsureUiBehaviorFixes();
         EnsureLiveContextBookmarks();
         EnsureLiveChatContextMenuRepair();
+        EnsureLiveRightClickFixV053();
         EnsureExportChoices();
         EnsureNotesBookmarksPage();
         EnsureNotesBookmarksPresentation();

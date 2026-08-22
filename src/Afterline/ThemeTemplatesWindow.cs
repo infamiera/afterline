@@ -67,17 +67,6 @@ internal sealed class ThemeTemplatesWindow : Window
                 Border = "#3C373F", Accent = "#D56C88", AccentHover = "#E888A0", ControlHover = "#342F36",
                 PrimaryText = "#F5F1F2", SecondaryText = "#BFB6BA"
             }
-        },
-        new()
-        {
-            Name = "Frost",
-            Description = "A clean light template with dark interface text and a calm blue accent.",
-            Theme = new ThemePreferences
-            {
-                Background = "#F3F6F9", Sidebar = "#E7EDF3", Panel = "#FFFFFF", Raised = "#EDF2F7", Inset = "#F7F9FB",
-                Border = "#C9D3DD", Accent = "#3D7FC4", AccentHover = "#5B99D6", ControlHover = "#DFE7EF",
-                PrimaryText = "#18212B", SecondaryText = "#5F6D7A"
-            }
         }
     };
 

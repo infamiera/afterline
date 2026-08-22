@@ -17,11 +17,49 @@ internal static class ChatColorRefinementsV045
         @"^Premium:\s*(?<premium>[^|]+?)\s*\|\s*Furniture slots:\s*(?<furniture>[^|]+?)\s*\|\s*Wardrobe slots:\s*(?<wardrobe>.+?)\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex FriendLoginLine = new(
+        @"^\s*(?<tag>\[FRIEND\])\s+.*?\b(?<status>logged in)\.\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PropertyLightsLine = new(
+        @"^\s*(?<tag>\[SUCCESS\])\s+You have turned the property lights (?<state>off|on)\.\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     internal static bool TryFormat(string body, out IReadOnlyList<EditorChatSegment> segments)
     {
         segments = Array.Empty<EditorChatSegment>();
         string trimmed = body.TrimStart();
         if (trimmed.Length == 0) return false;
+
+        Match friendLogin = FriendLoginLine.Match(body);
+        if (friendLogin.Success)
+        {
+            Group tag = friendLogin.Groups["tag"];
+            Group status = friendLogin.Groups["status"];
+            segments = HighlightRanges(body, EditorChatFormatter.White, new[]
+            {
+                (tag.Index, tag.Length, EditorChatFormatter.Blue),
+                (status.Index, status.Length, EditorChatFormatter.Green)
+            });
+            return true;
+        }
+
+        Match propertyLights = PropertyLightsLine.Match(body);
+        if (propertyLights.Success)
+        {
+            Group tag = propertyLights.Groups["tag"];
+            Group state = propertyLights.Groups["state"];
+            Color stateColor = string.Equals(state.Value, "off", StringComparison.OrdinalIgnoreCase)
+                ? EditorChatFormatter.Red
+                : EditorChatFormatter.Green;
+
+            segments = HighlightRanges(body, EditorChatFormatter.White, new[]
+            {
+                (tag.Index, tag.Length, EditorChatFormatter.Green),
+                (state.Index, state.Length, stateColor)
+            });
+            return true;
+        }
 
         if (PastDaysLine.IsMatch(trimmed))
         {

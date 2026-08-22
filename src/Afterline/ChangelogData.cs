@@ -8,6 +8,13 @@ internal static class ChangelogData
     // The newest release must stay first so the in-app changelog always opens on the latest notes.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.5.3", "22/AUG/2026", new[]
+        {
+            "Added automatic chat coloring for friend-login messages so \"logged in\" is highlighted green.",
+            "Added property-light success message coloring so [SUCCESS] is green, with off shown in red and on shown in green.",
+            "Fixed Live Chat right-click targeting so context actions consistently use the line that was actually right-clicked.",
+            "Added brief visual feedback to the right-clicked Live Chat line while its context menu is open."
+        }),
         new("0.5.2", "22/AUG/2026", new[]
         {
             "Disabled the Frost theme template because its light palette can still leave some native/WPF controls unreadable.",
