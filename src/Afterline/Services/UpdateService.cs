@@ -202,7 +202,8 @@ public sealed class UpdateService
             UseShellExecute = true,
             Arguments = $"--afterline-apply-update {Quote(current)} {Environment.ProcessId} {Quote(download.Version)}"
         };
-        Process.Start(start) ?? throw new InvalidOperationException("The downloaded updater could not be started.");
+        if (Process.Start(start) is null)
+            throw new InvalidOperationException("The downloaded updater could not be started.");
     }
 
     public static bool TryRunUpdaterMode(string[] args)
@@ -237,12 +238,13 @@ public sealed class UpdateService
             if (!string.Equals(sourceHash, targetHash, StringComparison.OrdinalIgnoreCase))
                 throw new IOException("The installed update did not match the verified download.");
 
-            Process.Start(new ProcessStartInfo
+            if (Process.Start(new ProcessStartInfo
             {
                 FileName = targetPath,
                 UseShellExecute = true,
                 Arguments = $"--afterline-update-complete {Quote(backupPath)} {Quote(version)}"
-            }) ?? throw new InvalidOperationException("The updated Afterline executable could not be restarted.");
+            }) is null)
+                throw new InvalidOperationException("The updated Afterline executable could not be restarted.");
         }
         catch (Exception ex)
         {

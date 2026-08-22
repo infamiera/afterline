@@ -281,7 +281,7 @@ public partial class MainWindow
                 int hundredths = value switch
                 {
                     ushort u => u,
-                    short s => Math.Max(0, s),
+                    short s => Math.Max(0, (int)s),
                     uint u => (int)Math.Min(int.MaxValue, u),
                     int i => Math.Max(0, i),
                     _ => 0
