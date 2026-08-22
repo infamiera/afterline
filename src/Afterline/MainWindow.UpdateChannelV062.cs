@@ -16,7 +16,9 @@ public partial class MainWindow
 
     private void EnsureUpdateChannelV062()
     {
-        if (_updateChannelV062Initialized || _checkUpdatesButton?.Parent is not StackPanel panel)
+        if (_updateChannelV062Initialized ||
+            _checkUpdatesButton is null ||
+            SettingsPage.Content is not StackPanel settingsStack)
             return;
 
         _updateChannelV062Initialized = true;
@@ -34,31 +36,49 @@ public partial class MainWindow
             }
         }
 
+        var settingsCard = new Border
+        {
+            Style = (Style)FindResource("CardStyle"),
+            Margin = new Thickness(0, 0, 0, 14)
+        };
+        var settingsContent = new StackPanel();
+        settingsContent.Children.Add(new TextBlock
+        {
+            Text = "Update channel",
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold
+        });
+
         _updateChannelTextV062 = new TextBlock
         {
-            FontSize = 10.5,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 10, 0, 0)
+            Margin = new Thickness(0, 12, 0, 0)
         };
-        panel.Children.Add(_updateChannelTextV062);
+        settingsContent.Children.Add(_updateChannelTextV062);
 
         _updateChannelWarningV062 = new TextBlock
         {
-            FontSize = 9.5,
+            FontSize = 10.5,
             TextWrapping = TextWrapping.Wrap,
             Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
-            Margin = new Thickness(0, 3, 0, 0)
+            Margin = new Thickness(0, 4, 0, 0)
         };
-        panel.Children.Add(_updateChannelWarningV062);
+        settingsContent.Children.Add(_updateChannelWarningV062);
 
         _updateChannelButtonV062 = new Button
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(9, 6, 9, 6),
-            Margin = new Thickness(0, 7, 0, 0)
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(12, 7, 12, 7),
+            Margin = new Thickness(0, 10, 0, 0),
+            MinWidth = 138
         };
         _updateChannelButtonV062.Click += UpdateChannelV062_Click;
-        panel.Children.Add(_updateChannelButtonV062);
+        settingsContent.Children.Add(_updateChannelButtonV062);
+
+        settingsCard.Child = settingsContent;
+        int insertAt = Math.Max(0, settingsStack.Children.Count - 1);
+        settingsStack.Children.Insert(insertAt, settingsCard);
 
         _checkUpdatesButton.Click -= CheckForUpdates_Click;
         _checkUpdatesButton.Click += ChannelAwareCheckForUpdatesV062_Click;
@@ -110,10 +130,10 @@ public partial class MainWindow
             return;
 
         bool canary = IsCanaryChannelV062();
-        _updateChannelTextV062.Text = canary ? "Update channel: Canary" : "Update channel: Stable";
+        _updateChannelTextV062.Text = canary ? "Current channel: Canary" : "Current channel: Stable";
         _updateChannelWarningV062.Text = canary
             ? "Canary receives experimental builds frequently. Features may be unfinished or break without warning."
-            : "Canary builds may update frequently and can contain unfinished or broken changes.";
+            : "Switch to Canary to test experimental builds before they reach Stable. Canary may update frequently and can contain unfinished or broken changes.";
         _updateChannelButtonV062.Content = canary ? "Return to Stable" : "Try Canary builds";
     }
 
