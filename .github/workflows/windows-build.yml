@@ -1,9 +1,9 @@
-name: Build Afterline for Windows
+name: Build Afterline Development
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ develop ]
 
 permissions:
   contents: read
@@ -23,7 +23,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish single-file Windows x64 build
+      - name: Publish development Windows x64 build
         shell: pwsh
         run: |
           dotnet publish src/Afterline/Afterline.csproj `
@@ -39,10 +39,10 @@ jobs:
             -p:SatelliteResourceLanguages=en `
             -o publish/Afterline
 
-      - name: Upload Afterline application
+      - name: Upload private development build
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: Afterline-v0.6.0-Windows-x64
+          name: Afterline-development-Windows-x64
           path: publish/Afterline/Afterline.exe
           if-no-files-found: error
           compression-level: 9
