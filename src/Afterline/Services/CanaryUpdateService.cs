@@ -22,11 +22,11 @@ public sealed class CanaryUpdateService
             using HttpResponseMessage response = await http.GetAsync(CanaryReleaseApi, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                string error = response.StatusCode == System.Net.HttpStatusCode.NotFound
+                string responseError = response.StatusCode == System.Net.HttpStatusCode.NotFound
                     ? "No public Afterline Canary build is available yet."
                     : $"GitHub Releases returned {(int)response.StatusCode} while checking Canary.";
                 return new CanaryUpdateCheckResult(
-                    new UpdateCheckResult(null, CanaryReleasePageUrl, null, null, null, error),
+                    new UpdateCheckResult(null, CanaryReleasePageUrl, null, null, null, responseError),
                     null);
             }
 
