@@ -1,21 +1,19 @@
-name: Build Afterline for Windows
+name: Build and Publish Afterline Canary
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches: [ canary ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - name: Check out source
+      - name: Check out Canary source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -25,9 +23,14 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish single-file Windows x64 build
+      - name: Publish Canary Windows x64 build
         shell: pwsh
         run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          $informational = "$version-canary.$env:GITHUB_RUN_NUMBER+$sha"
+
           dotnet publish src/Afterline/Afterline.csproj `
             -c Release `
             -r win-x64 `
@@ -39,12 +42,54 @@ jobs:
             -p:DebugSymbols=false `
             -p:DebugType=None `
             -p:SatelliteResourceLanguages=en `
+            -p:InformationalVersion="$informational" `
             -o publish/Afterline
 
-      - name: Upload Afterline application
+      - name: Prepare Canary assets and checksum
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          $exeName = "Afterline-v$version-Canary-$sha-Windows-x64.exe"
+
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          $exePath = Join-Path release $exeName
+          Copy-Item publish/Afterline/Afterline.exe $exePath
+          $hash = (Get-FileHash $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $exeName" | Set-Content -Path "$exePath.sha256" -Encoding ascii -NoNewline
+
+      - name: Upload Canary build artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: Afterline-v0.6.4-Windows-x64
-          path: publish/Afterline/Afterline.exe
+          name: Afterline-Canary-Windows-x64
+          path: release/*
           if-no-files-found: error
           compression-level: 9
+
+      - name: Publish Canary prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          $exeName = "Afterline-v$version-Canary-$sha-Windows-x64.exe"
+
+          gh release view canary *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete canary --yes --cleanup-tag
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to replace the previous Canary prerelease."
+            }
+          }
+
+          $notes = "Automated Afterline Canary build from commit $sha.`n`nWarning: Canary builds are experimental, may update frequently, and can contain unfinished or broken changes."
+          gh release create canary `
+            "release/$exeName" `
+            "release/$exeName.sha256" `
+            --target "$env:GITHUB_SHA" `
+            --title "Afterline Canary" `
+            --notes "$notes" `
+            --prerelease
