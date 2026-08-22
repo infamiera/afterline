@@ -18,16 +18,16 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         ".map(function(el){return (el.innerText || '').replace(/\\s+/g,' ').trim();})" +
         ".filter(function(x){return x.length > 0;}))";
 
-    // FiveM's root NUI keeps the current endpoint in the lexical `serverAddress`
-    // variable. It is updated by FiveM through the rootCall/setServerAddress path.
-    // Do not use document.title here: the root page title is "CitizenFX root UI"
-    // and is not server metadata.
+    // Prefer FiveM's documented loading-screen handover data when it is exposed
+    // in the evaluated NUI page. For already-connected sessions, keep only the
+    // root `serverAddress` endpoint as a compatibility fallback. Friendly names
+    // are resolved from documented handover fields or normal server info endpoints.
     private const string ReadServerStateExpression =
         "JSON.stringify((function(){" +
-        "var h=(typeof handoverBlob==='object'&&handoverBlob)?handoverBlob:{};" +
+        "var h=(typeof window==='object'&&window&&typeof window.nuiHandoverData==='object'&&window.nuiHandoverData)?window.nuiHandoverData:{};" +
+        "var d=(typeof h.serverAddress==='string')?h.serverAddress:'';" +
         "var a=(typeof serverAddress==='string')?serverAddress:'';" +
-        "return {address:(a||h.serverAddress||h.endpoint||'')," +
-        "name:(h.serverName||h.projectName||h.hostname||'')};" +
+        "return {address:(d||a),name:(h.serverName||h.projectName||h.hostname||'')};" +
         "})())";
 
     private readonly HttpClient _http;

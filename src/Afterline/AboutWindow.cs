@@ -90,7 +90,7 @@ internal sealed class AboutWindow : Window
         });
         disclaimerStack.Children.Add(new TextBlock
         {
-            Text = "Afterline is an independent, private application created for personal use. It is not affiliated with any server, company, or brand. Redistribution, resale, or re-uploading without the owner's permission is prohibited. Unauthorized re-uploads may be subject to takedown requests.",
+            Text = "Afterline is an independent third-party utility and is not affiliated with, endorsed by, sponsored by, or approved by Rockstar Games, Cfx.re, FiveM, or any roleplay server or community. FiveM is referenced solely to describe compatibility. Users are responsible for following the rules of the servers they use. Redistribution, resale, or re-uploading without the owner's permission is prohibited.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 6, 0, 0)

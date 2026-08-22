@@ -47,8 +47,14 @@ Release builds are produced by GitHub Actions as a self-contained Windows x64 ap
 
 ## Data and privacy
 
-Afterline stores chatlogs and application data locally. Chatlogs are ordinary text files in the directory selected by the user. Search is read-only, and the application does not include an automatic executable downloader or self-updater.
+Afterline stores chatlogs and application data locally. Chatlogs are ordinary text files in the directory selected by the user. Captured chat is not uploaded by Afterline, and the application does not include telemetry, cloud chat syncing, an automatic executable downloader, or a self-updater.
+
+## FiveM interaction and server rules
+
+Afterline is designed as a passive, read-only companion utility. It reads chat that has already been rendered by the local FiveM NUI and uses normal server information endpoints to resolve friendly server names. It does not send NUI callbacks, trigger gameplay or server events, inject resources, automate gameplay, modify game memory, or bypass anti-cheat systems.
+
+Users are responsible for checking and following the rules of each server or community before using external chat-logging or archival tools.
 
 ## Independence
 
-Afterline is an independent text roleplay chat parser and archive utility. It is not affiliated with, endorsed by, or developed on behalf of any roleplay server or community.
+Afterline is an independent third-party text roleplay chat parser and archive utility. It is not affiliated with, endorsed by, sponsored by, or approved by Rockstar Games, Cfx.re, FiveM, or any roleplay server or community. FiveM is referenced solely to describe compatibility.
