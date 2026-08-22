@@ -131,7 +131,7 @@ public sealed class SessionJournal
             {
                 await WriteNewFileAsync(
                     _activeFile,
-                    $"[AFTERLINE SERVER: {serverName}]",
+                    $"[SERVER: {serverName}]",
                     cancellationToken);
             }
 
@@ -426,7 +426,7 @@ public sealed class SessionJournal
         {
             await WriteNewFileAsync(
                 _activeFile,
-                $"[AFTERLINE SERVER: {serverName}]",
+                $"[SERVER: {serverName}]",
                 cancellationToken);
         }
 
@@ -576,7 +576,7 @@ public sealed class SessionJournal
         {
             await WriteNewFileAsync(
                 archiveFile,
-                $"[AFTERLINE SERVER: {state.ServerName}]",
+                $"[SERVER: {state.ServerName}]",
                 cancellationToken);
 
             foreach (string line in backupLines)

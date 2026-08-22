@@ -8,6 +8,10 @@ internal static class ChangelogData
     // The newest release must stay first so the in-app changelog always opens on the latest notes.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.5.5", "22/AUG/2026", new[]
+        {
+            "Simplified archived chatlog headers from [AFTERLINE SERVER] to [SERVER]."
+        }),
         new("0.5.4", "22/AUG/2026", new[]
         {
             "Added automatic daily chatlog rollover at midnight without interrupting the active server session.",
