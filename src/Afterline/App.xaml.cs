@@ -8,7 +8,7 @@ public partial class App : System.Windows.Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
-        if (UpdateService.TryRunUpdaterMode(e.Args))
+        if (CanaryUpdateInstaller.TryRunUpdaterMode(e.Args) || UpdateService.TryRunUpdaterMode(e.Args))
         {
             Environment.Exit(0);
             return;

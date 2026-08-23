@@ -34,10 +34,20 @@ public partial class MainWindow
         EnsureThemeAndAbout();
         EnsureUnifiedChatPresentation();
         EnsureEditorPreferences();
+        EnsureEditorCanaryWorkspace();
+        EnsureCanaryMiscPolish();
         EnsureQolV050();
         EnsureLiveFindLayoutV062();
         EnsureChangelogUi();
         EnsureUpdatePanelV061();
         EnsureUpdateChannelV062();
+        EnsureCanaryUpdateHandoffV2();
+        EnsureSettingsCanarySidebarV2();
+
+        // Finalized Editor/UI initialization replaces the superseded V2/V3/V4
+        // startup passes while preserving their tested final behavior.
+        EnsureFinalRuntimeOptimizationV066();
+        EnsureBuildIdentityV065();
+        EnsureFinalChannelHandoffV066();
     }
 }

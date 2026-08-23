@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -9,6 +10,10 @@ namespace Afterline;
 
 internal sealed class UpdateAvailableWindow : Window
 {
+    private static readonly Regex UrlRegex = new(
+        @"https?://[^\s<>{}\[\]""]+",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private readonly UpdateCheckResult _release;
     public bool InstallRequested { get; private set; }
 
@@ -17,8 +22,8 @@ internal sealed class UpdateAvailableWindow : Window
         Owner = owner;
         _release = release;
         Title = "Afterline Update";
-        Width = 560;
-        Height = 520;
+        Width = 570;
+        Height = 530;
         MinWidth = 500;
         MinHeight = 430;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -48,48 +53,67 @@ internal sealed class UpdateAvailableWindow : Window
         root.Children.Add(header);
 
         var card = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(14) };
-        var content = new StackPanel();
+        var content = new Grid();
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
         content.Children.Add(new TextBlock
         {
             Text = "WHAT'S NEW",
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("MutedText"),
-            Margin = new Thickness(0, 0, 0, 8)
+            Foreground = (Brush)FindResource("MutedText")
         });
 
-        var notes = new TextBox
+        var notes = new RichTextBox
         {
-            Text = string.IsNullOrWhiteSpace(release.ReleaseNotes)
-                ? "Release notes were not provided for this update."
-                : release.ReleaseNotes,
             IsReadOnly = true,
-            TextWrapping = TextWrapping.Wrap,
-            AcceptsReturn = true,
+            IsDocumentEnabled = true,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            MinHeight = 220,
             BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent
+            Background = Brushes.Transparent,
+            Padding = new Thickness(0),
+            MinHeight = 220,
+            Document = BuildReleaseNotesDocument(
+                string.IsNullOrWhiteSpace(release.ReleaseNotes)
+                    ? "Release notes were not provided for this update."
+                    : release.ReleaseNotes)
         };
+        Grid.SetRow(notes, 2);
         content.Children.Add(notes);
 
-        var releaseLink = new TextBlock { Margin = new Thickness(0, 10, 0, 0), FontSize = 11 };
-        var hyperlink = new Hyperlink(new Run("View release on GitHub"))
+        var links = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var releaseLink = new TextBlock { FontSize = 11 };
+        var releaseHyperlink = new Hyperlink(new Run("View this release on GitHub"))
         {
-            Foreground = (Brush)FindResource("Accent")
+            Foreground = (Brush)FindResource("Accent"),
+            ToolTip = release.ReleasePageUrl
         };
-        hyperlink.Click += (_, _) => OpenReleasePage();
-        releaseLink.Inlines.Add(hyperlink);
-        content.Children.Add(releaseLink);
+        releaseHyperlink.Click += (_, _) => OpenUrl(release.ReleasePageUrl);
+        releaseLink.Inlines.Add(releaseHyperlink);
+        links.Children.Add(releaseLink);
 
-        content.Children.Add(new TextBlock
+        links.Children.Add(new TextBlock
+        {
+            Text = "Links included in release notes are clickable. Only open links you recognise and trust.",
+            Foreground = (Brush)FindResource("MutedText"),
+            FontSize = 10.5,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 6, 0, 0)
+        });
+        links.Children.Add(new TextBlock
         {
             Text = "Afterline verifies the downloaded executable against the release SHA-256 checksum before replacing the current build.",
             Foreground = (Brush)FindResource("MutedText"),
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 10, 0, 0)
+            Margin = new Thickness(0, 7, 0, 0)
         });
+        Grid.SetRow(links, 3);
+        content.Children.Add(links);
+
         card.Child = content;
         Grid.SetRow(card, 2);
         root.Children.Add(card);
@@ -128,19 +152,72 @@ internal sealed class UpdateAvailableWindow : Window
         ThemeService.ApplyWindow(this);
     }
 
-    private void OpenReleasePage()
+    private FlowDocument BuildReleaseNotesDocument(string notes)
+    {
+        var document = new FlowDocument
+        {
+            PagePadding = new Thickness(0),
+            FontFamily = FontFamily,
+            FontSize = 12,
+            Foreground = (Brush)FindResource("Text")
+        };
+
+        string normalized = notes.Replace("\r\n", "\n");
+        foreach (string line in normalized.Split('\n'))
+        {
+            var paragraph = new Paragraph { Margin = new Thickness(0, 0, 0, 5) };
+            int cursor = 0;
+
+            foreach (Match match in UrlRegex.Matches(line))
+            {
+                if (match.Index > cursor)
+                    paragraph.Inlines.Add(new Run(line[cursor..match.Index]));
+
+                string rawUrl = match.Value;
+                string url = rawUrl.TrimEnd('.', ',', ';', ':');
+                string suffix = rawUrl[url.Length..];
+
+                var link = new Hyperlink(new Run(url))
+                {
+                    Foreground = (Brush)FindResource("Accent"),
+                    ToolTip = url
+                };
+                link.Click += (_, _) => OpenUrl(url);
+                paragraph.Inlines.Add(link);
+                if (suffix.Length > 0)
+                    paragraph.Inlines.Add(new Run(suffix));
+
+                cursor = match.Index + match.Length;
+            }
+
+            if (cursor < line.Length)
+                paragraph.Inlines.Add(new Run(line[cursor..]));
+            if (line.Length == 0)
+                paragraph.Inlines.Add(new Run(" "));
+
+            document.Blocks.Add(paragraph);
+        }
+
+        return document;
+    }
+
+    private static void OpenUrl(string url)
     {
         try
         {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) ||
+                (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+                return;
+
             Process.Start(new ProcessStartInfo
             {
-                FileName = _release.ReleasePageUrl,
+                FileName = uri.AbsoluteUri,
                 UseShellExecute = true
             });
         }
         catch (Exception ex)
         {
-            DiagnosticLogger.Error("Unable to open the Afterline release page.", ex);
+            DiagnosticLogger.Error("Unable to open an update link.", ex);
         }
     }
 }

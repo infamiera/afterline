@@ -9,8 +9,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Afterline</AssemblyName>
     <RootNamespace>Afterline</RootNamespace>
-    <Version>0.6.5</Version>
-    <ReleaseTitle>Build Identity Update</ReleaseTitle>
+    <Version>0.6.6</Version>
+    <ReleaseTitle>Editor &amp; Stability Update</ReleaseTitle>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Afterline.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>

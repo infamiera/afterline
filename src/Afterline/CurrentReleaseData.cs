@@ -6,6 +6,14 @@ internal static class CurrentReleaseData
     // release-ready build can evolve without rewriting previous patch history.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.6.6", "23/AUG/2026", new[]
+        {
+            "Promoted the Canary Editor workspace to Stable with compact top menus, dedicated tool panels, full-screen editing, configurable Editor keybinds, selection tools, snapping, multi-chat overlays, saved filter presets, pixelation, and expanded image adjustments.",
+            "Promoted the reorganized Settings experience with dedicated navigation for general settings, keybinds, recovery, raw capture failsafe, and the Canary Branch.",
+            "Hardened Stable and Canary updates with unique build identities, automatic build refresh, SHA-256 verification, and a detached retrying installer for both channel directions.",
+            "Optimized startup by consolidating superseded Canary UI initialization layers, avoiding duplicate handlers and redundant filter prewarming, and leaving the removed Object Select subsystem inactive.",
+            "Reduced background release polling while preserving immediate refresh when Afterline becomes active."
+        }),
         new("0.6.5", "23/AUG/2026", new[]
         {
             "Introduced distinct Stable and Canary build identities so update checks no longer rely on the base version alone.",
