@@ -41,6 +41,7 @@ public partial class MainWindow
         EnsureChangelogUi();
         EnsureUpdatePanelV061();
         EnsureUpdateChannelV062();
+        EnsureCanaryUpdateHandoffV2();
         EnsureCanaryEditorRefinementV2();
         EnsureSettingsCanarySidebarV2();
     }
