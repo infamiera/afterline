@@ -45,5 +45,6 @@ public partial class MainWindow
         EnsureCanaryEditorRefinementV2();
         EnsureSettingsCanarySidebarV2();
         EnsureCanaryUiFixesV3();
+        EnsureCanaryRuntimeFixesV4();
     }
 }
