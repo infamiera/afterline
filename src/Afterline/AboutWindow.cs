@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using Afterline.Services;
 
@@ -8,14 +10,16 @@ namespace Afterline;
 
 internal sealed class AboutWindow : Window
 {
+    private const string ProjectUrl = "https://github.com/infamiera/afterline";
+
     public AboutWindow(Window owner)
     {
         Owner = owner;
         Title = "About Afterline";
-        Width = 600;
-        Height = 650;
+        Width = 610;
+        Height = 680;
         MinWidth = 540;
-        MinHeight = 610;
+        MinHeight = 600;
         ResizeMode = ResizeMode.CanResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
@@ -46,6 +50,8 @@ internal sealed class AboutWindow : Window
             "About",
             "Afterline is a lightweight Windows utility for capturing, browsing, searching, and composing text roleplay chatlogs. It is designed as a private, personal-use tool with local storage and a simple interface."));
 
+        body.Children.Add(CreateProjectCard());
+
         var contactCard = new Border
         {
             Style = (Style)FindResource("CardStyle"),
@@ -60,19 +66,20 @@ internal sealed class AboutWindow : Window
         });
         contactStack.Children.Add(new TextBlock
         {
-            Text = "A support contact can be linked here later.",
+            Text = "Issues, feature requests and release information are available through the official GitHub project.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 5, 0, 10)
         });
-        contactStack.Children.Add(new Button
+        var projectButton = new Button
         {
-            Content = "Contact / Support",
-            IsEnabled = false,
+            Content = "Open GitHub Project",
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(12, 7, 12, 7),
-            ToolTip = "Support link not configured yet"
-        });
+            ToolTip = "Open the official Afterline GitHub project in your default browser."
+        };
+        projectButton.Click += (_, _) => OpenUrl(ProjectUrl);
+        contactStack.Children.Add(projectButton);
         contactCard.Child = contactStack;
         body.Children.Add(contactCard);
 
@@ -98,8 +105,14 @@ internal sealed class AboutWindow : Window
         disclaimer.Child = disclaimerStack;
         body.Children.Add(disclaimer);
 
-        Grid.SetRow(body, 2);
-        root.Children.Add(body);
+        var bodyScroll = new ScrollViewer
+        {
+            Content = body,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        Grid.SetRow(bodyScroll, 2);
+        root.Children.Add(bodyScroll);
 
         var close = new Button
         {
@@ -113,6 +126,51 @@ internal sealed class AboutWindow : Window
 
         Content = root;
         ThemeService.ApplyWindow(this);
+    }
+
+    private Border CreateProjectCard()
+    {
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = "Official Project",
+            FontSize = 17,
+            FontWeight = FontWeights.SemiBold
+        });
+
+        var linkText = new TextBlock
+        {
+            Margin = new Thickness(0, 6, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        linkText.Inlines.Add(new Run("Official download and source: ")
+        {
+            Foreground = (Brush)FindResource("MutedText")
+        });
+        var link = new Hyperlink(new Run("github.com/infamiera/afterline"))
+        {
+            Foreground = (Brush)FindResource("Accent"),
+            ToolTip = ProjectUrl
+        };
+        link.Click += (_, _) => OpenUrl(ProjectUrl);
+        linkText.Inlines.Add(link);
+        stack.Children.Add(linkText);
+
+        stack.Children.Add(new TextBlock
+        {
+            Text = "If you did not download Afterline from this official GitHub project, we strongly recommend deleting that copy and running an antivirus or security scan before downloading Afterline again from the official source.",
+            Foreground = (Brush)FindResource("Warning"),
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 10, 0, 0)
+        });
+
+        return new Border
+        {
+            Style = (Style)FindResource("CardStyle"),
+            Margin = new Thickness(0, 0, 0, 12),
+            Child = stack
+        };
     }
 
     private Border CreateCard(string title, string text)
@@ -138,6 +196,22 @@ internal sealed class AboutWindow : Window
             Margin = new Thickness(0, 0, 0, 12),
             Child = stack
         };
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to open the Afterline project link.", ex);
+        }
     }
 
     private static string GetVersion()

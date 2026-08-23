@@ -13,6 +13,7 @@ public partial class MainWindow
         if (_canaryMiscPolishInitialized) return;
         _canaryMiscPolishInitialized = true;
 
+        MoveCanaryEditorGuidesOutsideComposition();
         ApplyThemeCompliantTooltipsCanary();
         CompactFooterCanary();
         GuardDefaultEditorSizingCanary();
