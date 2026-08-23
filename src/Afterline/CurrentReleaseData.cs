@@ -6,6 +6,12 @@ internal static class CurrentReleaseData
     // release-ready build can evolve without rewriting previous patch history.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.6.5", "23/AUG/2026", new[]
+        {
+            "Introduced distinct Stable and Canary build identities so update checks no longer rely on the base version alone.",
+            "Updated Stable releases to use descriptive titles while retaining unique semantic-version tags and executable names.",
+            "Prepared Canary update parsing for build-number and commit-based identities while remaining compatible with older SHA-only Canary assets."
+        }),
         new("0.6.4", "23/AUG/2026", new[]
         {
             "Moved Stable and Canary update-channel controls from the sidebar update card into Settings to keep the sidebar compact."
