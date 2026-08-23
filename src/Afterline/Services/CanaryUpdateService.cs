@@ -80,8 +80,8 @@ public sealed class CanaryUpdateService
                     commitSha = releaseCommit ?? assetSha;
                     if (int.TryParse(match.Groups["run"].Value, out int parsedRun))
                         buildNumber = parsedRun;
-                    buildId = buildNumber is int run
-                        ? $"{run}.{commitSha}"
+                    buildId = buildNumber is int identityRun
+                        ? $"{identityRun}.{commitSha}"
                         : commitSha;
                     exeName = name;
                     break;
@@ -114,8 +114,8 @@ public sealed class CanaryUpdateService
 
             string? displayLabel = latestVersion is null
                 ? null
-                : buildNumber is int run
-                    ? $"{latestVersion} Canary #{run} · {ShortSha(commitSha)}"
+                : buildNumber is int displayRun
+                    ? $"{latestVersion} Canary #{displayRun} · {ShortSha(commitSha)}"
                     : $"{latestVersion} Canary · {ShortSha(commitSha)}";
 
             return new CanaryUpdateCheckResult(
