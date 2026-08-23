@@ -23,6 +23,11 @@ public sealed class AppSettings
     public string UpdateChannel { get; set; } = "Stable";
     public string? InstalledCanaryBuild { get; set; }
 
+    public string FindKeybind { get; set; } = "Ctrl+F";
+    public string OpenLogKeybind { get; set; } = "Ctrl+O";
+    public string CopyKeybind { get; set; } = "Ctrl+C";
+    public string CopyContextKeybind { get; set; } = "Ctrl+Shift+C";
+
     // Existing installations deserialize this as true when the property is absent.
     // SettingsService explicitly sets it to false only when no settings file exists.
     public bool FirstRunCompleted { get; set; } = true;
@@ -44,6 +49,11 @@ public sealed class EditorPreferences
     public string CanvasBackground { get; set; } = "Black";
     public double ChatHorizontalPosition { get; set; }
     public double ChatVerticalPosition { get; set; }
+
+    public string ExportKeybind { get; set; } = "Ctrl+S";
+    public string UndoKeybind { get; set; } = "Ctrl+Z";
+    public string RedoKeybind { get; set; } = "Ctrl+Shift+Z";
+    public string FullscreenKeybind { get; set; } = "F11";
 
     public bool StrokeEnabled { get; set; }
     public double StrokeWidth { get; set; } = 1;
