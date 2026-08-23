@@ -46,5 +46,6 @@ public partial class MainWindow
         EnsureSettingsCanarySidebarV2();
         EnsureCanaryUiFixesV3();
         EnsureCanaryRuntimeFixesV4();
+        EnsureBuildIdentityV065();
     }
 }
