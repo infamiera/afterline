@@ -52,22 +52,30 @@ jobs:
       - name: Prepare release assets and checksum
         shell: pwsh
         run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
           New-Item -ItemType Directory -Force -Path release | Out-Null
-          $exeName = "Afterline-$env:GITHUB_REF_NAME-Windows-x64.exe"
+          $exeName = "Afterline-v$version-Windows-x64.exe"
           $exePath = Join-Path release $exeName
           Copy-Item publish/Afterline/Afterline.exe $exePath
           $hash = (Get-FileHash $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $exeName" | Set-Content -Path "$exePath.sha256" -Encoding ascii -NoNewline
 
-      - name: Create GitHub Release
+      - name: Create descriptive GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $exeName = "Afterline-$env:GITHUB_REF_NAME-Windows-x64.exe"
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $releaseTitle = $project.Project.PropertyGroup.ReleaseTitle | Select-Object -First 1
+          if ([string]::IsNullOrWhiteSpace($releaseTitle)) {
+            $releaseTitle = "Stable Release"
+          }
+          $exeName = "Afterline-v$version-Windows-x64.exe"
           gh release create "$env:GITHUB_REF_NAME" `
             "release/$exeName" `
             "release/$exeName.sha256" `
             --verify-tag `
-            --title "Afterline $env:GITHUB_REF_NAME" `
+            --title "Afterline $version — $releaseTitle" `
             --generate-notes

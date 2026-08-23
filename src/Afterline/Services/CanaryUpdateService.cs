@@ -11,6 +11,10 @@ public sealed class CanaryUpdateService
     private const string CanaryReleaseApi = "https://api.github.com/repos/infamiera/afterline/releases/tags/canary";
 
     private static readonly Regex CanaryExeRegex = new(
+        @"^Afterline-v(?<version>\d+\.\d+\.\d+)-Canary-(?<run>\d+)-(?<build>[0-9a-f]{7,40})-Windows-x64\.exe$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex LegacyCanaryExeRegex = new(
         @"^Afterline-v(?<version>\d+\.\d+\.\d+)-Canary-(?<build>[0-9a-f]{40})-Windows-x64\.exe$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -59,13 +63,31 @@ public sealed class CanaryUpdateService
 
             string? latestVersion = null;
             string? buildId = null;
+            int? buildNumber = null;
+            string? commitSha = null;
             string? exeName = null;
+
             foreach (string name in assetUrls.Keys)
             {
                 Match match = CanaryExeRegex.Match(name);
+                if (match.Success)
+                {
+                    latestVersion = match.Groups["version"].Value;
+                    commitSha = match.Groups["build"].Value.ToLowerInvariant();
+                    if (int.TryParse(match.Groups["run"].Value, out int parsedRun))
+                        buildNumber = parsedRun;
+                    buildId = buildNumber is int run
+                        ? $"{run}:{commitSha}"
+                        : commitSha;
+                    exeName = name;
+                    break;
+                }
+
+                match = LegacyCanaryExeRegex.Match(name);
                 if (!match.Success) continue;
                 latestVersion = match.Groups["version"].Value;
-                buildId = match.Groups["build"].Value;
+                commitSha = match.Groups["build"].Value.ToLowerInvariant();
+                buildId = commitSha;
                 exeName = name;
                 break;
             }
@@ -86,6 +108,12 @@ public sealed class CanaryUpdateService
             else if (string.IsNullOrWhiteSpace(buildId))
                 error = "The Canary release does not identify the source build it was created from.";
 
+            string? displayLabel = latestVersion is null
+                ? null
+                : buildNumber is int run
+                    ? $"{latestVersion} Canary #{run} · {ShortSha(commitSha)}"
+                    : $"{latestVersion} Canary · {ShortSha(commitSha)}";
+
             return new CanaryUpdateCheckResult(
                 new UpdateCheckResult(
                     latestVersion,
@@ -94,7 +122,10 @@ public sealed class CanaryUpdateService
                     downloadUrl,
                     checksumUrl,
                     error),
-                buildId);
+                buildId,
+                buildNumber,
+                commitSha,
+                displayLabel);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -111,6 +142,11 @@ public sealed class CanaryUpdateService
         }
     }
 
+    private static string ShortSha(string? sha)
+        => string.IsNullOrWhiteSpace(sha)
+            ? "unknown"
+            : sha[..Math.Min(7, sha.Length)];
+
     private static HttpClient CreateClient()
     {
         var handler = new HttpClientHandler { UseProxy = true };
@@ -124,4 +160,9 @@ public sealed class CanaryUpdateService
     }
 }
 
-public sealed record CanaryUpdateCheckResult(UpdateCheckResult Release, string? BuildId);
+public sealed record CanaryUpdateCheckResult(
+    UpdateCheckResult Release,
+    string? BuildId,
+    int? BuildNumber = null,
+    string? CommitSha = null,
+    string? DisplayLabel = null);
