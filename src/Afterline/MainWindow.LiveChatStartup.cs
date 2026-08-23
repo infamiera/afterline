@@ -34,6 +34,8 @@ public partial class MainWindow
         EnsureThemeAndAbout();
         EnsureUnifiedChatPresentation();
         EnsureEditorPreferences();
+        EnsureEditorCanaryWorkspace();
+        EnsureCanaryMiscPolish();
         EnsureQolV050();
         EnsureLiveFindLayoutV062();
         EnsureChangelogUi();
