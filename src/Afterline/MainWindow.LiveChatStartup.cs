@@ -42,10 +42,12 @@ public partial class MainWindow
         EnsureUpdatePanelV061();
         EnsureUpdateChannelV062();
         EnsureCanaryUpdateHandoffV2();
-        EnsureCanaryEditorRefinementV2();
         EnsureSettingsCanarySidebarV2();
-        EnsureCanaryUiFixesV3();
-        EnsureCanaryRuntimeFixesV4();
+
+        // Finalized Editor/UI initialization replaces the superseded V2/V3/V4
+        // startup passes while preserving their tested final behavior.
+        EnsureFinalRuntimeOptimizationV066();
         EnsureBuildIdentityV065();
+        EnsureFinalChannelHandoffV066();
     }
 }
