@@ -44,6 +44,9 @@ public sealed class CanaryUpdateService
             string notes = root.TryGetProperty("body", out JsonElement body)
                 ? body.GetString() ?? string.Empty
                 : string.Empty;
+            string? releaseCommit = root.TryGetProperty("target_commitish", out JsonElement target)
+                ? NormalizeCommitSha(target.GetString())
+                : null;
 
             var assetUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (root.TryGetProperty("assets", out JsonElement assets) && assets.ValueKind == JsonValueKind.Array)
@@ -73,11 +76,12 @@ public sealed class CanaryUpdateService
                 if (match.Success)
                 {
                     latestVersion = match.Groups["version"].Value;
-                    commitSha = match.Groups["build"].Value.ToLowerInvariant();
+                    string assetSha = match.Groups["build"].Value.ToLowerInvariant();
+                    commitSha = releaseCommit ?? assetSha;
                     if (int.TryParse(match.Groups["run"].Value, out int parsedRun))
                         buildNumber = parsedRun;
                     buildId = buildNumber is int run
-                        ? $"{run}:{commitSha}"
+                        ? $"{run}.{commitSha}"
                         : commitSha;
                     exeName = name;
                     break;
@@ -86,7 +90,7 @@ public sealed class CanaryUpdateService
                 match = LegacyCanaryExeRegex.Match(name);
                 if (!match.Success) continue;
                 latestVersion = match.Groups["version"].Value;
-                commitSha = match.Groups["build"].Value.ToLowerInvariant();
+                commitSha = releaseCommit ?? match.Groups["build"].Value.ToLowerInvariant();
                 buildId = commitSha;
                 exeName = name;
                 break;
@@ -140,6 +144,14 @@ public sealed class CanaryUpdateService
                 new UpdateCheckResult(null, CanaryReleasePageUrl, null, null, null, "Unable to contact GitHub Releases for Canary."),
                 null);
         }
+    }
+
+    private static string? NormalizeCommitSha(string? value)
+    {
+        string candidate = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return candidate.Length == 40 && candidate.All(Uri.IsHexDigit)
+            ? candidate
+            : null;
     }
 
     private static string ShortSha(string? sha)
