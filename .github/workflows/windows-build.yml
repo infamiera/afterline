@@ -55,7 +55,7 @@ jobs:
           $dataRoot = Join-Path $env:LOCALAPPDATA "Afterline"
           $log = Join-Path $dataRoot "Logs/afterline.log"
           New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
-          '{"FirstRunCompleted":true,"StartMinimized":false,"MinimizeToTray":false}' |
+          '{"FirstRunCompleted":true,"StartMinimized":false,"MinimizeToTray":false,"Editor":null,"Theme":null,"RecentLogPaths":null,"PinnedLogPaths":null}' |
             Set-Content -Path (Join-Path $dataRoot "settings.json") -Encoding utf8
           Remove-Item $log -Force -ErrorAction SilentlyContinue
 

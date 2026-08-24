@@ -52,7 +52,21 @@ public partial class MainWindow
 
         // Canary 0.6.7 workspace: persistent selections, visual presets, layers,
         // right-side editing tools, and local project save/load support.
-        EnsureEditorWorkspaceV067();
-        EnsureEditorSelectionGuardV067();
+        try
+        {
+            EnsureEditorWorkspaceV067();
+            EnsureEditorSelectionGuardV067();
+        }
+        catch (Exception ex)
+        {
+            // Optional Editor enhancements must never take down capture, archives,
+            // settings, or the rest of Afterline during application startup.
+            Afterline.Services.DiagnosticLogger.Error(
+                "Advanced Editor initialization failed; Afterline continued with the available Editor controls.",
+                ex);
+        }
+
+        if (System.Windows.Application.Current is App app)
+            app.ConfirmHealthyStartup();
     }
 }

@@ -21,6 +21,19 @@ public sealed class SettingsService
             AppSettings settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), _jsonOptions)
                                    ?? new AppSettings();
 
+            // Older or manually edited settings files can explicitly contain null
+            // values even though these properties are non-nullable in current builds.
+            // Normalize them before any startup UI reads Editor or theme preferences.
+            settings.Editor ??= new EditorPreferences();
+            settings.Theme ??= ThemeService.CreateDefault();
+            settings.RecentLogPaths ??= new List<string>();
+            settings.PinnedLogPaths ??= new List<string>();
+            settings.Editor.ExportKeybind ??= "Ctrl+S";
+            settings.Editor.UndoKeybind ??= "Ctrl+Z";
+            settings.Editor.RedoKeybind ??= "Ctrl+Shift+Z";
+            settings.Editor.FullscreenKeybind ??= "F11";
+            settings.Editor.RulerKeybind ??= "R";
+
             // Frost is retired because some native/WPF controls can become unreadable
             // under the light palette. Existing Frost users are returned to the default
             // theme automatically so they never reopen into a broken interface.
