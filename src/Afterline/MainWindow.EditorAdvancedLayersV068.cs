@@ -902,9 +902,13 @@ public partial class MainWindow
         grid.ColumnDefinitions.Add(_editorVerticalRulerColumnV068);
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        Brush rulerBackground = TryFindResource("Inset") as Brush
+                                ?? TryFindResource("Raised") as Brush
+                                ?? Brushes.Transparent;
+
         var corner = new Border
         {
-            Background = (Brush)FindResource("Inset"),
+            Background = rulerBackground,
             BorderBrush = (Brush)FindResource("Border"),
             BorderThickness = new Thickness(0, 0, 1, 1)
         };
@@ -913,7 +917,7 @@ public partial class MainWindow
         _editorHorizontalRulerV068 = new Canvas
         {
             Height = 24,
-            Background = (Brush)FindResource("Inset"),
+            Background = rulerBackground,
             ClipToBounds = true,
             IsHitTestVisible = false
         };
@@ -923,7 +927,7 @@ public partial class MainWindow
         _editorVerticalRulerV068 = new Canvas
         {
             Width = 38,
-            Background = (Brush)FindResource("Inset"),
+            Background = rulerBackground,
             ClipToBounds = true,
             IsHitTestVisible = false
         };
