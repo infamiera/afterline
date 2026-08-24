@@ -34,7 +34,11 @@ public partial class MainWindow
             double lineSpacing = _editorLineSpacingSlider?.Value ?? 1;
             double chatWidth = Math.Max(320, _editorChatWidthSlider?.Value ?? 900);
             (FontFamily fontFamily, FontWeight fontWeight) = ResolveEditorFont();
-            IReadOnlyList<EditorChatLine> lines = UnifiedChatFormatter.FormatLines(input, showTimestamps, _editorLineColorOverrides);
+            IReadOnlyList<EditorChatLine> lines = UnifiedChatFormatter.FormatLines(
+                input,
+                showTimestamps,
+                _editorLineColorOverrides,
+                _editorExactChatColorsV068);
             RefreshEditorLineColorList(lines);
 
             var stack = new StackPanel
@@ -152,7 +156,9 @@ public partial class MainWindow
             if (_editorRemoveImageButton is not null) _editorRemoveImageButton.IsEnabled = true;
             ResetEditorAdjustmentSliders();
             ClearEditorMarkup(resetHistory: true);
+            ResetCanaryFilterSource();
             ApplyEditorImageAdjustments();
+            FinalizeLoadedBaseImageV069();
             SetEditorStatus($"Loaded {Path.GetFileName(dialog.FileName)} · {bitmap.PixelWidth:N0} × {bitmap.PixelHeight:N0}px.");
             if (_editorFitZoom) _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
         }
@@ -411,7 +417,7 @@ public partial class MainWindow
     private RenderTargetBitmap? CaptureEditorCompositeBitmap(bool refreshChatOverlay = true)
     {
         if (_editorComposition is null) return null;
-        if (_editorBaseOriginal is null && _editorChatBitmap is null)
+        if (_editorBaseOriginal is null && _editorChatBitmap is null && _editorImageLayersV067.Count == 0)
         {
             SetEditorStatus("Add chat text or load an image before exporting.");
             return null;
@@ -423,6 +429,7 @@ public partial class MainWindow
             RenderEditorChatOverlay();
         ApplyEditorImageAdjustments();
         UpdateEditorCanvasSize();
+        EnsureLayerCanvasExtentV067();
 
         int width = Math.Max(1, (int)Math.Ceiling(_editorComposition.Width));
         int height = Math.Max(1, (int)Math.Ceiling(_editorComposition.Height));

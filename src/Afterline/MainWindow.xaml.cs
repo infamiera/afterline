@@ -75,6 +75,7 @@ public partial class MainWindow : Window
 
         if (Environment.GetCommandLineArgs().Any(a => string.Equals(a, "--minimized", StringComparison.OrdinalIgnoreCase)) && _settings.StartMinimized)
         {
+            _uiTimer.Stop();
             Hide();
             ShowInTaskbar = false;
         }
@@ -115,7 +116,25 @@ public partial class MainWindow : Window
         ShowInTaskbar = true;
         Show();
         WindowState = WindowState.Normal;
+        _uiTimer.Interval = _journal.HasActiveSession
+            ? TimeSpan.FromSeconds(1)
+            : TimeSpan.FromSeconds(5);
+        _uiTimer.Start();
+        UiTimer_Tick(this, EventArgs.Empty);
         Activate();
+    }
+
+    private void ScrollLiveTop_Click(object sender, RoutedEventArgs e)
+    {
+        if (LiveChatList.Items.Count > 0)
+            LiveChatList.ScrollIntoView(LiveChatList.Items[0]);
+    }
+
+    private void ScrollLiveBottom_Click(object sender, RoutedEventArgs e)
+    {
+        int lastIndex = LiveChatList.Items.Count - 1;
+        if (lastIndex >= 0)
+            LiveChatList.ScrollIntoView(LiveChatList.Items[lastIndex]);
     }
 
     private void ExitApplication()
@@ -129,6 +148,7 @@ public partial class MainWindow : Window
         if (!_isExiting && _settings.MinimizeToTray)
         {
             e.Cancel = true;
+            _uiTimer.Stop();
             Hide();
             ShowInTaskbar = false;
             return;
@@ -151,8 +171,13 @@ public partial class MainWindow : Window
     {
         if (WindowState == WindowState.Minimized && _settings.MinimizeToTray)
         {
+            _uiTimer.Stop();
             Hide();
             ShowInTaskbar = false;
+        }
+        else if (IsVisible && WindowState != WindowState.Minimized)
+        {
+            _uiTimer.Start();
         }
     }
 
@@ -189,6 +214,12 @@ public partial class MainWindow : Window
 
     private void UiTimer_Tick(object? sender, EventArgs e)
     {
+        TimeSpan desiredInterval = _journal.HasActiveSession
+            ? TimeSpan.FromSeconds(1)
+            : TimeSpan.FromSeconds(5);
+        if (_uiTimer.Interval != desiredInterval)
+            _uiTimer.Interval = desiredInterval;
+
         UpdateStatusUi();
         SessionCountText.Text = $"{_journal.MessageCount:N0} messages";
         if (_journal.StartedAt is DateTime started)

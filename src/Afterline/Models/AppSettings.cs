@@ -40,6 +40,10 @@ public sealed class AppSettings
 
 public sealed class EditorPreferences
 {
+    public string ProjectsFolder { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "Afterline Projects");
+
     public string Font { get; set; } = "Arial Bold";
     public double FontSize { get; set; } = 18;
     public double LineSpacing { get; set; } = 1;
@@ -54,6 +58,7 @@ public sealed class EditorPreferences
     public string UndoKeybind { get; set; } = "Ctrl+Z";
     public string RedoKeybind { get; set; } = "Ctrl+Shift+Z";
     public string FullscreenKeybind { get; set; } = "F11";
+    public string RulerKeybind { get; set; } = "R";
 
     public bool StrokeEnabled { get; set; }
     public double StrokeWidth { get; set; } = 1;

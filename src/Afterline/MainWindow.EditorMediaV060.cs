@@ -145,7 +145,9 @@ public partial class MainWindow
             _editorCropNormalizedV060 = new Rect(0, 0, 1, 1);
             if (_editorRemoveImageButton is not null) _editorRemoveImageButton.IsEnabled = true;
             ClearEditorMarkup(resetHistory: true);
+            ResetCanaryFilterSource();
             ApplyEditorImageAdjustments();
+            FinalizeLoadedBaseImageV069();
             UpdateOriginalOutputSizeV060();
             EnsureCenteredCropForOutputV060();
             UpdateEditorMediaControlsV060();

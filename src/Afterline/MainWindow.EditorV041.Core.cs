@@ -135,8 +135,8 @@ public partial class MainWindow
     private Grid BuildEditorV041Body(string existingInput)
     {
         var body = new Grid();
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7) });
         _editorToolPanelColumn = new ColumnDefinition { Width = new GridLength(300) };
         body.ColumnDefinitions.Add(_editorToolPanelColumn);
         _editorToolGapColumn = new ColumnDefinition { Width = new GridLength(12) };
@@ -145,7 +145,7 @@ public partial class MainWindow
 
         body.Children.Add(BuildEditorV041IconRail());
 
-        _editorToolPanelHost = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(14) };
+        _editorToolPanelHost = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(10) };
         var toolHostGrid = new Grid();
         toolHostGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         toolHostGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) });
@@ -217,10 +217,10 @@ public partial class MainWindow
             Content = glyph,
             FontFamily = new FontFamily("Segoe MDL2 Assets"),
             FontSize = 17,
-            Width = 38,
-            Height = 38,
+            Width = 34,
+            Height = 34,
             Padding = new Thickness(0),
-            Margin = new Thickness(0, 0, 0, 7),
+            Margin = new Thickness(0, 0, 0, 5),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             ToolTip = toolTip

@@ -332,7 +332,7 @@ public partial class MainWindow
             if (_liveActionStatus is not null)
                 _liveActionStatus.Text = imported == 0
                     ? "Current chat is already up to date."
-                    : $"Imported {imported:N0} available message{(imported == 1 ? string.Empty : "s")}.";
+                    : $"Restored {imported:N0} cached/current message{(imported == 1 ? string.Empty : "s")}.";
         }
         catch (Exception ex)
         {

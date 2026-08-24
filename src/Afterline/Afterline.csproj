@@ -9,8 +9,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Afterline</AssemblyName>
     <RootNamespace>Afterline</RootNamespace>
-    <Version>0.6.6</Version>
-    <ReleaseTitle>Editor &amp; Stability Update</ReleaseTitle>
+    <Version>0.7.0</Version>
+    <ReleaseTitle>Advanced Editor &amp; Live Chat Update</ReleaseTitle>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Afterline.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>

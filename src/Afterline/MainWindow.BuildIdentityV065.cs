@@ -16,15 +16,16 @@ public partial class MainWindow
         string DisplayLabel);
 
     private static readonly Regex CanaryInformationalVersionV065 = new(
-        @"^(?<version>\d+\.\d+\.\d+)-canary\.(?<run>\d+)\+(?:(?<metaRun>\d+)\.)?(?<sha>[0-9a-f]{7,40})$",
+        @"^(?<version>\d+\.\d+\.\d+)-canary\.(?<run>\d+)\+(?:(?<metaRun>\d+)\.)?(?<sha>[0-9a-f]{7,40})(?:\.(?<sourceSha>[0-9a-f]{7,40}))?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private bool _buildIdentityV065Initialized;
     private readonly DispatcherTimer _buildIdentityRefreshTimerV065 = new()
     {
-        Interval = TimeSpan.FromSeconds(30)
+        Interval = TimeSpan.FromMinutes(10)
     };
     private bool _buildIdentityRefreshBusyV065;
+    private DateTimeOffset _lastBuildIdentityRefreshUtcV065 = DateTimeOffset.MinValue;
     private UpdateCheckResult? _availableReleaseV065;
     private string? _availableBuildIdV065;
     private string _currentBuildDisplayV065 = string.Empty;
@@ -48,19 +49,16 @@ public partial class MainWindow
 
         Activated += async (_, _) =>
         {
-            if (!_buildIdentityRefreshBusyV065)
+            if (!_buildIdentityRefreshBusyV065 &&
+                DateTimeOffset.UtcNow - _lastBuildIdentityRefreshUtcV065 >= TimeSpan.FromMinutes(2))
                 await RefreshIdentifiedUpdateStateV065Async();
         };
 
-        // V4 starts one legacy refresh during initialization. Wait for that task to
-        // finish, then keep the V3 refresh path disabled so it cannot overwrite the
-        // build-number-aware labels introduced here.
+        // Run one authoritative startup check after all update controls have finished
+        // initializing. Legacy startup polling is disabled by the final initialization
+        // path, so it cannot race this result or consume GitHub's public API allowance.
         Dispatcher.BeginInvoke(new Action(async () =>
         {
-            for (int i = 0; i < 120 && _updateRefreshBusyCanaryV3; i++)
-                await Task.Delay(100);
-
-            _updateRefreshBusyCanaryV3 = true;
             await RefreshIdentifiedUpdateStateV065Async();
         }), DispatcherPriority.ContextIdle);
     }
@@ -99,12 +97,13 @@ public partial class MainWindow
         return new CanaryRuntimeIdentityV065(version, run, sha, buildId, display);
     }
 
-    private async Task RefreshIdentifiedUpdateStateV065Async()
+    private async Task RefreshIdentifiedUpdateStateV065Async(bool forceRefresh = false)
     {
         if (_buildIdentityRefreshBusyV065 || _updateInstallInProgress)
             return;
 
         _buildIdentityRefreshBusyV065 = true;
+        _lastBuildIdentityRefreshUtcV065 = DateTimeOffset.UtcNow;
         SetUpdateActionStateCanaryV3("Checking…", false);
 
         try
@@ -114,23 +113,16 @@ public partial class MainWindow
                 CanaryRuntimeIdentityV065 current = GetCurrentCanaryIdentityV065();
                 _currentBuildDisplayV065 = current.DisplayLabel;
 
-                Task<CanaryUpdateCheckResult> canaryTask = _canaryUpdateServiceV062.CheckAsync(CancellationToken.None);
-                Task<UpdateCheckResult> stableTask = _updateService.CheckAsync(CancellationToken.None);
-                await Task.WhenAll(canaryTask, stableTask);
-
-                CanaryUpdateCheckResult canary = await canaryTask;
-                UpdateCheckResult stable = await stableTask;
+                CanaryUpdateCheckResult canary = await _canaryUpdateServiceV062.CheckAsync(
+                    CancellationToken.None,
+                    forceRefresh);
                 UpdateCheckResult release = canary.Release;
 
                 string latestCanary = canary.DisplayLabel
                     ?? (string.IsNullOrWhiteSpace(release.LatestVersion)
                         ? "Unavailable"
                         : release.LatestVersion + " Canary");
-                string latestDisplay = string.IsNullOrWhiteSpace(stable.Error) && !string.IsNullOrWhiteSpace(stable.LatestVersion)
-                    ? $"{latestCanary} · Stable {stable.LatestVersion}"
-                    : latestCanary;
-
-                SetUpdateBuildLines(current.DisplayLabel, latestDisplay);
+                SetUpdateBuildLines(current.DisplayLabel, latestCanary);
 
                 if (!string.IsNullOrWhiteSpace(release.Error) ||
                     string.IsNullOrWhiteSpace(release.LatestVersion) ||
@@ -138,12 +130,15 @@ public partial class MainWindow
                 {
                     _availableReleaseV065 = null;
                     _availableBuildIdV065 = null;
-                    SetUpdateActionStateCanaryV3("Unavailable", false);
+                    SetUpdateActionStateCanaryV3("Retry", true);
                     return;
                 }
 
-                bool available = string.IsNullOrWhiteSpace(current.BuildId) ||
-                                 !string.Equals(current.BuildId, canary.BuildId, StringComparison.OrdinalIgnoreCase);
+                bool available = CanaryUpdateService.IsNewerBuild(
+                    canary.BuildNumber,
+                    canary.BuildId,
+                    current.BuildNumber,
+                    current.BuildId);
                 if (available)
                 {
                     _availableReleaseV065 = release;
@@ -154,7 +149,7 @@ public partial class MainWindow
                 {
                     _availableReleaseV065 = null;
                     _availableBuildIdV065 = null;
-                    SetUpdateActionStateCanaryV3("Up to date", false);
+                    SetUpdateActionStateCanaryV3("Check again", true);
                 }
                 return;
             }
@@ -172,7 +167,7 @@ public partial class MainWindow
                                    UpdateService.IsNewer(stableRelease.LatestVersion, currentVersion);
             _availableReleaseV065 = stableAvailable ? stableRelease : null;
             _availableBuildIdV065 = null;
-            SetUpdateActionStateCanaryV3(stableAvailable ? "Update" : "Up to date", stableAvailable);
+            SetUpdateActionStateCanaryV3(stableAvailable ? "Update" : "Check again", true);
         }
         catch (Exception ex)
         {
@@ -183,7 +178,7 @@ public partial class MainWindow
                 ? GetCurrentBuildVersion()
                 : _currentBuildDisplayV065;
             SetUpdateBuildLines(current, "Unavailable");
-            SetUpdateActionStateCanaryV3("Unavailable", false);
+            SetUpdateActionStateCanaryV3("Retry", true);
         }
         finally
         {
@@ -193,8 +188,15 @@ public partial class MainWindow
 
     private async void InstallIdentifiedUpdateV065_Click(object sender, RoutedEventArgs e)
     {
-        if (_availableReleaseV065 is null || _updateInstallInProgress)
+        if (_updateInstallInProgress || _buildIdentityRefreshBusyV065)
             return;
+
+        if (_availableReleaseV065 is null)
+        {
+            await RefreshIdentifiedUpdateStateV065Async(forceRefresh: true);
+            if (_availableReleaseV065 is null)
+                return;
+        }
 
         UpdateCheckResult release = _availableReleaseV065;
         string current = string.IsNullOrWhiteSpace(_currentBuildDisplayV065)
@@ -204,13 +206,6 @@ public partial class MainWindow
         var window = new UpdateAvailableWindow(this, current, release);
         if (window.ShowDialog() != true || !window.InstallRequested)
             return;
-
-        if (IsCanaryChannelV062() && !string.IsNullOrWhiteSpace(_availableBuildIdV065))
-        {
-            _settings.UpdateChannel = "Canary";
-            _settings.InstalledCanaryBuild = _availableBuildIdV065;
-            _settingsService.Save(_settings);
-        }
 
         bool launched = await InstallAvailableReleaseWithResilientHandoffCanaryV4(release);
         if (!launched)

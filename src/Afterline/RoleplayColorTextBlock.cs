@@ -2,12 +2,15 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Collections.Concurrent;
+using Afterline.Models;
 using Afterline.Services;
 
 namespace Afterline;
 
 internal sealed class RoleplayColorTextBlock : TextBlock
 {
+    private static readonly ConcurrentDictionary<uint, SolidColorBrush> FrozenBrushes = new();
     public static readonly DependencyProperty DisplayTextProperty = DependencyProperty.Register(
         nameof(DisplayText),
         typeof(string),
@@ -31,6 +34,12 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         typeof(bool),
         typeof(RoleplayColorTextBlock),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+
+    public static readonly DependencyProperty ExactColorRunsProperty = DependencyProperty.Register(
+        nameof(ExactColorRuns),
+        typeof(IReadOnlyList<ChatColorRun>),
+        typeof(RoleplayColorTextBlock),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
 
     public string DisplayText
     {
@@ -56,6 +65,12 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         set => SetValue(IsSystemMessageProperty, value);
     }
 
+    public IReadOnlyList<ChatColorRun>? ExactColorRuns
+    {
+        get => (IReadOnlyList<ChatColorRun>?)GetValue(ExactColorRunsProperty);
+        set => SetValue(ExactColorRunsProperty, value);
+    }
+
     private static void OnVisualInputChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
         if (dependencyObject is RoleplayColorTextBlock textBlock)
@@ -78,8 +93,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         // consistently blue in Live Chat and Log Reader even if automatic colors are disabled.
         if (IsSystemMessage && EditorChatFormatter.IsSessionBoundaryMarker(text))
         {
-            var markerBrush = new SolidColorBrush(EditorChatFormatter.Blue);
-            markerBrush.Freeze();
+            SolidColorBrush markerBrush = GetFrozenBrush(EditorChatFormatter.Blue);
             Inlines.Add(new Run(text) { Foreground = markerBrush });
             return;
         }
@@ -87,6 +101,13 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         if (!UseAutomaticColors || IsSystemMessage)
         {
             Inlines.Add(new Run(text) { Foreground = fallback });
+            return;
+        }
+
+        IReadOnlyList<ChatColorRun> exactRuns = ChatColorReliabilityService.EnsureExpectedAccents(text, ExactColorRuns);
+        if (exactRuns.Count > 0 && ChatColorData.HasCompleteCoverage(text, exactRuns))
+        {
+            AddExactColorRuns(text, exactRuns, fallback);
             return;
         }
 
@@ -100,9 +121,43 @@ internal sealed class RoleplayColorTextBlock : TextBlock
 
         foreach (EditorChatSegment segment in line.Segments)
         {
-            var brush = new SolidColorBrush(segment.Color);
-            if (brush.CanFreeze) brush.Freeze();
+            SolidColorBrush brush = GetFrozenBrush(segment.Color);
             Inlines.Add(new Run(segment.Text) { Foreground = brush });
         }
+    }
+
+    private void AddExactColorRuns(
+        string text,
+        IReadOnlyList<ChatColorRun> colorRuns,
+        Brush fallback)
+    {
+        int cursor = 0;
+        foreach (ChatColorRun colorRun in colorRuns)
+        {
+            if (colorRun.Start > cursor)
+                Inlines.Add(new Run(text[cursor..colorRun.Start]) { Foreground = fallback });
+
+            SolidColorBrush brush = GetFrozenBrush(Color.FromArgb(
+                colorRun.Alpha,
+                colorRun.Red,
+                colorRun.Green,
+                colorRun.Blue));
+            Inlines.Add(new Run(text.Substring(colorRun.Start, colorRun.Length)) { Foreground = brush });
+            cursor = colorRun.End;
+        }
+
+        if (cursor < text.Length)
+            Inlines.Add(new Run(text[cursor..]) { Foreground = fallback });
+    }
+
+    private static SolidColorBrush GetFrozenBrush(Color color)
+    {
+        uint key = ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
+        return FrozenBrushes.GetOrAdd(key, _ =>
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        });
     }
 }

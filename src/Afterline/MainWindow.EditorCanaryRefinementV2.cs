@@ -111,6 +111,7 @@ public partial class MainWindow
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom
         };
+        bottom.Children.Add(CreateEditorCloseRailButtonV069());
         bottom.Children.Add(CreateCanaryRailButtonV2("⚙", "Editor Settings", "settings", "Segoe UI Symbol", 16));
         Grid.SetRow(bottom, 1);
         layout.Children.Add(bottom);
@@ -127,10 +128,10 @@ public partial class MainWindow
             FontFamily = new FontFamily(font),
             FontSize = fontSize,
             FontWeight = symbol is "T" or "fx" ? FontWeights.SemiBold : FontWeights.Normal,
-            Width = 38,
-            Height = 38,
+            Width = 34,
+            Height = 34,
             Padding = new Thickness(0),
-            Margin = new Thickness(0, 0, 0, 7),
+            Margin = new Thickness(0, 0, 0, 5),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             ToolTip = tooltip
@@ -149,6 +150,7 @@ public partial class MainWindow
                     "colors" => "Line Colors",
                     "effects" => "Text Effects",
                     "image" => "Image & Canvas",
+                    "layer-paint" => "Layer Paint & Erase",
                     "selection" => "Selection",
                     "filters" => "Filters & Adjustments",
                     "settings" => "Editor Settings",

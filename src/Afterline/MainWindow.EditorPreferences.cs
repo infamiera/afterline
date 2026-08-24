@@ -67,6 +67,7 @@ public partial class MainWindow
         TryReadEditorOutputSizeV060(out int outputWidth, out int outputHeight);
         return new EditorPreferences
         {
+            ProjectsFolder = GetEditorProjectsFolderV070(createDirectory: false),
             Font = _editorFontBox?.SelectedItem?.ToString() ?? "Arial Bold",
             FontSize = _editorFontSizeSlider?.Value ?? 18,
             LineSpacing = _editorLineSpacingSlider?.Value ?? 1,
@@ -76,6 +77,11 @@ public partial class MainWindow
             CanvasBackground = _editorBackgroundBox?.SelectedItem?.ToString() ?? "Black",
             ChatHorizontalPosition = _editorChatXSlider?.Value ?? 0,
             ChatVerticalPosition = _editorChatYSlider?.Value ?? 0,
+            ExportKeybind = _settings.Editor.ExportKeybind,
+            UndoKeybind = _settings.Editor.UndoKeybind,
+            RedoKeybind = _settings.Editor.RedoKeybind,
+            FullscreenKeybind = _settings.Editor.FullscreenKeybind,
+            RulerKeybind = _settings.Editor.RulerKeybind,
             StrokeEnabled = _editorStrokeEnabledCheck?.IsChecked == true,
             StrokeWidth = _editorStrokeWidthSlider?.Value ?? 1,
             StrokeColor = _editorStrokeColorBox?.SelectedItem?.ToString() ?? "Black",
@@ -85,8 +91,10 @@ public partial class MainWindow
             ShadowX = _editorShadowOffsetXSlider?.Value ?? 2,
             ShadowY = _editorShadowOffsetYSlider?.Value ?? 2,
             ShadowColor = _editorShadowColorBox?.SelectedItem?.ToString() ?? "Black",
-            PaintColor = _editorPaintColorBox?.SelectedItem?.ToString() ?? "White",
-            BrushSize = _editorBrushSizeSlider?.Value ?? 5,
+            PaintColor = _editorLayerPaintColorV068?.SelectedItem?.ToString()
+                         ?? _editorPaintColorBox?.SelectedItem?.ToString()
+                         ?? "White",
+            BrushSize = _editorLayerBrushSizeV068?.Value ?? _editorBrushSizeSlider?.Value ?? 5,
             ImageBrightness = _editorBrightnessSlider?.Value ?? 0,
             ImageContrast = _editorContrastSlider?.Value ?? 0,
             ImageSaturation = _editorSaturationSlider?.Value ?? 0,
@@ -127,6 +135,8 @@ public partial class MainWindow
 
         SetEditorComboSelection(_editorPaintColorBox, preferences.PaintColor, "White");
         SetEditorSlider(_editorBrushSizeSlider, preferences.BrushSize);
+        SetEditorComboSelection(_editorLayerPaintColorV068, preferences.PaintColor, "White");
+        SetEditorSlider(_editorLayerBrushSizeV068, preferences.BrushSize);
 
         SetEditorSlider(_editorBrightnessSlider, preferences.ImageBrightness);
         SetEditorSlider(_editorContrastSlider, preferences.ImageContrast);

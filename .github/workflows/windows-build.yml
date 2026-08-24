@@ -1,21 +1,21 @@
-name: Build Afterline for Windows
+name: Build and Publish Afterline Canary
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ canary ]
   pull_request:
-    branches: [ main ]
+    branches: [ canary ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - name: Check out source
+      - name: Check out Canary source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -25,17 +25,15 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Read application version
-        id: version
+      - name: Publish identified Canary Windows x64 build
         shell: pwsh
         run: |
           [xml]$project = Get-Content src/Afterline/Afterline.csproj
           $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
-          "version=$version" >> $env:GITHUB_OUTPUT
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          $run = $env:GITHUB_RUN_NUMBER
+          $informational = "$version-canary.$run+$run.$sha"
 
-      - name: Publish single-file Windows x64 build
-        shell: pwsh
-        run: |
           dotnet publish src/Afterline/Afterline.csproj `
             -c Release `
             -r win-x64 `
@@ -47,12 +45,186 @@ jobs:
             -p:DebugSymbols=false `
             -p:DebugType=None `
             -p:SatelliteResourceLanguages=en `
+            -p:InformationalVersion="$informational" `
+            -p:IncludeSourceRevisionInInformationalVersion=false `
             -o publish/Afterline
 
-      - name: Upload Afterline application
+      - name: Smoke test Canary startup
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $dataRoot = Join-Path $env:LOCALAPPDATA "Afterline"
+          $log = Join-Path $dataRoot "Logs/afterline.log"
+          New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+          '{"FirstRunCompleted":true,"StartMinimized":false,"MinimizeToTray":false,"Editor":null,"Theme":null,"RecentLogPaths":null,"PinnedLogPaths":null}' |
+            Set-Content -Path (Join-Path $dataRoot "settings.json") -Encoding utf8
+          Remove-Item $log -Force -ErrorAction SilentlyContinue
+
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 5
+          $process.Refresh()
+          if ($process.HasExited) {
+            throw "Afterline exited during the initial 5-second startup period with code $($process.ExitCode)."
+          }
+          $idleCpuStart = $process.TotalProcessorTime
+          Start-Sleep -Seconds 10
+          $process.Refresh()
+
+          if ($process.HasExited) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline exited during the 15-second startup smoke test with code $($process.ExitCode)."
+          }
+
+          $idleCpu = ($process.TotalProcessorTime - $idleCpuStart).TotalSeconds
+          $workingSetMb = [math]::Round($process.WorkingSet64 / 1MB, 1)
+          Write-Host "Idle resource sample: CPU $([math]::Round($idleCpu, 3))s over 10s; working set ${workingSetMb}MB"
+          if ($idleCpu -gt 2.0) {
+            throw "Afterline consumed $([math]::Round($idleCpu, 3)) CPU seconds during the 10-second disconnected idle sample."
+          }
+          if ($workingSetMb -gt 400) {
+            throw "Afterline used ${workingSetMb}MB during the disconnected idle sample."
+          }
+
+          Stop-Process -Id $process.Id -Force
+
+          Add-Type -AssemblyName System.Drawing
+          $smokeImage = Join-Path $env:RUNNER_TEMP "afterline-editor-smoke.png"
+          $smokeProject = Join-Path $env:RUNNER_TEMP "afterline-editor-smoke.afterlineproj"
+          $bitmap = New-Object System.Drawing.Bitmap 64, 64
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.Clear([System.Drawing.Color]::Magenta)
+          $graphics.Dispose()
+          $bitmap.Save($smokeImage, [System.Drawing.Imaging.ImageFormat]::Png)
+          $bitmap.Dispose()
+
+          $imageTest = Start-Process -FilePath $exe `
+            -ArgumentList @(
+              "--afterline-smoke-image", "`"$smokeImage`"",
+              "--afterline-smoke-project", "`"$smokeProject`""
+            ) `
+            -PassThru
+          if (-not $imageTest.WaitForExit(45000)) {
+            Stop-Process -Id $imageTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the Base Image/project round-trip smoke test within 45 seconds."
+          }
+          if ($imageTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the Base Image/project round-trip smoke test with code $($imageTest.ExitCode)."
+          }
+          if (-not (Test-Path $smokeProject) -or (Get-Item $smokeProject).Length -le 0) {
+            throw "Afterline reported success without producing the Editor project smoke artifact."
+          }
+
+          $sessionSmokeRoot = Join-Path $env:RUNNER_TEMP "afterline-session-recovery-smoke"
+          $sessionTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-session-recovery", "`"$sessionSmokeRoot`"") `
+            -PassThru
+          if (-not $sessionTest.WaitForExit(45000)) {
+            Stop-Process -Id $sessionTest.Id -Force -ErrorAction SilentlyContinue
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline did not finish the session-recovery smoke test within 45 seconds."
+          }
+          if ($sessionTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the session-recovery smoke test with code $($sessionTest.ExitCode)."
+          }
+
+      - name: Prepare uniquely identified Canary assets
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          $shortSha = $sha.Substring(0, 7)
+          $run = $env:GITHUB_RUN_NUMBER
+          $exeName = "Afterline-v$version-Canary-$run-$shortSha-Windows-x64.exe"
+
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          $exePath = Join-Path release $exeName
+          Copy-Item publish/Afterline/Afterline.exe $exePath
+          $hash = (Get-FileHash $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $exeName" | Set-Content -Path "$exePath.sha256" -Encoding ascii -NoNewline
+
+          $releaseNotes = "Automated Afterline Canary build #$run from commit $sha.`n`nBuild identity: $run.$sha`n`nWarning: Canary builds are experimental, may update frequently, and can contain unfinished or broken changes."
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            version = [string]$version
+            buildNumber = [int]$run
+            commitSha = $sha
+            executable = $exeName
+            checksum = "$exeName.sha256"
+            releaseNotes = $releaseNotes
+          }
+          $manifest | ConvertTo-Json -Depth 3 | Set-Content -Path "release/afterline-canary-update.json" -Encoding utf8
+
+      - name: Smoke test Canary update manifest
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $manifest = Resolve-Path "release/afterline-canary-update.json"
+          $log = Join-Path $env:LOCALAPPDATA "Afterline/Logs/afterline.log"
+          $manifestTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-canary-manifest", "`"$manifest`"") `
+            -PassThru
+          if (-not $manifestTest.WaitForExit(30000)) {
+            Stop-Process -Id $manifestTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the Canary update-manifest smoke test within 30 seconds."
+          }
+          if ($manifestTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the Canary update-manifest smoke test with code $($manifestTest.ExitCode)."
+          }
+
+      - name: Upload identified Canary build artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: Afterline-v${{ steps.version.outputs.version }}-Windows-x64
-          path: publish/Afterline/Afterline.exe
+          name: Afterline-Canary-Windows-x64
+          path: release/*
           if-no-files-found: error
           compression-level: 9
+
+      - name: Publish identified Canary prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/canary'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          $shortSha = $sha.Substring(0, 7)
+          $run = $env:GITHUB_RUN_NUMBER
+          $exeName = "Afterline-v$version-Canary-$run-$shortSha-Windows-x64.exe"
+
+          gh release view canary *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete canary --yes --cleanup-tag
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to replace the previous Canary prerelease."
+            }
+          }
+
+          $notes = "Automated Afterline Canary build #$run from commit $sha.`n`nBuild identity: $run.$sha`n`nWarning: Canary builds are experimental, may update frequently, and can contain unfinished or broken changes."
+          gh release create canary `
+            "release/$exeName" `
+            "release/$exeName.sha256" `
+            "release/afterline-canary-update.json" `
+            --target "$env:GITHUB_SHA" `
+            --title "Afterline $version Canary #$run · $shortSha" `
+            --notes "$notes" `
+            --prerelease

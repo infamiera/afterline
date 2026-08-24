@@ -70,6 +70,8 @@ public partial class MainWindow
 
     private void ApplyEditorChromeCanary(bool editorVisible)
     {
+        ApplyAutomaticEditorSidebarV068(editorVisible);
+
         if (_editorGlobalHeaderCanary is not null)
             _editorGlobalHeaderCanary.Visibility = editorVisible ? Visibility.Collapsed : Visibility.Visible;
         if (_editorSidebarCaptureCardCanary is not null)
@@ -170,9 +172,11 @@ public partial class MainWindow
                 text.Contains("Copy", StringComparison.OrdinalIgnoreCase))
             {
                 RenderExtraChatLayersCanary();
-                if (_editorFilterTimerCanary?.IsEnabled == true)
+                if (_editorFilterTimerCanary?.IsEnabled == true ||
+                    _editorFilterPreviewRenderCountV070 > 0)
                 {
-                    _editorFilterTimerCanary.Stop();
+                    _editorFilterTimerCanary?.Stop();
+                    _editorFilterPreviewVersionV070++;
                     ApplyCanaryFilterPreview();
                 }
             }

@@ -20,20 +20,37 @@ public partial class MainWindow
         visibleButton.Content = "Export visible";
         visibleButton.ToolTip = "Exports exactly what is currently visible in Live Chat, including the current OOC/INFO and timestamp settings.";
 
-        if (actions.Children.OfType<Button>().Any(button => string.Equals(button.Content?.ToString(), "Export complete", StringComparison.Ordinal)))
+        Button? completeButton = actions.Children.OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Export complete", StringComparison.Ordinal));
+        if (completeButton is null)
+        {
+            completeButton = new Button
+            {
+                Content = "Export complete",
+                Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(0, 0, 10, 0),
+                ToolTip = "Exports the complete current captured session, ignoring Live Chat display filters."
+            };
+            completeButton.Click += ExportCompleteLiveChat_Click;
+
+            int visibleIndex = actions.Children.IndexOf(visibleButton);
+            actions.Children.Insert(Math.Min(visibleIndex + 1, actions.Children.Count), completeButton);
+        }
+
+        if (actions.Children.OfType<Button>().Any(button => string.Equals(button.Content?.ToString(), "Export HTML", StringComparison.Ordinal)))
             return;
 
-        var completeButton = new Button
+        var htmlButton = new Button
         {
-            Content = "Export complete",
+            Content = "Export HTML",
             Padding = new Thickness(10, 6, 10, 6),
             Margin = new Thickness(0, 0, 10, 0),
-            ToolTip = "Exports the complete current captured session, ignoring Live Chat display filters."
+            ToolTip = "Exports the currently visible Live Chat as a self-contained HTML file with the displayed chat colors."
         };
-        completeButton.Click += ExportCompleteLiveChat_Click;
+        htmlButton.Click += ExportVisibleLiveChatHtml_Click;
 
-        int index = actions.Children.IndexOf(visibleButton);
-        actions.Children.Insert(Math.Min(index + 1, actions.Children.Count), completeButton);
+        int completeIndex = actions.Children.IndexOf(completeButton);
+        actions.Children.Insert(Math.Min(completeIndex + 1, actions.Children.Count), htmlButton);
     }
 
     private async void ExportCompleteLiveChat_Click(object sender, RoutedEventArgs e)
@@ -48,7 +65,21 @@ public partial class MainWindow
             string destination = GetUniqueLiveExportPath(downloads, DateTime.Now);
 
             if (!string.Equals(Path.GetFullPath(temporary), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
+            {
+                ChatColorSidecarService.DeleteForTextFile(destination);
                 File.Move(temporary, destination, false);
+                try
+                {
+                    ChatColorSidecarService.MoveForTextFile(
+                        temporary,
+                        destination,
+                        overwrite: false);
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.Error("Unable to move exact color metadata with the exported chatlog.", ex);
+                }
+            }
             else
                 destination = temporary;
 

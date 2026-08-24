@@ -45,8 +45,20 @@ public partial class MainWindow
         };
         openFolderButton.Click += LogReaderOpenFolder_Click;
 
+        var exportHtmlButton = new Button
+        {
+            Content = "Export HTML",
+            Height = 34,
+            Padding = new Thickness(11, 6, 11, 6),
+            Margin = new Thickness(0, 0, 18, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Exports the currently opened and filtered log as a self-contained HTML file with the displayed chat colors."
+        };
+        exportHtmlButton.Click += ExportLogReaderHtml_Click;
+
         options.Children.Insert(0, openFolderButton);
         options.Children.Insert(0, archiveButton);
+        options.Children.Insert(Math.Min(2, options.Children.Count), exportHtmlButton);
     }
 
     private async void LogReaderArchive_Click(object sender, RoutedEventArgs e)

@@ -30,7 +30,13 @@ public partial class MainWindow
         ConfigureUpdatePanel();
         _uiTimer.Tick += UpdateVersionFooter_Tick;
         UpdateVersionFooter_Tick(this, EventArgs.Empty);
-        _ = CheckForUpdatesAsync(false);
+        // Canary has its own build-number-aware discovery path. Avoid spending a
+        // second request on Stable during every Canary startup.
+        if (!IsCanaryBinaryV062() &&
+            !string.Equals(_settings.UpdateChannel, "Canary", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = CheckForUpdatesAsync(false);
+        }
     }
 
     private void UpdateVersionFooter_Tick(object? sender, EventArgs e)

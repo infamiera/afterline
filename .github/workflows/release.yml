@@ -1,4 +1,4 @@
-name: Publish Afterline Release
+name: Publish Afterline Stable Release
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Check out source
+      - name: Check out tagged source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -23,7 +23,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Verify tag matches project version
+      - name: Verify release metadata
         shell: pwsh
         run: |
           [xml]$project = Get-Content src/Afterline/Afterline.csproj
@@ -31,6 +31,13 @@ jobs:
           $expected = "v$version"
           if ($env:GITHUB_REF_NAME -ne $expected) {
             throw "Release tag '$env:GITHUB_REF_NAME' does not match project version '$expected'."
+          }
+          if (-not (Test-Path RELEASE_NOTES.md) -or (Get-Item RELEASE_NOTES.md).Length -le 0) {
+            throw "RELEASE_NOTES.md is required for a Stable release."
+          }
+          $notesHeading = Get-Content RELEASE_NOTES.md -TotalCount 1
+          if ($notesHeading -notmatch [regex]::Escape($version)) {
+            throw "Release notes do not identify version $version."
           }
 
       - name: Publish single-file Windows x64 release
@@ -40,6 +47,7 @@ jobs:
             -c Release `
             -r win-x64 `
             --self-contained true `
+            -warnaserror `
             -p:PublishSingleFile=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:EnableCompressionInSingleFile=true `
@@ -47,7 +55,95 @@ jobs:
             -p:DebugSymbols=false `
             -p:DebugType=None `
             -p:SatelliteResourceLanguages=en `
+            -p:InformationalVersion="$env:GITHUB_REF_NAME+$env:GITHUB_SHA" `
+            -p:IncludeSourceRevisionInInformationalVersion=false `
             -o publish/Afterline
+
+      - name: Test packaged Stable executable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $dataRoot = Join-Path $env:LOCALAPPDATA "Afterline"
+          $log = Join-Path $dataRoot "Logs/afterline.log"
+          New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+          '{"FirstRunCompleted":true,"StartMinimized":false,"MinimizeToTray":false,"Editor":null,"Theme":null,"RecentLogPaths":null,"PinnedLogPaths":null}' |
+            Set-Content -Path (Join-Path $dataRoot "settings.json") -Encoding utf8
+          Remove-Item $log -Force -ErrorAction SilentlyContinue
+
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 5
+          $process.Refresh()
+          if ($process.HasExited) {
+            throw "Afterline exited during the initial 5-second Stable startup period with code $($process.ExitCode)."
+          }
+          $idleCpuStart = $process.TotalProcessorTime
+          Start-Sleep -Seconds 10
+          $process.Refresh()
+          if ($process.HasExited) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline exited during the 15-second Stable startup test with code $($process.ExitCode)."
+          }
+
+          $idleCpu = ($process.TotalProcessorTime - $idleCpuStart).TotalSeconds
+          $workingSetMb = [math]::Round($process.WorkingSet64 / 1MB, 1)
+          Write-Host "Stable idle resource sample: CPU $([math]::Round($idleCpu, 3))s over 10s; working set ${workingSetMb}MB"
+          if ($idleCpu -gt 2.0) {
+            throw "Afterline consumed $([math]::Round($idleCpu, 3)) CPU seconds during the Stable idle sample."
+          }
+          if ($workingSetMb -gt 400) {
+            throw "Afterline used ${workingSetMb}MB during the Stable idle sample."
+          }
+          Stop-Process -Id $process.Id -Force
+
+          Add-Type -AssemblyName System.Drawing
+          $smokeImage = Join-Path $env:RUNNER_TEMP "afterline-stable-editor-smoke.png"
+          $smokeProject = Join-Path $env:RUNNER_TEMP "afterline-stable-editor-smoke.afterlineproj"
+          $bitmap = New-Object System.Drawing.Bitmap 64, 64
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.Clear([System.Drawing.Color]::Magenta)
+          $graphics.Dispose()
+          $bitmap.Save($smokeImage, [System.Drawing.Imaging.ImageFormat]::Png)
+          $bitmap.Dispose()
+
+          $imageTest = Start-Process -FilePath $exe `
+            -ArgumentList @(
+              "--afterline-smoke-image", "`"$smokeImage`"",
+              "--afterline-smoke-project", "`"$smokeProject`""
+            ) `
+            -PassThru
+          if (-not $imageTest.WaitForExit(45000)) {
+            Stop-Process -Id $imageTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the Stable Base Image/project test within 45 seconds."
+          }
+          if ($imageTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the Stable Base Image/project test with code $($imageTest.ExitCode)."
+          }
+          if (-not (Test-Path $smokeProject) -or (Get-Item $smokeProject).Length -le 0) {
+            throw "Afterline reported success without producing the Stable Editor project artifact."
+          }
+
+          $sessionSmokeRoot = Join-Path $env:RUNNER_TEMP "afterline-stable-session-recovery-smoke"
+          $sessionTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-session-recovery", "`"$sessionSmokeRoot`"") `
+            -PassThru
+          if (-not $sessionTest.WaitForExit(45000)) {
+            Stop-Process -Id $sessionTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the Stable session-recovery test within 45 seconds."
+          }
+          if ($sessionTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the Stable session-recovery test with code $($sessionTest.ExitCode)."
+          }
 
       - name: Prepare release assets and checksum
         shell: pwsh
@@ -61,7 +157,15 @@ jobs:
           $hash = (Get-FileHash $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $exeName" | Set-Content -Path "$exePath.sha256" -Encoding ascii -NoNewline
 
-      - name: Create descriptive GitHub Release
+      - name: Upload Stable build artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: Afterline-Stable-Windows-x64
+          path: release/*
+          if-no-files-found: error
+          compression-level: 9
+
+      - name: Create Stable GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,4 +182,5 @@ jobs:
             "release/$exeName.sha256" `
             --verify-tag `
             --title "Afterline $version — $releaseTitle" `
-            --generate-notes
+            --notes-file RELEASE_NOTES.md `
+            --latest

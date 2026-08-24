@@ -25,11 +25,37 @@ internal static class ChatColorRefinementsV045
         @"^\s*(?<tag>\[SUCCESS\])\s+You have turned the property lights (?<state>off|on)\.\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex TattooPurchaseLine = new(
+        @"^\s*(?<tag>\[INFO\])\s+You have bought the\s+(?<name>.+?)\s+tattoo for\s+(?<price>\$[\d,.]+)(?<trailing>.*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex WeaponAttachmentInstructionLine = new(
+        @"^\s*Attachments found on your Weapons\.",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex WeaponDetachCommand = new(
+        @"/detach\s+weaponIndex(?:\s+attachmentIndex)?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     internal static bool TryFormat(string body, out IReadOnlyList<EditorChatSegment> segments)
     {
         segments = Array.Empty<EditorChatSegment>();
         string trimmed = body.TrimStart();
         if (trimmed.Length == 0) return false;
+
+        if (WeaponAttachmentInstructionLine.IsMatch(body))
+        {
+            Match[] commands = WeaponDetachCommand.Matches(body).Cast<Match>().ToArray();
+            if (commands.Length > 0)
+            {
+                segments = HighlightRanges(
+                    body,
+                    EditorChatFormatter.White,
+                    commands.Select(command =>
+                        (command.Index, command.Length, EditorChatFormatter.Orange)));
+                return true;
+            }
+        }
 
         Match friendLogin = FriendLoginLine.Match(body);
         if (friendLogin.Success)
@@ -40,6 +66,21 @@ internal static class ChatColorRefinementsV045
             {
                 (tag.Index, tag.Length, EditorChatFormatter.Blue),
                 (status.Index, status.Length, EditorChatFormatter.Green)
+            });
+            return true;
+        }
+
+        Match tattooPurchase = TattooPurchaseLine.Match(body);
+        if (tattooPurchase.Success)
+        {
+            Group tag = tattooPurchase.Groups["tag"];
+            Group name = tattooPurchase.Groups["name"];
+            Group price = tattooPurchase.Groups["price"];
+            segments = HighlightRanges(body, EditorChatFormatter.White, new[]
+            {
+                (tag.Index, tag.Length, EditorChatFormatter.Blue),
+                (name.Index, name.Length, EditorChatFormatter.Yellow),
+                (price.Index, price.Length, EditorChatFormatter.Green)
             });
             return true;
         }

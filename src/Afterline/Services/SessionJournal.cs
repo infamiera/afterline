@@ -29,6 +29,7 @@ public sealed class SessionJournal
     public int MessageCount => _state?.MessageCount ?? 0;
     public string? ActiveFile => _activeFile;
     public string? ActiveServerName => _state?.ServerName;
+    public ServerSessionInfo? ResumedServer { get; private set; }
 
     public event EventHandler<DailyLogRolloverEventArgs>? DailyLogRolledOver;
 
@@ -45,8 +46,7 @@ public sealed class SessionJournal
             .OrderBy(File.GetLastWriteTimeUtc)
             .ToArray();
 
-        IReadOnlyList<string> previousVisible = Array.Empty<string>();
-
+        var recoverable = new List<(string Path, SessionState State)>();
         foreach (string stateFile in stateFiles)
         {
             SessionState? state = await LoadStateAsync(stateFile, cancellationToken);
@@ -56,14 +56,69 @@ public sealed class SessionJournal
                 continue;
             }
 
-            previousVisible = state.LastVisibleSnapshot.ToArray();
+            recoverable.Add((stateFile, state));
+        }
+
+        if (recoverable.Count == 0)
+        {
+            ClearActiveState();
+            return Array.Empty<string>();
+        }
+
+        // Only the newest checkpoint can represent the still-running FiveM
+        // session. Consolidate older abandoned checkpoints, then reopen the
+        // newest one in-place so restarting or updating Afterline does not
+        // manufacture a disconnect/new-login boundary.
+        foreach ((string stateFile, SessionState state) in recoverable.Take(recoverable.Count - 1))
+        {
             await RecoverSessionAsync(state, archiveRoot, cancellationToken);
-            DeleteIfExists(state.BackupFile);
+            DeleteTextAndColorSidecarIfExists(state.BackupFile);
             DeleteIfExists(stateFile);
         }
 
-        ClearActiveState();
-        return previousVisible;
+        (string latestPath, SessionState latest) = recoverable[^1];
+        await RecoverSessionAsync(latest, archiveRoot, cancellationToken);
+
+        string archiveFile = latest.ArchiveFile;
+        if (string.IsNullOrWhiteSpace(archiveFile))
+        {
+            DateTime archiveDate = latest.ArchiveDate == default
+                ? latest.StartedAt
+                : latest.ArchiveDate;
+            archiveFile = GetArchivePath(archiveRoot, latest.ServerName, archiveDate);
+            latest.ArchiveFile = archiveFile;
+        }
+
+        if (!File.Exists(archiveFile))
+        {
+            DeleteTextAndColorSidecarIfExists(latest.BackupFile);
+            DeleteIfExists(latestPath);
+            ClearActiveState();
+            return latest.LastVisibleSnapshot.ToArray();
+        }
+
+        _archiveRoot = archiveRoot;
+        _activeFile = archiveFile;
+        _stateFile = latestPath;
+        _backupFile = latest.BackupFile;
+        _state = latest;
+        ResumedServer = CreateServerFromState(latest);
+
+        if (string.IsNullOrWhiteSpace(_backupFile) || !File.Exists(_backupFile))
+        {
+            _backupFile = Path.Combine(
+                AppPaths.RecoveryBackupsDirectory,
+                $"Afterline Recovery [{latest.StartedAt:yyyy-MM-dd - HH-mm-ss}].txt");
+            latest.BackupFile = _backupFile;
+            await WriteNewFileAsync(
+                _backupFile,
+                $"[AFTERLINE RECOVERY: {latest.ServerName} · {latest.StartedAt:yyyy-MM-dd HH:mm:ss}]",
+                cancellationToken);
+        }
+
+        await ReconcileLastSessionCacheAsync(latest, cancellationToken);
+        await SaveStateAsync(cancellationToken);
+        return latest.LastVisibleSnapshot.ToArray();
     }
 
     public async Task<ChatEntry?> EnsureStartedAsync(
@@ -197,12 +252,25 @@ public sealed class SessionJournal
             try
             {
                 await AppendLineAsync(_activeFile, line, cancellationToken);
+                await AppendColorRunsBestEffortAsync(
+                    _activeFile,
+                    line,
+                    entry.GetColorRunsForText(line),
+                    cancellationToken);
             }
             catch
             {
                 if (_backupFile is not null)
                 {
-                    try { await AppendLineAsync(_backupFile, line, cancellationToken); }
+                    try
+                    {
+                        await AppendLineAsync(_backupFile, line, cancellationToken);
+                        await AppendColorRunsBestEffortAsync(
+                            _backupFile,
+                            line,
+                            entry.GetColorRunsForText(line),
+                            cancellationToken);
+                    }
                     catch { }
                 }
                 throw;
@@ -213,6 +281,11 @@ public sealed class SessionJournal
                 try
                 {
                     await AppendLineAsync(_backupFile, line, cancellationToken);
+                    await AppendColorRunsBestEffortAsync(
+                        _backupFile,
+                        line,
+                        entry.GetColorRunsForText(line),
+                        cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -266,6 +339,7 @@ public sealed class SessionJournal
                 downloadsFolder,
                 $"Chatlog Export [{now:dd-MMMM-yyyy - HH-mm-ss}]",
                 ".txt");
+            ChatColorSidecarService.DeleteForTextFile(destination);
 
             if (_state is not null &&
                 File.Exists(AppPaths.LastSessionCacheFile))
@@ -282,6 +356,10 @@ public sealed class SessionJournal
                         now,
                         sessionLines,
                         cancellationToken);
+                    ChatColorSidecarService.CopyForTextFile(
+                        AppPaths.LastSessionCacheFile,
+                        destination,
+                        overwrite: true);
                     return destination;
                 }
             }
@@ -301,6 +379,10 @@ public sealed class SessionJournal
                     now,
                     sessionLines,
                     cancellationToken);
+                ChatColorSidecarService.CopyForTextFile(
+                    _backupFile,
+                    destination,
+                    overwrite: true);
                 return destination;
             }
 
@@ -310,6 +392,7 @@ public sealed class SessionJournal
                     "No captured chatlog is available to export yet.");
 
             File.Copy(latest, destination, false);
+            ChatColorSidecarService.CopyForTextFile(latest, destination, overwrite: true);
             return destination;
         }
         finally
@@ -332,7 +415,7 @@ public sealed class SessionJournal
                 await RecoverSessionAsync(_state, archiveRoot, cancellationToken);
 
             DeleteIfExists(_stateFile);
-            DeleteIfExists(_backupFile);
+            DeleteTextAndColorSidecarIfExists(_backupFile);
             ClearActiveState();
             return destination;
         }
@@ -375,7 +458,7 @@ public sealed class SessionJournal
         List<string> visibleSnapshot = _state.LastVisibleSnapshot.ToList();
 
         DeleteIfExists(_stateFile);
-        DeleteIfExists(_backupFile);
+        DeleteTextAndColorSidecarIfExists(_backupFile);
 
         string requestedPath = GetArchivePath(_archiveRoot, serverName, newDate);
         bool identityKnown = !string.Equals(
@@ -567,10 +650,14 @@ public sealed class SessionJournal
                 archiveDate);
         }
 
-        string[] backupLines = File.ReadLines(state.BackupFile)
-            .Skip(1)
-            .ToArray();
+        string[] allBackupLines = File.ReadAllLines(state.BackupFile);
+        string[] backupLines = allBackupLines.Skip(1).ToArray();
         if (backupLines.Length == 0) return;
+        IReadOnlyDictionary<int, ChatColorLineRecord> backupColors =
+            await ChatColorSidecarService.MatchLinesAsync(
+                state.BackupFile,
+                allBackupLines,
+                cancellationToken);
 
         if (!File.Exists(archiveFile))
         {
@@ -579,8 +666,19 @@ public sealed class SessionJournal
                 $"[SERVER: {state.ServerName}]",
                 cancellationToken);
 
-            foreach (string line in backupLines)
+            for (int index = 0; index < backupLines.Length; index++)
+            {
+                string line = backupLines[index];
                 await AppendLineAsync(archiveFile, line, cancellationToken);
+                if (backupColors.TryGetValue(index + 1, out ChatColorLineRecord? exact))
+                {
+                    await AppendColorRunsBestEffortAsync(
+                        archiveFile,
+                        line,
+                        exact.ColorRuns,
+                        cancellationToken);
+                }
+            }
             return;
         }
 
@@ -589,8 +687,57 @@ public sealed class SessionJournal
             .ToArray();
         int overlap = FindOverlap(archiveTail, backupLines);
 
-        foreach (string line in backupLines.Skip(overlap))
+        for (int index = overlap; index < backupLines.Length; index++)
+        {
+            string line = backupLines[index];
             await AppendLineAsync(archiveFile, line, cancellationToken);
+            if (backupColors.TryGetValue(index + 1, out ChatColorLineRecord? exact))
+            {
+                await AppendColorRunsBestEffortAsync(
+                    archiveFile,
+                    line,
+                    exact.ColorRuns,
+                    cancellationToken);
+            }
+        }
+    }
+
+    private static async Task ReconcileLastSessionCacheAsync(
+        SessionState state,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(state.BackupFile) || !File.Exists(state.BackupFile))
+            return;
+
+        string[] backupLines = File.ReadLines(state.BackupFile)
+            .Skip(1)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+        if (backupLines.Length == 0)
+            return;
+
+        string expectedHeader =
+            $"[AFTERLINE LAST SESSION: {state.ServerName} · {state.StartedAt:yyyy-MM-dd HH:mm:ss}]";
+
+        // This file is a derivative replay cache. Rebuild it atomically from the
+        // journal's write-through backup so a partial cache append cannot hide
+        // earlier lines after a power loss.
+        string temporaryCache = AppPaths.LastSessionCacheFile + ".recovering";
+        await WriteNewFileAsync(
+            temporaryCache,
+            expectedHeader,
+            cancellationToken);
+        foreach (string line in backupLines)
+            await AppendLineAsync(temporaryCache, line, cancellationToken);
+        File.Move(temporaryCache, AppPaths.LastSessionCacheFile, true);
+        if (File.Exists(ChatColorSidecarService.GetSidecarPath(state.BackupFile)))
+        {
+            ChatColorSidecarService.DeleteForTextFile(AppPaths.LastSessionCacheFile);
+            ChatColorSidecarService.CopyForTextFile(
+                state.BackupFile,
+                AppPaths.LastSessionCacheFile,
+                overwrite: true);
+        }
     }
 
     private async Task SaveStateAsync(CancellationToken cancellationToken)
@@ -627,6 +774,7 @@ public sealed class SessionJournal
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        ChatColorSidecarService.DeleteForTextFile(path);
 
         await using FileStream stream = new(
             path,
@@ -661,6 +809,28 @@ public sealed class SessionJournal
         await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
         await stream.FlushAsync(cancellationToken);
+    }
+
+    private static async Task AppendColorRunsBestEffortAsync(
+        string path,
+        string line,
+        IEnumerable<ChatColorRun> colorRuns,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ChatColorSidecarService.AppendAsync(
+                path,
+                line,
+                colorRuns,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error(
+                $"Unable to persist exact chat colors for {Path.GetFileName(path)}.",
+                ex);
+        }
     }
 
     private static string GetArchivePath(
@@ -784,6 +954,15 @@ public sealed class SessionJournal
             File.Delete(path);
     }
 
+    private static void DeleteTextAndColorSidecarIfExists(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        DeleteIfExists(path);
+        ChatColorSidecarService.DeleteForTextFile(path);
+    }
+
     private void ClearActiveState()
     {
         _activeFile = null;
@@ -791,6 +970,21 @@ public sealed class SessionJournal
         _backupFile = null;
         _archiveRoot = null;
         _state = null;
+        ResumedServer = null;
+    }
+
+    private static ServerSessionInfo CreateServerFromState(SessionState state)
+    {
+        string key = state.ServerKey ?? string.Empty;
+        string? address = key.StartsWith("address:", StringComparison.OrdinalIgnoreCase)
+            ? key["address:".Length..]
+            : null;
+        string? name = !string.IsNullOrWhiteSpace(state.ServerName) &&
+                       !string.Equals(state.ServerName, "Unknown Server", StringComparison.OrdinalIgnoreCase) &&
+                       !state.ServerName.StartsWith("Unresolved Server ", StringComparison.OrdinalIgnoreCase)
+            ? state.ServerName
+            : null;
+        return new ServerSessionInfo { Name = name, Address = address };
     }
 
     private sealed class SessionState

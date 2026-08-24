@@ -49,5 +49,26 @@ public partial class MainWindow
         EnsureFinalRuntimeOptimizationV066();
         EnsureBuildIdentityV065();
         EnsureFinalChannelHandoffV066();
+
+        // 0.7.0 workspace: persistent selections, visual presets, layers,
+        // right-side editing tools, and local project save/load support.
+        try
+        {
+            EnsureEditorWorkspaceV067();
+            EnsureEditorSelectionGuardV067();
+        }
+        catch (Exception ex)
+        {
+            // Optional Editor enhancements must never take down capture, archives,
+            // settings, or the rest of Afterline during application startup.
+            Afterline.Services.DiagnosticLogger.Error(
+                "Advanced Editor initialization failed; Afterline continued with the available Editor controls.",
+                ex);
+        }
+
+        if (System.Windows.Application.Current is App app)
+            app.ConfirmHealthyStartup();
+
+        RunEditorImageSmokeTestIfRequestedV069();
     }
 }

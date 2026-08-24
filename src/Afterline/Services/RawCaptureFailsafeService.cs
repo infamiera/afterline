@@ -36,7 +36,15 @@ public sealed class RawCaptureFailsafeService
                     cancellationToken);
 
                 if (snapshot is not null && snapshot.ProcessedAt is null && snapshot.Lines.Count > 0)
+                {
                     await PreserveCrashSnapshotAsync(snapshot, cancellationToken);
+                    _lastSnapshot = snapshot;
+                    _lastServerKey = snapshot.ServerKey;
+                    _lastLines = snapshot.GetCapturedLines()
+                        .Select(line => line.Text)
+                        .ToArray();
+                    _snapshotNeedsProcessedMark = true;
+                }
             }
 
             var manifest = new CaptureRunManifest
@@ -54,7 +62,7 @@ public sealed class RawCaptureFailsafeService
     }
 
     public async Task WriteSnapshotAsync(
-        IReadOnlyList<string> lines,
+        IReadOnlyList<CapturedChatLine> lines,
         ServerSessionInfo server,
         CancellationToken cancellationToken)
     {
@@ -68,14 +76,15 @@ public sealed class RawCaptureFailsafeService
             if (MatchesLastSnapshot(lines, serverKey))
                 return;
 
-            string[] normalized = NormalizeLines(lines);
+            CapturedChatLine[] normalized = NormalizeLines(lines);
             var snapshot = new RawCaptureSnapshot
             {
                 CapturedAt = DateTime.Now,
                 ServerName = server.DisplayName,
                 ServerAddress = server.Address,
                 ServerKey = serverKey,
-                Lines = normalized.ToList()
+                Lines = normalized.Select(line => line.Text).ToList(),
+                StyledLines = normalized.ToList()
             };
 
             Directory.CreateDirectory(Path.GetDirectoryName(AppPaths.RawCaptureCacheFile)!);
@@ -87,7 +96,7 @@ public sealed class RawCaptureFailsafeService
 
             File.Move(temp, AppPaths.RawCaptureCacheFile, true);
             _lastServerKey = serverKey;
-            _lastLines = normalized;
+            _lastLines = normalized.Select(line => line.Text).ToArray();
             _lastSnapshot = snapshot;
             _snapshotNeedsProcessedMark = true;
         }
@@ -213,6 +222,8 @@ public sealed class RawCaptureFailsafeService
                 AppPaths.RecoveryBackupsDirectory,
                 baseName,
                 ".txt");
+            ChatColorSidecarService.DeleteForTextFile(destination);
+            IReadOnlyList<CapturedChatLine> capturedLines = snapshot.GetCapturedLines();
 
             await using FileStream stream = new(
                 destination,
@@ -228,8 +239,22 @@ public sealed class RawCaptureFailsafeService
                     .AsMemory(),
                 cancellationToken);
 
-            foreach (string line in snapshot.Lines)
-                await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
+            foreach (CapturedChatLine line in capturedLines)
+            {
+                await writer.WriteLineAsync(line.Text.AsMemory(), cancellationToken);
+                try
+                {
+                    await ChatColorSidecarService.AppendAsync(
+                        destination,
+                        line.Text,
+                        line.ColorRuns,
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.Error("Unable to preserve exact colors in the raw recovery copy.", ex);
+                }
+            }
 
             await writer.FlushAsync(cancellationToken);
             await stream.FlushAsync(cancellationToken);
@@ -241,19 +266,19 @@ public sealed class RawCaptureFailsafeService
         }
     }
 
-    private bool MatchesLastSnapshot(IReadOnlyList<string> lines, string serverKey)
+    private bool MatchesLastSnapshot(IReadOnlyList<CapturedChatLine> lines, string serverKey)
     {
         if (!string.Equals(_lastServerKey, serverKey, StringComparison.Ordinal))
             return false;
 
         int normalizedIndex = 0;
-        foreach (string line in lines)
+        foreach (CapturedChatLine line in lines)
         {
-            if (string.IsNullOrWhiteSpace(line))
+            if (string.IsNullOrWhiteSpace(line.Text))
                 continue;
 
             if (normalizedIndex >= _lastLines.Length ||
-                !string.Equals(_lastLines[normalizedIndex], line.Trim(), StringComparison.Ordinal))
+                !string.Equals(_lastLines[normalizedIndex], line.Text.Trim(), StringComparison.Ordinal))
                 return false;
 
             normalizedIndex++;
@@ -262,13 +287,23 @@ public sealed class RawCaptureFailsafeService
         return normalizedIndex == _lastLines.Length;
     }
 
-    private static string[] NormalizeLines(IReadOnlyList<string> lines)
+    private static CapturedChatLine[] NormalizeLines(IReadOnlyList<CapturedChatLine> lines)
     {
-        var normalized = new List<string>(lines.Count);
-        foreach (string line in lines)
+        var normalized = new List<CapturedChatLine>(lines.Count);
+        foreach (CapturedChatLine line in lines)
         {
-            if (!string.IsNullOrWhiteSpace(line))
-                normalized.Add(line.Trim());
+            if (string.IsNullOrWhiteSpace(line.Text))
+                continue;
+
+            string source = line.Text;
+            string text = source.Trim();
+            int start = source.IndexOf(text, StringComparison.Ordinal);
+            IReadOnlyList<ChatColorRun> runs = ChatColorData.SliceRuns(
+                source,
+                line.ColorRuns,
+                Math.Max(0, start),
+                text.Length);
+            normalized.Add(new CapturedChatLine(text, runs));
         }
         return normalized.ToArray();
     }
@@ -439,6 +474,21 @@ public sealed class RawCaptureSnapshot
     public string? ServerAddress { get; set; }
     public string ServerKey { get; set; } = "unknown";
     public List<string> Lines { get; set; } = new();
+    public List<CapturedChatLine> StyledLines { get; set; } = new();
+
+    public IReadOnlyList<CapturedChatLine> GetCapturedLines()
+    {
+        if (StyledLines.Count > 0)
+            return StyledLines
+                .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+                .Select(line => new CapturedChatLine(line.Text, line.ColorRuns))
+                .ToArray();
+
+        return Lines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => new CapturedChatLine(line.Trim()))
+            .ToArray();
+    }
 }
 
 public sealed class CaptureRunManifest

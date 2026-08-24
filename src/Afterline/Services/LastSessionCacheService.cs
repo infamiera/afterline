@@ -26,6 +26,7 @@ public sealed class LastSessionCacheService
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(AppPaths.LastSessionCacheFile)!);
+            ChatColorSidecarService.DeleteForTextFile(AppPaths.LastSessionCacheFile);
 
             await using FileStream stream = new(
                 AppPaths.LastSessionCacheFile,
@@ -73,6 +74,11 @@ public sealed class LastSessionCacheService
             await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
             await writer.FlushAsync(cancellationToken);
             await stream.FlushAsync(cancellationToken);
+            await ChatColorSidecarService.AppendAsync(
+                AppPaths.LastSessionCacheFile,
+                line,
+                entry.GetColorRunsForText(line),
+                cancellationToken);
         }
         finally
         {
@@ -94,9 +100,15 @@ public sealed class LastSessionCacheService
 
             DateTime fallback = File.GetLastWriteTime(AppPaths.LastSessionCacheFile);
             var entries = new List<ChatEntry>();
+            IReadOnlyDictionary<int, ChatColorLineRecord> exactColors =
+                await ChatColorSidecarService.MatchLinesAsync(
+                    AppPaths.LastSessionCacheFile,
+                    lines,
+                    cancellationToken);
 
-            foreach (string rawLine in lines)
+            for (int index = 0; index < lines.Length; index++)
             {
+                string rawLine = lines[index];
                 string line = rawLine.TrimEnd();
                 if (string.IsNullOrWhiteSpace(line) ||
                     line.StartsWith("[AFTERLINE LAST SESSION:", StringComparison.OrdinalIgnoreCase))
@@ -119,7 +131,11 @@ public sealed class LastSessionCacheService
                     continue;
                 }
 
-                entries.Add(new ChatEntry(fallback, line));
+                exactColors.TryGetValue(index, out ChatColorLineRecord? exact);
+                entries.Add(new ChatEntry(
+                    fallback,
+                    line,
+                    capturedColorRuns: exact?.ColorRuns));
             }
 
             return entries;

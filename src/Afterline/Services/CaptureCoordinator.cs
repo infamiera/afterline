@@ -1,4 +1,6 @@
 using Afterline.Models;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Afterline.Services;
 
@@ -14,6 +16,9 @@ public enum CaptureState
 public sealed class CaptureCoordinator : IAsyncDisposable
 {
     private static readonly TimeSpan NuiDisconnectConfirmation = TimeSpan.FromSeconds(1.25);
+    private static readonly Regex VisibleTimestampPrefix = new(
+        @"^\[(?<time>\d{1,2}:\d{2}:\d{2})\]",
+        RegexOptions.Compiled);
 
     private readonly FiveMDevToolsChatReader _reader = new();
     private readonly SessionJournal _journal;
@@ -28,6 +33,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private DateTime? _disconnectedAt;
     private DateTime? _nuiUnavailableSince;
     private ServerSessionInfo? _currentServer;
+    private bool _resumedSessionAwaitingValidation;
 
     public CaptureState State { get; private set; } = CaptureState.Stopped;
     public DateTime? LastCaptureAt { get; private set; }
@@ -54,6 +60,13 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _previousVisible = (await _journal.RecoverAsync(
             _settings().ArchiveRoot,
             _cts.Token)).ToList();
+        if (_journal.ResumedServer is not null)
+        {
+            _currentServer = _journal.ResumedServer;
+            _resumedSessionAwaitingValidation = true;
+            NotifyServerChanged();
+        }
+        await TryRecoverInterruptedRawSnapshotAsync(_cts.Token);
         _worker = Task.Run(WorkerAsync);
     }
 
@@ -63,17 +76,25 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         try
         {
             Exception? liveReadError = null;
+            bool liveReadSucceeded = false;
+            int captured = 0;
 
             if (FiveMProcessService.IsRunning())
             {
                 try
                 {
                     AppSettings settings = _settings();
-                    IReadOnlyList<string> current =
+                    IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    string[] currentText = current.Select(line => line.Text).ToArray();
                     await TryWriteRawSnapshotAsync(
                         current,
                         _reader.CurrentServer,
+                        _cts.Token);
+                    await ValidateResumedSessionAsync(
+                        currentText,
+                        _reader.CurrentServer,
+                        settings,
                         _cts.Token);
                     await HandleObservedServerCoreAsync(
                         _reader.CurrentServer,
@@ -84,12 +105,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     SetState(CaptureState.Capturing);
                     LastError = null;
 
-                    int captured = await CaptureAvailableLinesAsync(
+                    captured = await CaptureAvailableLinesAsync(
                         current,
                         settings,
                         _cts.Token);
                     await TryMarkRawSnapshotProcessedAsync(_cts.Token);
-                    return captured;
+                    liveReadSucceeded = true;
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
@@ -106,7 +127,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             IReadOnlyList<ChatEntry> cachedEntries =
                 await _lastSessionCache.ReadAsync(_cts.Token);
 
-            if (cachedEntries.Count == 0)
+            if (cachedEntries.Count > 0)
+            {
+                ReplayCachedEntries(cachedEntries);
+                LastError = null;
+                return cachedEntries.Count;
+            }
+
+            if (!liveReadSucceeded)
             {
                 if (liveReadError is not null)
                     throw new InvalidOperationException(
@@ -117,12 +145,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     "No cached chat session is available yet. Afterline must have captured the session while it was running.");
             }
 
-            CachedSessionReplayStarting?.Invoke(this, EventArgs.Empty);
-            foreach (ChatEntry entry in cachedEntries)
-                MessageCaptured?.Invoke(this, entry);
-
             LastError = null;
-            return cachedEntries.Count;
+            return captured;
         }
         finally
         {
@@ -141,6 +165,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task WorkerAsync()
     {
+        int unchangedPolls = 0;
         while (!_cts.IsCancellationRequested)
         {
             try
@@ -152,26 +177,41 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
                 if (!fiveMRunning)
                 {
+                    unchangedPolls = 0;
                     await HandleFiveMAbsentAsync(settings);
-                    await Task.Delay(500, _cts.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
                     continue;
                 }
 
                 if (!settings.AutoCapture)
                 {
+                    unchangedPolls = 0;
                     SetState(CaptureState.WaitingForFiveM);
-                    await Task.Delay(1000, _cts.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
                     continue;
                 }
 
+                int captured = 0;
                 await _captureGate.WaitAsync(_cts.Token);
                 try
                 {
-                    IReadOnlyList<string> current =
+                    IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
-                    await TryWriteRawSnapshotAsync(
-                        current,
+                    string[] currentText = current.Select(line => line.Text).ToArray();
+                    bool visibleChatChanged = !_previousVisible.SequenceEqual(
+                        currentText,
+                        StringComparer.Ordinal);
+                    if (visibleChatChanged)
+                    {
+                        await TryWriteRawSnapshotAsync(
+                            current,
+                            _reader.CurrentServer,
+                            _cts.Token);
+                    }
+                    await ValidateResumedSessionAsync(
+                        currentText,
                         _reader.CurrentServer,
+                        settings,
                         _cts.Token);
                     await HandleObservedServerCoreAsync(
                         _reader.CurrentServer,
@@ -182,11 +222,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     SetState(CaptureState.Capturing);
                     LastError = null;
 
-                    await CaptureAvailableLinesAsync(
+                    captured = await CaptureAvailableLinesAsync(
                         current,
                         settings,
                         _cts.Token);
-                    await TryMarkRawSnapshotProcessedAsync(_cts.Token);
+                    if (visibleChatChanged)
+                        await TryMarkRawSnapshotProcessedAsync(_cts.Token);
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
@@ -205,7 +246,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _captureGate.Release();
                 }
 
-                await Task.Delay(500, _cts.Token);
+                unchangedPolls = captured > 0 ? 0 : Math.Min(unchangedPolls + 1, 20);
+                TimeSpan nextPoll = unchangedPolls >= 10
+                    ? TimeSpan.FromSeconds(1)
+                    : TimeSpan.FromMilliseconds(500);
+                await Task.Delay(nextPoll, _cts.Token);
             }
             catch (OperationCanceledException) when (_cts.IsCancellationRequested)
             {
@@ -223,16 +268,24 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     }
 
     private async Task<int> CaptureAvailableLinesAsync(
-        IReadOnlyList<string> current,
+        IReadOnlyList<CapturedChatLine> current,
         AppSettings settings,
         CancellationToken cancellationToken)
     {
-        int overlap = FindOverlap(_previousVisible, current);
+        string[] currentText = current.Select(line => line.Text).ToArray();
+        if (_previousVisible.SequenceEqual(currentText, StringComparer.Ordinal))
+            return 0;
+
+        int overlap = FindOverlap(_previousVisible, currentText);
         int captured = 0;
 
-        foreach (string line in current.Skip(overlap))
+        foreach (CapturedChatLine line in current.Skip(overlap))
         {
-            var entry = new ChatEntry(DateTime.Now, line);
+            DateTime observedAt = DateTime.Now;
+            var entry = new ChatEntry(
+                InferVisibleTimestamp(line.Text, observedAt),
+                line.Text,
+                capturedColorRuns: line.ColorRuns);
 
             if (!_journal.HasActiveSession)
             {
@@ -265,7 +318,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             captured++;
         }
 
-        _previousVisible = current.ToList();
+        _previousVisible = currentText.ToList();
         if (_journal.HasActiveSession)
         {
             await _journal.UpdateVisibleSnapshotAsync(
@@ -322,6 +375,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task HandleFiveMAbsentAsync(AppSettings settings)
     {
+        CaptureState idleState = GetDisconnectedIdleState(
+            settings,
+            CaptureState.WaitingForFiveM);
+        if (!_journal.HasActiveSession &&
+            _currentServer is null &&
+            _nuiUnavailableSince is null &&
+            State == idleState)
+            return;
+
         await _captureGate.WaitAsync(_cts.Token);
         try
         {
@@ -337,9 +399,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _cts.Token);
             }
 
-            SetState(GetDisconnectedIdleState(
-                settings,
-                CaptureState.WaitingForFiveM));
+            SetState(idleState);
         }
         finally
         {
@@ -473,7 +533,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     }
 
     private async Task TryWriteRawSnapshotAsync(
-        IReadOnlyList<string> current,
+        IReadOnlyList<CapturedChatLine> current,
         ServerSessionInfo server,
         CancellationToken cancellationToken)
     {
@@ -505,6 +565,110 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 "Unable to mark the raw capture snapshot as processed.",
                 ex);
         }
+    }
+
+    private async Task TryRecoverInterruptedRawSnapshotAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            CaptureRunManifest? manifest =
+                await _rawCaptureFailsafe.ReadRunManifestAsync(cancellationToken);
+            if (manifest?.PreviousRunEndedUnexpectedly != true)
+                return;
+
+            RawCaptureSnapshot? snapshot =
+                await _rawCaptureFailsafe.ReadLatestRecoverableAsync(cancellationToken);
+            if (snapshot is null || snapshot.ProcessedAt is not null || snapshot.Lines.Count == 0)
+                return;
+
+            IReadOnlyList<CapturedChatLine> recoveredLines = snapshot.GetCapturedLines();
+
+            var recoveredServer = new ServerSessionInfo
+            {
+                Name = string.IsNullOrWhiteSpace(snapshot.ServerName) ||
+                       string.Equals(snapshot.ServerName, "Unknown Server", StringComparison.OrdinalIgnoreCase) ||
+                       snapshot.ServerName.StartsWith("Unresolved Server ", StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : snapshot.ServerName,
+                Address = snapshot.ServerAddress
+            };
+            await ValidateResumedSessionAsync(
+                recoveredLines.Select(line => line.Text).ToArray(),
+                recoveredServer,
+                _settings(),
+                cancellationToken);
+            await HandleObservedServerCoreAsync(
+                recoveredServer,
+                _settings(),
+                cancellationToken);
+            await CaptureAvailableLinesAsync(
+                recoveredLines,
+                _settings(),
+                cancellationToken);
+            await _rawCaptureFailsafe.MarkProcessedAsync(cancellationToken);
+            DiagnosticLogger.Info(
+                $"Recovered {snapshot.Lines.Count:N0} visible chat line(s) from the interrupted raw capture checkpoint.");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error(
+                "Unable to merge the interrupted raw capture checkpoint into the active chatlog.",
+                ex);
+        }
+    }
+
+    private void ReplayCachedEntries(IReadOnlyList<ChatEntry> entries)
+    {
+        CachedSessionReplayStarting?.Invoke(this, EventArgs.Empty);
+        foreach (ChatEntry entry in entries)
+            MessageCaptured?.Invoke(this, entry);
+    }
+
+    private async Task ValidateResumedSessionAsync(
+        IReadOnlyList<string> current,
+        ServerSessionInfo observedServer,
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (!_resumedSessionAwaitingValidation)
+            return;
+
+        _resumedSessionAwaitingValidation = false;
+        if (!_journal.HasActiveSession ||
+            _previousVisible.Count == 0 ||
+            current.Count == 0 ||
+            FindOverlap(_previousVisible, current) > 0)
+            return;
+
+        DateTime boundary = InferVisibleTimestamp(current[0], DateTime.Now);
+        await FinalizeCurrentServerCoreAsync(
+            settings,
+            boundary,
+            false,
+            cancellationToken);
+        _currentServer = observedServer;
+        NotifyServerChanged();
+        DiagnosticLogger.Info(
+            "The resumed FiveM chat buffer had no overlap with its checkpoint; a genuine new session boundary was created.");
+    }
+
+    private static DateTime InferVisibleTimestamp(string line, DateTime observedAt)
+    {
+        Match match = VisibleTimestampPrefix.Match(line);
+        if (!match.Success ||
+            !DateTime.TryParseExact(
+                match.Groups["time"].Value,
+                "H:mm:ss",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateTime parsed))
+            return observedAt;
+
+        DateTime timestamp = observedAt.Date.Add(parsed.TimeOfDay);
+        if (timestamp > observedAt.AddHours(12))
+            timestamp = timestamp.AddDays(-1);
+        return timestamp;
     }
 
     private CaptureState GetDisconnectedIdleState(
@@ -570,59 +734,20 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             catch { }
         }
 
-        bool shutdownFinalized = false;
-
+        // Stopping or updating Afterline is not a FiveM disconnect. The journal
+        // already checkpoints each line and visible snapshot, so leave the active
+        // state resumable and close only the Afterline run manifest. A real FiveM
+        // disappearance is finalized by the worker before shutdown.
         try
         {
-            await _captureGate.WaitAsync();
-            try
-            {
-                if (_journal.HasActiveSession)
-                {
-                    ChatEntry? disconnectMarker =
-                        await _journal.MarkDisconnectedAsync(
-                            DateTime.Now,
-                            CancellationToken.None);
-
-                    if (disconnectMarker is not null)
-                    {
-                        await TryAppendLastSessionCacheAsync(
-                            disconnectMarker,
-                            CancellationToken.None);
-                        MessageCaptured?.Invoke(this, disconnectMarker);
-                    }
-                }
-
-                await _journal.FinalizeAsync(
-                    _settings().ArchiveRoot,
-                    CancellationToken.None);
-                shutdownFinalized = true;
-            }
-            finally
-            {
-                _captureGate.Release();
-            }
+            await _rawCaptureFailsafe.MarkRunCleanlyClosedAsync(
+                CancellationToken.None);
         }
         catch (Exception ex)
         {
             DiagnosticLogger.Error(
-                "Unable to finalize the active chatlog during shutdown. The recovery copy was kept.",
+                "Unable to mark the capture run as cleanly closed.",
                 ex);
-        }
-
-        if (shutdownFinalized)
-        {
-            try
-            {
-                await _rawCaptureFailsafe.MarkRunCleanlyClosedAsync(
-                    CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                DiagnosticLogger.Error(
-                    "Unable to mark the capture run as cleanly closed.",
-                    ex);
-            }
         }
 
         await _reader.DisposeAsync();
