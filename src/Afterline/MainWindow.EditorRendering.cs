@@ -411,7 +411,7 @@ public partial class MainWindow
     private RenderTargetBitmap? CaptureEditorCompositeBitmap(bool refreshChatOverlay = true)
     {
         if (_editorComposition is null) return null;
-        if (_editorBaseOriginal is null && _editorChatBitmap is null && _editorImageLayersV067.Count == 0)
+        if (_editorBaseOriginal is null && _editorChatBitmap is null)
         {
             SetEditorStatus("Add chat text or load an image before exporting.");
             return null;
@@ -423,7 +423,6 @@ public partial class MainWindow
             RenderEditorChatOverlay();
         ApplyEditorImageAdjustments();
         UpdateEditorCanvasSize();
-        EnsureLayerCanvasExtentV067();
 
         int width = Math.Max(1, (int)Math.Ceiling(_editorComposition.Width));
         int height = Math.Max(1, (int)Math.Ceiling(_editorComposition.Height));

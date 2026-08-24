@@ -15,15 +15,13 @@ public partial class MainWindow
     {
         public string Id { get; init; } = Guid.NewGuid().ToString("N");
         public string Name { get; set; } = "Image Layer";
-        public required BitmapSource Bitmap { get; set; }
+        public required BitmapSource Bitmap { get; init; }
         public required Image Image { get; init; }
         public double X { get; set; }
         public double Y { get; set; }
-        public double Width { get; set; }
-        public double Height { get; set; }
+        public double Scale { get; set; } = 1.0;
         public double Opacity { get; set; } = 1.0;
         public bool IsVisible { get; set; } = true;
-        public bool IsLocked { get; set; }
     }
 
     private bool _editorWorkspaceV067Initialized;
@@ -33,6 +31,9 @@ public partial class MainWindow
     private TextBlock? _editorProjectLabelV067;
     private TextBlock? _editorSelectedLayerLabelV067;
     private Slider? _editorLayerOpacityV067;
+    private Slider? _editorLayerScaleV067;
+    private Slider? _editorLayerXV067;
+    private Slider? _editorLayerYV067;
     private Button? _editorLayerRemoveV067;
     private Button? _editorLayerUpV067;
     private Button? _editorLayerDownV067;
@@ -56,7 +57,6 @@ public partial class MainWindow
 
         ConfigurePersistentSelectionHighlightV067();
         ConfigureRightSidebarV067(editorBody);
-        ConfigureAdvancedImageLayersV068(editorBody);
         ConfigureFilterPresetGalleryV067();
         ConfigureSelectionPersistenceV067();
         RebuildEditorTaskbarV067();
@@ -70,7 +70,6 @@ public partial class MainWindow
                 ApplyEditorChromeCanary(true);
                 RefreshFilterPresetGalleryV067();
                 RefreshLayerListV067();
-                RefreshSelectedLayerAdornerV068();
             }
         };
 
@@ -250,13 +249,18 @@ public partial class MainWindow
         var sidebar = new Border
         {
             Style = (Style)FindResource("CardStyle"),
-            Padding = new Thickness(8),
+            Padding = new Thickness(10),
             MinWidth = 260
         };
         _editorRightSidebarV067 = sidebar;
         Grid.SetColumn(sidebar, 6);
 
-        var root = new StackPanel();
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(270) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         var projectBar = new Grid();
         projectBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -274,46 +278,24 @@ public partial class MainWindow
         var addImage = new Button
         {
             Content = "+ Image",
-            Padding = new Thickness(7, 3, 7, 3),
-            MinHeight = 26,
+            Padding = new Thickness(8, 4, 8, 4),
+            MinHeight = 28,
             ToolTip = "Add another image layer to this project."
         };
         addImage.Click += (_, _) => AddImageLayerV067();
         Grid.SetColumn(addImage, 1);
         projectBar.Children.Add(addImage);
-        projectBar.Margin = new Thickness(0, 0, 0, 7);
         root.Children.Add(projectBar);
 
-        Expander presets = CreateEditorSidebarExpanderV068(
-            "FILTER PRESETS",
-            BuildFilterPresetPanelV067(),
-            expanded: true);
+        Border presets = BuildFilterPresetPanelV067();
+        Grid.SetRow(presets, 2);
         root.Children.Add(presets);
 
-        if (_editorToolPanels.TryGetValue("filters", out FrameworkElement? adjustments))
-        {
-            DetachEditorElement(adjustments);
-            adjustments.MaxHeight = 430;
-            _editorFilterAdjustmentsExpanderV068 = CreateEditorSidebarExpanderV068(
-                "FILTERS & ADJUSTMENTS",
-                adjustments,
-                expanded: false);
-            _editorFilterAdjustmentsExpanderV068.Margin = new Thickness(0, 7, 0, 0);
-            root.Children.Add(_editorFilterAdjustmentsExpanderV068);
-            _editorToolPanels.Remove("filters");
-            RemoveEditorRailButtonV068("filters");
-        }
-
         Border layers = BuildLayersPanelV067();
-        layers.Margin = new Thickness(0, 7, 0, 0);
+        Grid.SetRow(layers, 4);
         root.Children.Add(layers);
 
-        sidebar.Child = new ScrollViewer
-        {
-            Content = root,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-        };
+        sidebar.Child = root;
         editorBody.Children.Add(sidebar);
     }
 
@@ -328,7 +310,19 @@ public partial class MainWindow
             Padding = new Thickness(8)
         };
 
-        var root = new StackPanel();
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(6) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        root.Children.Add(new TextBlock
+        {
+            Text = "FILTER PRESETS",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText")
+        });
 
         _editorPresetGalleryV067 = new WrapPanel
         {
@@ -340,6 +334,7 @@ public partial class MainWindow
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
+        Grid.SetRow(scroll, 2);
         root.Children.Add(scroll);
 
         var actions = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
@@ -357,6 +352,7 @@ public partial class MainWindow
         delete.ToolTip = "Delete the selected saved preset.";
         actions.Children.Add(save);
         actions.Children.Add(delete);
+        Grid.SetRow(actions, 3);
         root.Children.Add(actions);
 
         border.Child = root;
@@ -374,15 +370,19 @@ public partial class MainWindow
             Padding = new Thickness(8)
         };
 
-        var root = new StackPanel();
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(6) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         root.Children.Add(new TextBlock
         {
             Text = "LAYERS",
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("MutedText"),
-            Margin = new Thickness(0, 0, 0, 6)
+            Foreground = (Brush)FindResource("MutedText")
         });
 
         _editorLayerListV067 = new ListBox
@@ -395,8 +395,8 @@ public partial class MainWindow
             _editorSelectedImageLayerV067 =
                 (_editorLayerListV067.SelectedItem as ListBoxItem)?.Tag as EditorImageLayerV067;
             SyncLayerControlsV067();
-            RefreshSelectedLayerAdornerV068();
         };
+        Grid.SetRow(_editorLayerListV067, 2);
         root.Children.Add(_editorLayerListV067);
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 6, 0, 4) };
@@ -407,6 +407,7 @@ public partial class MainWindow
         buttons.Children.Add(_editorLayerRemoveV067);
         buttons.Children.Add(_editorLayerUpV067);
         buttons.Children.Add(_editorLayerDownV067);
+        Grid.SetRow(buttons, 3);
         root.Children.Add(buttons);
 
         var controls = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
@@ -425,8 +426,22 @@ public partial class MainWindow
         _editorLayerOpacityV067.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
         controls.Children.Add(opacity.Panel);
 
-        controls.Children.Add(EditorSubtleNote(
-            "Drag the selected image on the canvas. Use its corner handle or right-click it to set an exact pixel size, lock it, or reset its dimensions."));
+        var scale = CreateEditorV041Slider("Scale", 10, 300, 100, 1);
+        _editorLayerScaleV067 = scale.Slider;
+        _editorLayerScaleV067.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+        controls.Children.Add(scale.Panel);
+
+        var x = CreateEditorV041Slider("X position", 0, 8192, 0, 1);
+        _editorLayerXV067 = x.Slider;
+        _editorLayerXV067.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+        controls.Children.Add(x.Panel);
+
+        var y = CreateEditorV041Slider("Y position", 0, 8192, 0, 1);
+        _editorLayerYV067 = y.Slider;
+        _editorLayerYV067.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+        controls.Children.Add(y.Panel);
+
+        Grid.SetRow(controls, 4);
         root.Children.Add(controls);
 
         border.Child = root;
@@ -854,9 +869,6 @@ public partial class MainWindow
         double scale = 1,
         double opacity = 1,
         bool visible = true,
-        bool locked = false,
-        double? width = null,
-        double? height = null,
         bool refresh = true)
     {
         if (_editorComposition is null)
@@ -879,11 +891,9 @@ public partial class MainWindow
             Image = image,
             X = Math.Max(0, x),
             Y = Math.Max(0, y),
-            Width = Math.Max(1, width ?? bitmap.PixelWidth * Math.Clamp(scale, 0.1, 3.0)),
-            Height = Math.Max(1, height ?? bitmap.PixelHeight * Math.Clamp(scale, 0.1, 3.0)),
+            Scale = Math.Clamp(scale, 0.1, 3.0),
             Opacity = Math.Clamp(opacity, 0, 1),
-            IsVisible = visible,
-            IsLocked = locked
+            IsVisible = visible
         };
         _editorImageLayersV067.Add(layer);
         _editorComposition.Children.Add(image);
@@ -901,9 +911,8 @@ public partial class MainWindow
 
     private void UpdateImageLayerVisualV067(EditorImageLayerV067 layer)
     {
-        layer.Image.Source = layer.Bitmap;
-        layer.Image.Width = Math.Max(1, layer.Width);
-        layer.Image.Height = Math.Max(1, layer.Height);
+        layer.Image.Width = Math.Max(1, layer.Bitmap.PixelWidth * layer.Scale);
+        layer.Image.Height = Math.Max(1, layer.Bitmap.PixelHeight * layer.Scale);
         layer.Image.Margin = new Thickness(layer.X, layer.Y, 0, 0);
         layer.Image.Opacity = layer.Opacity;
         layer.Image.Visibility = layer.IsVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -943,9 +952,7 @@ public partial class MainWindow
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(46) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             var visible = new CheckBox
@@ -958,13 +965,11 @@ public partial class MainWindow
             {
                 layer.IsVisible = true;
                 UpdateImageLayerVisualV067(layer);
-                RefreshSelectedLayerAdornerV068();
             };
             visible.Unchecked += (_, _) =>
             {
                 layer.IsVisible = false;
                 UpdateImageLayerVisualV067(layer);
-                RefreshSelectedLayerAdornerV068();
             };
             row.Children.Add(visible);
 
@@ -985,31 +990,7 @@ public partial class MainWindow
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            var lockButton = new Button
-            {
-                Content = layer.IsLocked ? "🔒" : string.Empty,
-                FontFamily = new FontFamily("Segoe UI Symbol"),
-                FontSize = 11,
-                Width = 22,
-                Height = 22,
-                Padding = new Thickness(0),
-                Visibility = layer.IsLocked ? Visibility.Visible : Visibility.Hidden,
-                ToolTip = layer.IsLocked ? "Unlock this layer" : "Layer is unlocked"
-            };
-            lockButton.Click += (_, e) =>
-            {
-                e.Handled = true;
-                if (!layer.IsLocked) return;
-                PushLayerEditHistoryV068(layer, "layer lock");
-                layer.IsLocked = false;
-                RefreshLayerListV067(layer);
-                RefreshSelectedLayerAdornerV068();
-                SetEditorStatus($"Unlocked image layer ‘{layer.Name}’.");
-            };
-            Grid.SetColumn(lockButton, 4);
-            row.Children.Add(lockButton);
-
-            Grid.SetColumn(name, 6);
+            Grid.SetColumn(name, 4);
             row.Children.Add(name);
 
             item.Content = row;
@@ -1089,6 +1070,22 @@ public partial class MainWindow
                 _editorLayerOpacityV067.IsEnabled = enabled;
                 _editorLayerOpacityV067.Value = enabled ? layer!.Opacity * 100 : 100;
             }
+            if (_editorLayerScaleV067 is not null)
+            {
+                _editorLayerScaleV067.IsEnabled = enabled;
+                _editorLayerScaleV067.Value = enabled ? layer!.Scale * 100 : 100;
+            }
+            if (_editorLayerXV067 is not null)
+            {
+                _editorLayerXV067.IsEnabled = enabled;
+                _editorLayerXV067.Value = enabled ? layer!.X : 0;
+            }
+            if (_editorLayerYV067 is not null)
+            {
+                _editorLayerYV067.IsEnabled = enabled;
+                _editorLayerYV067.Value = enabled ? layer!.Y : 0;
+            }
+
             if (_editorLayerRemoveV067 is not null) _editorLayerRemoveV067.IsEnabled = enabled;
             if (_editorLayerUpV067 is not null) _editorLayerUpV067.IsEnabled = enabled;
             if (_editorLayerDownV067 is not null) _editorLayerDownV067.IsEnabled = enabled;
@@ -1106,9 +1103,11 @@ public partial class MainWindow
 
         EditorImageLayerV067 layer = _editorSelectedImageLayerV067;
         layer.Opacity = Math.Clamp((_editorLayerOpacityV067?.Value ?? 100) / 100.0, 0, 1);
+        layer.Scale = Math.Clamp((_editorLayerScaleV067?.Value ?? 100) / 100.0, 0.1, 3);
+        layer.X = Math.Max(0, _editorLayerXV067?.Value ?? 0);
+        layer.Y = Math.Max(0, _editorLayerYV067?.Value ?? 0);
         UpdateImageLayerVisualV067(layer);
         EnsureLayerCanvasExtentV067();
-        RefreshSelectedLayerAdornerV068();
     }
 
     private void RemoveSelectedImageLayerV067()
@@ -1120,7 +1119,6 @@ public partial class MainWindow
         _editorComposition.Children.Remove(layer.Image);
         _editorImageLayersV067.Remove(layer);
         _editorSelectedImageLayerV067 = null;
-        RefreshSelectedLayerAdornerV068();
         UpdateEditorCanvasSize();
         EnsureLayerCanvasExtentV067();
         UpdateEditorLayerZOrderV067();
@@ -1153,8 +1151,6 @@ public partial class MainWindow
 
         _editorImageLayersV067.Clear();
         _editorSelectedImageLayerV067 = null;
-        ClearLayerEditHistoryV068();
-        RefreshSelectedLayerAdornerV068();
         RefreshLayerListV067();
     }
 
@@ -1167,8 +1163,8 @@ public partial class MainWindow
         double requiredHeight = _editorComposition.Height;
         foreach (EditorImageLayerV067 layer in _editorImageLayersV067.Where(l => l.IsVisible))
         {
-            requiredWidth = Math.Max(requiredWidth, layer.X + layer.Width);
-            requiredHeight = Math.Max(requiredHeight, layer.Y + layer.Height);
+            requiredWidth = Math.Max(requiredWidth, layer.X + layer.Bitmap.PixelWidth * layer.Scale);
+            requiredHeight = Math.Max(requiredHeight, layer.Y + layer.Bitmap.PixelHeight * layer.Scale);
         }
 
         if (requiredWidth <= _editorComposition.Width + 0.5 &&
@@ -1250,7 +1246,9 @@ public partial class MainWindow
         menus.Children.Add(CreateEditorMenuButtonCanaryV4("Filter",
             ("Filters & Adjustments", () =>
             {
-                OpenFilterAdjustmentsV068();
+                PrepareEditorFiltersPreservingSelectionV067();
+                ShowEditorToolPanel("filters", true);
+                RefreshSelectionHighlightV067();
             }),
             ("Apply Changes", ApplyFilterWithHistoryCanaryV2),
             ("Revert Preview", RevertCanaryFilterPreview),
@@ -1263,13 +1261,12 @@ public partial class MainWindow
         menus.Children.Add(CreateEditorMenuButtonCanaryV4("View",
             ("Fit Canvas", FitEditorPreviewToWindow),
             ("Zoom 100%", () => { _editorFitZoom = false; SetEditorZoom(1.0); }),
-            ($"Toggle Rulers ({_settings.Editor.RulerKeybind})", ToggleEditorRulersV068),
             ("Chat & Font", () => ShowEditorToolPanel("chat", true)),
             ("Selection Tools", () => ShowEditorToolPanel("selection", true)),
             ("Full Screen Editor", ToggleEditorFullscreenCanary)));
 
         menus.Children.Add(CreateEditorMenuButtonCanaryV4("Help",
-            ("Editor Shortcuts", () => new CanaryEditorShortcutsWindow(this, _settings.Editor.RulerKeybind).ShowDialog()),
+            ("Editor Shortcuts", () => new CanaryEditorShortcutsWindow(this).ShowDialog()),
             ("About Afterline", () => new AboutWindow(this).ShowDialog())));
 
         bar.Children.Add(menus);

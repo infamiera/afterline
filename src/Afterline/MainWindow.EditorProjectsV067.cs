@@ -28,10 +28,7 @@ public partial class MainWindow
         double Y,
         double Scale,
         double Opacity,
-        bool Visible,
-        bool Locked = false,
-        double? Width = null,
-        double? Height = null);
+        bool Visible);
 
     private sealed record EditorProjectChatLayerDataV067(
         string Text,
@@ -213,12 +210,9 @@ public partial class MainWindow
                     $"layers/{index:D3}.png",
                     layer.X,
                     layer.Y,
-                    layer.Bitmap.PixelWidth <= 0 ? 1 : layer.Width / layer.Bitmap.PixelWidth,
+                    layer.Scale,
                     layer.Opacity,
-                    layer.IsVisible,
-                    layer.IsLocked,
-                    layer.Width,
-                    layer.Height)).ToArray(),
+                    layer.IsVisible)).ToArray(),
             _editorExtraChatsCanary.Select(layer =>
                 new EditorProjectChatLayerDataV067(layer.Text, layer.X, layer.Y)).ToArray());
 
@@ -313,9 +307,6 @@ public partial class MainWindow
                 layerData.Scale,
                 layerData.Opacity,
                 layerData.Visible,
-                layerData.Locked,
-                layerData.Width,
-                layerData.Height,
                 refresh: false);
         }
 

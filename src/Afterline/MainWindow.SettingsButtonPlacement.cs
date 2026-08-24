@@ -60,7 +60,7 @@ public partial class MainWindow
         AddSidebarSection(navigationPanel, "LIBRARY", libraryButtons);
 
         if (editor is not null)
-            AddSidebarSection(navigationPanel, "IMAGE EDITOR", new[] { editor });
+            AddSidebarSection(navigationPanel, "RP SCREEN CREATION", new[] { editor });
 
         PlaceSettingsInMainFooter();
 

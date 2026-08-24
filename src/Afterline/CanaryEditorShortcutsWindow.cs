@@ -7,7 +7,7 @@ namespace Afterline;
 
 internal sealed class CanaryEditorShortcutsWindow : Window
 {
-    public CanaryEditorShortcutsWindow(Window owner, string rulerKeybind = "R")
+    public CanaryEditorShortcutsWindow(Window owner)
     {
         Owner = owner;
         Title = "Editor Shortcuts";
@@ -42,7 +42,6 @@ internal sealed class CanaryEditorShortcutsWindow : Window
         AddShortcut(content, "Ctrl + Shift + Z", "Redo the last reverted Editor change.");
         AddShortcut(content, "Ctrl + S", "Export using the current output format.");
         AddShortcut(content, "Ctrl + mouse wheel", "Zoom the canvas in or out.");
-        AddShortcut(content, rulerKeybind, "Show or hide the pixel rulers around the canvas.");
         AddShortcut(content, "Esc", "Exit Full Screen Editor or cancel the active selection tool.");
         AddShortcut(content, "Enter", "Finish a Polygonal Lasso selection.");
         card.Child = content;

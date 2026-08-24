@@ -70,8 +70,6 @@ public partial class MainWindow
 
     private void ApplyEditorChromeCanary(bool editorVisible)
     {
-        ApplyAutomaticEditorSidebarV068(editorVisible);
-
         if (_editorGlobalHeaderCanary is not null)
             _editorGlobalHeaderCanary.Visibility = editorVisible ? Visibility.Collapsed : Visibility.Visible;
         if (_editorSidebarCaptureCardCanary is not null)

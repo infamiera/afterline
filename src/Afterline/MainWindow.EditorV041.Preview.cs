@@ -220,7 +220,6 @@ public partial class MainWindow
             "effects" => "Text Effects",
             "image" => "Image & Canvas",
             "markup" => "Paint & Markup",
-            "layer-paint" => "Layer Paint & Erase",
             "export" => "Export",
             _ => "Editor"
         };

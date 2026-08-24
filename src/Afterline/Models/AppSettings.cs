@@ -54,7 +54,6 @@ public sealed class EditorPreferences
     public string UndoKeybind { get; set; } = "Ctrl+Z";
     public string RedoKeybind { get; set; } = "Ctrl+Shift+Z";
     public string FullscreenKeybind { get; set; } = "F11";
-    public string RulerKeybind { get; set; } = "R";
 
     public bool StrokeEnabled { get; set; }
     public double StrokeWidth { get; set; } = 1;
