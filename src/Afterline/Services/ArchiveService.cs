@@ -63,6 +63,9 @@ public sealed class ArchiveService
 
             entries.Sort((left, right) => right.LastWriteUtc.CompareTo(left.LastWriteUtc));
 
+            if (File.Exists(AppPaths.ArchiveIndexFile) && IndexesMatch(cached, entries))
+                return entries;
+
             AppPaths.EnsureLocalDirectories();
             string temp = AppPaths.ArchiveIndexFile + ".tmp";
             await using (FileStream stream = new(
@@ -88,6 +91,25 @@ public sealed class ArchiveService
         {
             _rebuildGate.Release();
         }
+    }
+
+    private static bool IndexesMatch(
+        IReadOnlyList<SessionIndexEntry> left,
+        IReadOnlyList<SessionIndexEntry> right)
+    {
+        if (left.Count != right.Count) return false;
+        for (int index = 0; index < left.Count; index++)
+        {
+            SessionIndexEntry existing = left[index];
+            SessionIndexEntry current = right[index];
+            if (!string.Equals(existing.FilePath, current.FilePath, StringComparison.OrdinalIgnoreCase) ||
+                existing.LastWriteUtc != current.LastWriteUtc ||
+                existing.SizeBytes != current.SizeBytes ||
+                existing.LineCount != current.LineCount)
+                return false;
+        }
+
+        return true;
     }
 
     public IReadOnlyList<SessionIndexEntry> LoadCachedIndex()

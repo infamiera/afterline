@@ -165,6 +165,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task WorkerAsync()
     {
+        int unchangedPolls = 0;
         while (!_cts.IsCancellationRequested)
         {
             try
@@ -176,28 +177,37 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
                 if (!fiveMRunning)
                 {
+                    unchangedPolls = 0;
                     await HandleFiveMAbsentAsync(settings);
-                    await Task.Delay(500, _cts.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
                     continue;
                 }
 
                 if (!settings.AutoCapture)
                 {
+                    unchangedPolls = 0;
                     SetState(CaptureState.WaitingForFiveM);
-                    await Task.Delay(1000, _cts.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
                     continue;
                 }
 
+                int captured = 0;
                 await _captureGate.WaitAsync(_cts.Token);
                 try
                 {
                     IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
                     string[] currentText = current.Select(line => line.Text).ToArray();
-                    await TryWriteRawSnapshotAsync(
-                        current,
-                        _reader.CurrentServer,
-                        _cts.Token);
+                    bool visibleChatChanged = !_previousVisible.SequenceEqual(
+                        currentText,
+                        StringComparer.Ordinal);
+                    if (visibleChatChanged)
+                    {
+                        await TryWriteRawSnapshotAsync(
+                            current,
+                            _reader.CurrentServer,
+                            _cts.Token);
+                    }
                     await ValidateResumedSessionAsync(
                         currentText,
                         _reader.CurrentServer,
@@ -212,11 +222,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     SetState(CaptureState.Capturing);
                     LastError = null;
 
-                    await CaptureAvailableLinesAsync(
+                    captured = await CaptureAvailableLinesAsync(
                         current,
                         settings,
                         _cts.Token);
-                    await TryMarkRawSnapshotProcessedAsync(_cts.Token);
+                    if (visibleChatChanged)
+                        await TryMarkRawSnapshotProcessedAsync(_cts.Token);
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
@@ -235,7 +246,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _captureGate.Release();
                 }
 
-                await Task.Delay(500, _cts.Token);
+                unchangedPolls = captured > 0 ? 0 : Math.Min(unchangedPolls + 1, 20);
+                TimeSpan nextPoll = unchangedPolls >= 10
+                    ? TimeSpan.FromSeconds(1)
+                    : TimeSpan.FromMilliseconds(500);
+                await Task.Delay(nextPoll, _cts.Token);
             }
             catch (OperationCanceledException) when (_cts.IsCancellationRequested)
             {
@@ -258,6 +273,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         string[] currentText = current.Select(line => line.Text).ToArray();
+        if (_previousVisible.SequenceEqual(currentText, StringComparer.Ordinal))
+            return 0;
+
         int overlap = FindOverlap(_previousVisible, currentText);
         int captured = 0;
 
@@ -357,6 +375,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task HandleFiveMAbsentAsync(AppSettings settings)
     {
+        CaptureState idleState = GetDisconnectedIdleState(
+            settings,
+            CaptureState.WaitingForFiveM);
+        if (!_journal.HasActiveSession &&
+            _currentServer is null &&
+            _nuiUnavailableSince is null &&
+            State == idleState)
+            return;
+
         await _captureGate.WaitAsync(_cts.Token);
         try
         {
@@ -372,9 +399,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _cts.Token);
             }
 
-            SetState(GetDisconnectedIdleState(
-                settings,
-                CaptureState.WaitingForFiveM));
+            SetState(idleState);
         }
         finally
         {

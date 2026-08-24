@@ -61,7 +61,13 @@ jobs:
           Remove-Item $log -Force -ErrorAction SilentlyContinue
 
           $process = Start-Process -FilePath $exe -PassThru
-          Start-Sleep -Seconds 15
+          Start-Sleep -Seconds 5
+          $process.Refresh()
+          if ($process.HasExited) {
+            throw "Afterline exited during the initial 5-second startup period with code $($process.ExitCode)."
+          }
+          $idleCpuStart = $process.TotalProcessorTime
+          Start-Sleep -Seconds 10
           $process.Refresh()
 
           if ($process.HasExited) {
@@ -70,6 +76,16 @@ jobs:
               Get-Content $log
             }
             throw "Afterline exited during the 15-second startup smoke test with code $($process.ExitCode)."
+          }
+
+          $idleCpu = ($process.TotalProcessorTime - $idleCpuStart).TotalSeconds
+          $workingSetMb = [math]::Round($process.WorkingSet64 / 1MB, 1)
+          Write-Host "Idle resource sample: CPU $([math]::Round($idleCpu, 3))s over 10s; working set ${workingSetMb}MB"
+          if ($idleCpu -gt 2.0) {
+            throw "Afterline consumed $([math]::Round($idleCpu, 3)) CPU seconds during the 10-second disconnected idle sample."
+          }
+          if ($workingSetMb -gt 400) {
+            throw "Afterline used ${workingSetMb}MB during the disconnected idle sample."
           }
 
           Stop-Process -Id $process.Id -Force

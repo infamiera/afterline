@@ -26,6 +26,7 @@ public partial class MainWindow
     private TextBlock? _archiveStatsText;
     private TextBlock? _recoveryStatusText;
     private Button? _replayRecoveryButton;
+    private DateTime _nextRecoveryCenterRefreshUtc = DateTime.MinValue;
 
     private void EnsureQolSearchRecoveryStats()
     {
@@ -336,7 +337,14 @@ public partial class MainWindow
     }
 
     private void QolRecoveryStatus_Tick(object? sender, EventArgs e)
-        => UpdateRecoveryCenterStatus();
+    {
+        if (SettingsPage.Visibility != Visibility.Visible ||
+            DateTime.UtcNow < _nextRecoveryCenterRefreshUtc)
+            return;
+
+        _nextRecoveryCenterRefreshUtc = DateTime.UtcNow.AddSeconds(10);
+        UpdateRecoveryCenterStatus();
+    }
 
     private void UpdateRecoveryCenterStatus()
     {

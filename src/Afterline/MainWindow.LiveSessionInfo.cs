@@ -76,7 +76,10 @@ public partial class MainWindow
     }
 
     private void LiveSessionInfo_Tick(object? sender, EventArgs e)
-        => UpdateLiveSessionInformation();
+    {
+        if (LivePage.Visibility == Visibility.Visible)
+            UpdateLiveSessionInformation();
+    }
 
     private void UpdateLiveSessionInformation()
     {
