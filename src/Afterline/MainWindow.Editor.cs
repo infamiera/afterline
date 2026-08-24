@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Afterline.Models;
 using Afterline.Services;
 
 namespace Afterline;
@@ -45,6 +46,8 @@ public partial class MainWindow
     private BitmapSource? _editorChatBitmap;
     private DispatcherTimer? _editorChatRenderTimer;
     private DispatcherTimer? _editorBaseAdjustTimer;
+    private IReadOnlyDictionary<int, ChatColorLineRecord> _editorExactChatColorsV068 =
+        new Dictionary<int, ChatColorLineRecord>();
 
     private void EnsureEditor()
     {
@@ -586,6 +589,7 @@ public partial class MainWindow
         try
         {
             if (!Clipboard.ContainsText()) return;
+            _editorExactChatColorsV068 = new Dictionary<int, ChatColorLineRecord>();
             _editorInput.SelectedText = Clipboard.GetText();
             _editorInput.Focus();
         }
@@ -611,9 +615,18 @@ public partial class MainWindow
 
         try
         {
-            _editorInput.Text = await File.ReadAllTextAsync(dialog.FileName);
+            string text = await File.ReadAllTextAsync(dialog.FileName);
+            string[] lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            _editorExactChatColorsV068 = await ChatColorSidecarService.MatchLinesAsync(
+                dialog.FileName,
+                lines,
+                CancellationToken.None);
+            _editorInput.Text = text;
             _editorInput.CaretIndex = 0;
-            SetEditorStatus($"Imported {Path.GetFileName(dialog.FileName)}.");
+            string colors = _editorExactChatColorsV068.Count > 0
+                ? $" · {_editorExactChatColorsV068.Count:N0} line(s) with exact FiveM colors"
+                : string.Empty;
+            SetEditorStatus($"Imported {Path.GetFileName(dialog.FileName)}{colors}.");
         }
         catch (Exception ex)
         {
@@ -624,6 +637,7 @@ public partial class MainWindow
 
     private void EditorClearInput_Click(object sender, RoutedEventArgs e)
     {
+        _editorExactChatColorsV068 = new Dictionary<int, ChatColorLineRecord>();
         if (_editorInput is not null) _editorInput.Clear();
     }
 

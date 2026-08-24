@@ -13,7 +13,83 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private const string RootUiUrl = "nui://game/ui/root.html";
     private const string ClientFramePrefix = "https://cfx-nui-client/";
 
-    private const string ReadChatExpression =
+    private const string ReadChatExpression = """
+        JSON.stringify((function(){
+          function readColor(node){
+            try {
+              var element=node.nodeType===1?node:node.parentElement;
+              var value=window.getComputedStyle(element).color||'';
+              var values=value.match(/[\d.]+/g)||[];
+              if(values.length<3) return {Red:255,Green:255,Blue:255,Alpha:255};
+              return {
+                Red:Math.max(0,Math.min(255,Math.round(Number(values[0])))),
+                Green:Math.max(0,Math.min(255,Math.round(Number(values[1])))),
+                Blue:Math.max(0,Math.min(255,Math.round(Number(values[2])))),
+                Alpha:values.length>3?Math.max(0,Math.min(255,Math.round(Number(values[3])*255))):255
+              };
+            } catch (_) {
+              return {Red:255,Green:255,Blue:255,Alpha:255};
+            }
+          }
+          function sameColor(left,right){
+            return left.Red===right.Red&&left.Green===right.Green&&left.Blue===right.Blue&&left.Alpha===right.Alpha;
+          }
+          function readRow(row){
+            var chunks=[];
+            function add(value,color){ if(value) chunks.push({text:value,color:color}); }
+            function walk(node){
+              if(node.nodeType===3){ add(node.nodeValue||'',readColor(node)); return; }
+              if(node.nodeType!==1) return;
+              var tag=(node.tagName||'').toUpperCase();
+              if(tag==='SCRIPT'||tag==='STYLE'||tag==='NOSCRIPT') return;
+              var computed=window.getComputedStyle(node);
+              if(computed.display==='none'||computed.visibility==='hidden') return;
+              if(tag==='BR'){ add(' ',readColor(node)); return; }
+              var block=computed.display==='block'||computed.display==='flex'||computed.display==='grid'||
+                computed.display==='list-item'||computed.display==='table-row';
+              if(block&&chunks.length) add(' ',readColor(node));
+              Array.prototype.forEach.call(node.childNodes,walk);
+              if(block&&chunks.length) add(' ',readColor(node));
+            }
+            walk(row);
+            var text='';
+            var runs=[];
+            var pendingSpace=false;
+            function append(value,color){
+              if(!value) return;
+              var start=text.length;
+              text+=value;
+              var previous=runs.length?runs[runs.length-1]:null;
+              if(previous&&previous.Start+previous.Length===start&&sameColor(previous,color)){
+                previous.Length+=value.length;
+              } else {
+                runs.push({Start:start,Length:value.length,Red:color.Red,Green:color.Green,Blue:color.Blue,Alpha:color.Alpha});
+              }
+            }
+            chunks.forEach(function(chunk){
+              for(var i=0;i<chunk.text.length;i++){
+                var character=chunk.text.charAt(i);
+                if(/\s/.test(character)){
+                  if(text.length) pendingSpace=true;
+                  continue;
+                }
+                if(pendingSpace&&text.length) append(' ',chunk.color);
+                pendingSpace=false;
+                append(character,chunk.color);
+              }
+            });
+            var legacyText=(row.innerText||'').replace(/\s+/g,' ').trim();
+            return text===legacyText
+              ? {Text:text,ColorRuns:runs}
+              : {Text:legacyText,ColorRuns:[]};
+          }
+          return Array.from(document.querySelectorAll('.chat__messages > li'))
+            .map(readRow)
+            .filter(function(line){return line.Text.length>0;});
+        })())
+        """;
+
+    private const string LegacyReadChatExpression =
         "JSON.stringify(Array.from(document.querySelectorAll('.chat__messages > li'))" +
         ".map(function(el){return (el.innerText || '').replace(/\\s+/g,' ').trim();})" +
         ".filter(function(x){return x.length > 0;}))";
@@ -60,6 +136,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private ServerSessionInfo _currentServer = ServerSessionInfo.Unknown;
     private string? _lastResolutionAddress;
     private DateTime _lastResolutionAttemptUtc = DateTime.MinValue;
+    private bool _exactColorFallbackLogged;
 
     public ServerSessionInfo CurrentServer => _currentServer;
 
@@ -69,7 +146,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(2) };
     }
 
-    public async Task<IReadOnlyList<string>> ReadVisibleLinesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CapturedChatLine>> ReadVisibleLinesAsync(CancellationToken cancellationToken)
     {
         await EnsureConnectedAsync(cancellationToken);
         await RefreshServerInfoAsync(cancellationToken);
@@ -77,23 +154,74 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         if (string.IsNullOrWhiteSpace(_currentServer.Address))
             throw new IOException("FiveM is running but is not currently connected to a server.");
 
+        try
+        {
+            string? json = await EvaluateChatExpressionAsync(
+                ReadChatExpression,
+                cancellationToken);
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                CapturedChatLine[] lines = JsonSerializer.Deserialize<CapturedChatLine[]>(json)
+                    ?? Array.Empty<CapturedChatLine>();
+                _exactColorFallbackLogged = false;
+                return lines
+                    .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+                    .Select(NormalizeCapturedLine)
+                    .ToArray();
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (!_exactColorFallbackLogged)
+            {
+                _exactColorFallbackLogged = true;
+                DiagnosticLogger.Error(
+                    "FiveM exact-color extraction failed; falling back to plain chat capture.",
+                    ex);
+            }
+        }
+
+        string? legacyJson = await EvaluateChatExpressionAsync(
+            LegacyReadChatExpression,
+            cancellationToken);
+        string[] legacyLines = string.IsNullOrWhiteSpace(legacyJson)
+            ? Array.Empty<string>()
+            : JsonSerializer.Deserialize<string[]>(legacyJson) ?? Array.Empty<string>();
+        return legacyLines
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => new CapturedChatLine(line.Trim()))
+            .ToArray();
+    }
+
+    private static CapturedChatLine NormalizeCapturedLine(CapturedChatLine line)
+    {
+        string source = line.Text ?? string.Empty;
+        string text = source.Trim();
+        int start = source.IndexOf(text, StringComparison.Ordinal);
+        IReadOnlyList<ChatColorRun> runs = ChatColorData.SliceRuns(
+            source,
+            line.ColorRuns,
+            Math.Max(0, start),
+            text.Length);
+        return new CapturedChatLine(text, runs);
+    }
+
+    private async Task<string?> EvaluateChatExpressionAsync(
+        string expression,
+        CancellationToken cancellationToken)
+    {
         JsonElement result = await RequestAsync("Runtime.evaluate", new
         {
-            expression = ReadChatExpression,
+            expression,
             contextId = _contextId,
             returnByValue = true
         }, cancellationToken);
 
         if (!result.TryGetProperty("result", out JsonElement runtimeResult) ||
             !runtimeResult.TryGetProperty("value", out JsonElement valueElement))
-            return Array.Empty<string>();
+            return null;
 
-        string? json = valueElement.GetString();
-        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-
-        // The evaluated expression already normalizes whitespace, trims each line,
-        // and removes empty entries. Avoid doing the same work a second time in .NET.
-        return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>();
+        return valueElement.GetString();
     }
 
     public async Task ResetAsync()

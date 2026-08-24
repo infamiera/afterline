@@ -25,6 +25,10 @@ internal static class ChatColorRefinementsV045
         @"^\s*(?<tag>\[SUCCESS\])\s+You have turned the property lights (?<state>off|on)\.\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex TattooPurchaseLine = new(
+        @"^\s*(?<tag>\[INFO\])\s+You have bought the\s+(?<name>.+?)\s+tattoo for\s+(?<price>\$[\d,.]+)(?<trailing>.*)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     internal static bool TryFormat(string body, out IReadOnlyList<EditorChatSegment> segments)
     {
         segments = Array.Empty<EditorChatSegment>();
@@ -40,6 +44,21 @@ internal static class ChatColorRefinementsV045
             {
                 (tag.Index, tag.Length, EditorChatFormatter.Blue),
                 (status.Index, status.Length, EditorChatFormatter.Green)
+            });
+            return true;
+        }
+
+        Match tattooPurchase = TattooPurchaseLine.Match(body);
+        if (tattooPurchase.Success)
+        {
+            Group tag = tattooPurchase.Groups["tag"];
+            Group name = tattooPurchase.Groups["name"];
+            Group price = tattooPurchase.Groups["price"];
+            segments = HighlightRanges(body, EditorChatFormatter.White, new[]
+            {
+                (tag.Index, tag.Length, EditorChatFormatter.Blue),
+                (name.Index, name.Length, EditorChatFormatter.Yellow),
+                (price.Index, price.Length, EditorChatFormatter.Green)
             });
             return true;
         }

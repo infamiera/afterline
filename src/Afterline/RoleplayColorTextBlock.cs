@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using Afterline.Models;
 using Afterline.Services;
 
 namespace Afterline;
@@ -32,6 +33,12 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         typeof(RoleplayColorTextBlock),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
 
+    public static readonly DependencyProperty ExactColorRunsProperty = DependencyProperty.Register(
+        nameof(ExactColorRuns),
+        typeof(IReadOnlyList<ChatColorRun>),
+        typeof(RoleplayColorTextBlock),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnVisualInputChanged));
+
     public string DisplayText
     {
         get => (string)GetValue(DisplayTextProperty);
@@ -54,6 +61,12 @@ internal sealed class RoleplayColorTextBlock : TextBlock
     {
         get => (bool)GetValue(IsSystemMessageProperty);
         set => SetValue(IsSystemMessageProperty, value);
+    }
+
+    public IReadOnlyList<ChatColorRun>? ExactColorRuns
+    {
+        get => (IReadOnlyList<ChatColorRun>?)GetValue(ExactColorRunsProperty);
+        set => SetValue(ExactColorRunsProperty, value);
     }
 
     private static void OnVisualInputChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
@@ -90,6 +103,13 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             return;
         }
 
+        IReadOnlyList<ChatColorRun> exactRuns = ChatColorData.NormalizeRuns(text, ExactColorRuns);
+        if (exactRuns.Count > 0 && ChatColorData.HasCompleteCoverage(text, exactRuns))
+        {
+            AddExactColorRuns(text, exactRuns, fallback);
+            return;
+        }
+
         IReadOnlyList<EditorChatLine> formatted = UnifiedChatFormatter.FormatLines(text, showTimestamps: true);
         EditorChatLine? line = formatted.FirstOrDefault();
         if (line is null || line.Segments.Count == 0)
@@ -104,5 +124,30 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             if (brush.CanFreeze) brush.Freeze();
             Inlines.Add(new Run(segment.Text) { Foreground = brush });
         }
+    }
+
+    private void AddExactColorRuns(
+        string text,
+        IReadOnlyList<ChatColorRun> colorRuns,
+        Brush fallback)
+    {
+        int cursor = 0;
+        foreach (ChatColorRun colorRun in colorRuns)
+        {
+            if (colorRun.Start > cursor)
+                Inlines.Add(new Run(text[cursor..colorRun.Start]) { Foreground = fallback });
+
+            var brush = new SolidColorBrush(Color.FromArgb(
+                colorRun.Alpha,
+                colorRun.Red,
+                colorRun.Green,
+                colorRun.Blue));
+            if (brush.CanFreeze) brush.Freeze();
+            Inlines.Add(new Run(text.Substring(colorRun.Start, colorRun.Length)) { Foreground = brush });
+            cursor = colorRun.End;
+        }
+
+        if (cursor < text.Length)
+            Inlines.Add(new Run(text[cursor..]) { Foreground = fallback });
     }
 }

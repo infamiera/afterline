@@ -158,9 +158,15 @@ public partial class MainWindow
                 return;
             }
 
+            IReadOnlyList<CapturedChatLine> recoveredLines = snapshot.GetCapturedLines();
             LiveMessages.Clear();
-            foreach (string line in snapshot.Lines)
-                LiveMessages.Add(new ChatEntry(snapshot.CapturedAt, line));
+            foreach (CapturedChatLine line in recoveredLines)
+            {
+                LiveMessages.Add(new ChatEntry(
+                    snapshot.CapturedAt,
+                    line.Text,
+                    capturedColorRuns: line.ColorRuns));
+            }
 
             UpdateVisibleLiveCount();
 
@@ -168,7 +174,7 @@ public partial class MainWindow
             if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
             ShowPage(LivePage, "Live Chat", "Recovered raw capture snapshot");
             SetLiveActionStatus(
-                $"Recovered {snapshot.Lines.Count:N0} raw chat line{(snapshot.Lines.Count == 1 ? string.Empty : "s")} from the failsafe cache.");
+                $"Recovered {recoveredLines.Count:N0} raw chat line{(recoveredLines.Count == 1 ? string.Empty : "s")} from the failsafe cache.");
         }
         catch (Exception ex)
         {

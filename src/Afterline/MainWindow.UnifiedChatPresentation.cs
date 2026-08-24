@@ -55,6 +55,7 @@ public partial class MainWindow
         text.SetBinding(RoleplayColorTextBlock.DisplayTextProperty, new Binding(nameof(ChatEntry.Display)));
         text.SetBinding(RoleplayColorTextBlock.FallbackBrushProperty, new Binding(nameof(ChatEntry.Foreground)));
         text.SetBinding(RoleplayColorTextBlock.IsSystemMessageProperty, new Binding(nameof(ChatEntry.IsSystemMessage)));
+        text.SetBinding(RoleplayColorTextBlock.ExactColorRunsProperty, new Binding(nameof(ChatEntry.DisplayColorRuns)));
         text.SetValue(RoleplayColorTextBlock.UseAutomaticColorsProperty, _settings.ColorizeRoleplayLines);
         text.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         text.SetValue(FrameworkElement.MarginProperty, new Thickness(2));
@@ -83,6 +84,7 @@ public partial class MainWindow
         text.SetBinding(RoleplayColorTextBlock.DisplayTextProperty, new Binding(nameof(LogReaderLineItem.Display)));
         text.SetBinding(RoleplayColorTextBlock.FallbackBrushProperty, new Binding(nameof(LogReaderLineItem.Foreground)));
         text.SetBinding(RoleplayColorTextBlock.IsSystemMessageProperty, new Binding("Entry.IsSystemMessage"));
+        text.SetBinding(RoleplayColorTextBlock.ExactColorRunsProperty, new Binding("Entry.DisplayColorRuns"));
         text.SetValue(RoleplayColorTextBlock.UseAutomaticColorsProperty, _settings.ColorizeRoleplayLines);
         text.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         row.AppendChild(text);

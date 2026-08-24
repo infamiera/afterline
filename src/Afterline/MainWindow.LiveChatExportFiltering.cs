@@ -58,6 +58,7 @@ public partial class MainWindow
         Directory.CreateDirectory(downloadsFolder);
         DateTime now = DateTime.Now;
         string destination = GetUniqueLiveExportPath(downloadsFolder, now);
+        ChatColorSidecarService.DeleteForTextFile(destination);
 
         string serverName = GetCurrentServerDisplayName();
 
@@ -82,6 +83,18 @@ public partial class MainWindow
                     ? $"[{entry.CapturedAt:HH:mm:ss}] {entry.ContentWithoutTimestamp}"
                     : entry.ContentWithoutTimestamp;
             await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
+            try
+            {
+                await ChatColorSidecarService.AppendAsync(
+                    destination,
+                    line,
+                    entry.GetColorRunsForText(line),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error("Unable to preserve exact colors in the visible chat export.", ex);
+            }
         }
 
         await writer.FlushAsync(cancellationToken);
@@ -89,16 +102,19 @@ public partial class MainWindow
         return destination;
     }
 
-    private string GetUniqueLiveExportPath(string folder, DateTime timestamp)
+    private string GetUniqueLiveExportPath(string folder, DateTime timestamp, string extension = ".txt")
     {
+        if (string.IsNullOrWhiteSpace(extension)) extension = ".txt";
+        if (!extension.StartsWith(".", StringComparison.Ordinal)) extension = "." + extension;
+
         string serverName = SanitizeExportFileComponent(GetCurrentServerDisplayName());
         string baseName = $"Chatlog [{serverName}] [{timestamp:dd-MMMM-yyyy}]";
-        string path = Path.Combine(folder, baseName + ".txt");
+        string path = Path.Combine(folder, baseName + extension);
         if (!File.Exists(path)) return path;
 
         for (int i = 2; ; i++)
         {
-            string candidate = Path.Combine(folder, $"{baseName} ({i}).txt");
+            string candidate = Path.Combine(folder, $"{baseName} ({i}){extension}");
             if (!File.Exists(candidate)) return candidate;
         }
     }

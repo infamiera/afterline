@@ -84,14 +84,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 try
                 {
                     AppSettings settings = _settings();
-                    IReadOnlyList<string> current =
+                    IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    string[] currentText = current.Select(line => line.Text).ToArray();
                     await TryWriteRawSnapshotAsync(
                         current,
                         _reader.CurrentServer,
                         _cts.Token);
                     await ValidateResumedSessionAsync(
-                        current,
+                        currentText,
                         _reader.CurrentServer,
                         settings,
                         _cts.Token);
@@ -190,14 +191,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 await _captureGate.WaitAsync(_cts.Token);
                 try
                 {
-                    IReadOnlyList<string> current =
+                    IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    string[] currentText = current.Select(line => line.Text).ToArray();
                     await TryWriteRawSnapshotAsync(
                         current,
                         _reader.CurrentServer,
                         _cts.Token);
                     await ValidateResumedSessionAsync(
-                        current,
+                        currentText,
                         _reader.CurrentServer,
                         settings,
                         _cts.Token);
@@ -251,17 +253,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     }
 
     private async Task<int> CaptureAvailableLinesAsync(
-        IReadOnlyList<string> current,
+        IReadOnlyList<CapturedChatLine> current,
         AppSettings settings,
         CancellationToken cancellationToken)
     {
-        int overlap = FindOverlap(_previousVisible, current);
+        string[] currentText = current.Select(line => line.Text).ToArray();
+        int overlap = FindOverlap(_previousVisible, currentText);
         int captured = 0;
 
-        foreach (string line in current.Skip(overlap))
+        foreach (CapturedChatLine line in current.Skip(overlap))
         {
             DateTime observedAt = DateTime.Now;
-            var entry = new ChatEntry(InferVisibleTimestamp(line, observedAt), line);
+            var entry = new ChatEntry(
+                InferVisibleTimestamp(line.Text, observedAt),
+                line.Text,
+                capturedColorRuns: line.ColorRuns);
 
             if (!_journal.HasActiveSession)
             {
@@ -294,7 +300,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             captured++;
         }
 
-        _previousVisible = current.ToList();
+        _previousVisible = currentText.ToList();
         if (_journal.HasActiveSession)
         {
             await _journal.UpdateVisibleSnapshotAsync(
@@ -502,7 +508,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     }
 
     private async Task TryWriteRawSnapshotAsync(
-        IReadOnlyList<string> current,
+        IReadOnlyList<CapturedChatLine> current,
         ServerSessionInfo server,
         CancellationToken cancellationToken)
     {
@@ -551,6 +557,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             if (snapshot is null || snapshot.ProcessedAt is not null || snapshot.Lines.Count == 0)
                 return;
 
+            IReadOnlyList<CapturedChatLine> recoveredLines = snapshot.GetCapturedLines();
+
             var recoveredServer = new ServerSessionInfo
             {
                 Name = string.IsNullOrWhiteSpace(snapshot.ServerName) ||
@@ -561,7 +569,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 Address = snapshot.ServerAddress
             };
             await ValidateResumedSessionAsync(
-                snapshot.Lines,
+                recoveredLines.Select(line => line.Text).ToArray(),
                 recoveredServer,
                 _settings(),
                 cancellationToken);
@@ -570,7 +578,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 _settings(),
                 cancellationToken);
             await CaptureAvailableLinesAsync(
-                snapshot.Lines,
+                recoveredLines,
                 _settings(),
                 cancellationToken);
             await _rawCaptureFailsafe.MarkProcessedAsync(cancellationToken);

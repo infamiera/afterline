@@ -268,6 +268,11 @@ public partial class MainWindow
         try
         {
             string[] lines = await File.ReadAllLinesAsync(filePath);
+            IReadOnlyDictionary<int, ChatColorLineRecord> exactColors =
+                await ChatColorSidecarService.MatchLinesAsync(
+                    filePath,
+                    lines,
+                    CancellationToken.None);
             _logReaderLines.Clear();
 
             DateTime observedAt = File.GetLastWriteTime(filePath);
@@ -275,7 +280,13 @@ public partial class MainWindow
             {
                 string raw = lines[i];
                 bool system = IsLogReaderSystemLine(raw);
-                ChatEntry entry = system ? ChatEntry.System(observedAt, raw) : new ChatEntry(observedAt, raw);
+                exactColors.TryGetValue(i, out ChatColorLineRecord? exact);
+                ChatEntry entry = system
+                    ? ChatEntry.System(observedAt, raw)
+                    : new ChatEntry(
+                        observedAt,
+                        raw,
+                        capturedColorRuns: exact?.ColorRuns);
                 _logReaderLines.Add(new LogReaderLineItem(i + 1, raw, entry));
             }
 

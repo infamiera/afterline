@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Afterline.Models;
 
 namespace Afterline;
 
@@ -38,6 +39,11 @@ public partial class MainWindow
         double X,
         double Y);
 
+    private sealed record EditorProjectExactChatLineV068(
+        int SourceIndex,
+        string Text,
+        IReadOnlyList<ChatColorRun> ColorRuns);
+
     private sealed record EditorProjectManifestV067(
         int FormatVersion,
         string? ChatText,
@@ -55,7 +61,8 @@ public partial class MainWindow
         int SelectionWidth,
         int SelectionHeight,
         IReadOnlyList<EditorProjectImageLayerDataV067> ImageLayers,
-        IReadOnlyList<EditorProjectChatLayerDataV067> ExtraChats);
+        IReadOnlyList<EditorProjectChatLayerDataV067> ExtraChats,
+        IReadOnlyList<EditorProjectExactChatLineV068>? ExactChatColors = null);
 
     private enum NewProjectChoiceV067
     {
@@ -222,7 +229,12 @@ public partial class MainWindow
                     layer.Width,
                     layer.Height)).ToArray(),
             _editorExtraChatsCanary.Select(layer =>
-                new EditorProjectChatLayerDataV067(layer.Text, layer.X, layer.Y)).ToArray());
+                new EditorProjectChatLayerDataV067(layer.Text, layer.X, layer.Y)).ToArray(),
+            _editorExactChatColorsV068.Select(pair =>
+                new EditorProjectExactChatLineV068(
+                    pair.Key,
+                    pair.Value.Text,
+                    pair.Value.ColorRuns)).ToArray());
 
         try
         {
@@ -321,6 +333,20 @@ public partial class MainWindow
                 refresh: false);
         }
 
+        _editorExactChatColorsV068 = (manifest.ExactChatColors ?? Array.Empty<EditorProjectExactChatLineV068>())
+            .Where(line => line.SourceIndex >= 0 && !string.IsNullOrEmpty(line.Text))
+            .GroupBy(line => line.SourceIndex)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    EditorProjectExactChatLineV068 line = group.Last();
+                    return new ChatColorLineRecord
+                    {
+                        Text = line.Text,
+                        ColorRuns = ChatColorData.NormalizeRuns(line.Text, line.ColorRuns).ToList()
+                    };
+                });
         if (_editorInput is not null)
             _editorInput.Text = manifest.ChatText ?? string.Empty;
         if (_editorChatXSlider is not null)
@@ -450,6 +476,7 @@ public partial class MainWindow
         ClearSelectionCanarySilently();
         RefreshSelectionHighlightV067();
 
+        _editorExactChatColorsV068 = new Dictionary<int, ChatColorLineRecord>();
         if (_editorInput is not null)
             _editorInput.Text = string.Empty;
         if (_editorChatXSlider is not null)
