@@ -152,7 +152,9 @@ public partial class MainWindow
             if (_editorRemoveImageButton is not null) _editorRemoveImageButton.IsEnabled = true;
             ResetEditorAdjustmentSliders();
             ClearEditorMarkup(resetHistory: true);
+            ResetCanaryFilterSource();
             ApplyEditorImageAdjustments();
+            FinalizeLoadedBaseImageV069();
             SetEditorStatus($"Loaded {Path.GetFileName(dialog.FileName)} · {bitmap.PixelWidth:N0} × {bitmap.PixelHeight:N0}px.");
             if (_editorFitZoom) _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
         }

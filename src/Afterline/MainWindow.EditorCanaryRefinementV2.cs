@@ -111,6 +111,7 @@ public partial class MainWindow
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom
         };
+        bottom.Children.Add(CreateEditorCloseRailButtonV069());
         bottom.Children.Add(CreateCanaryRailButtonV2("⚙", "Editor Settings", "settings", "Segoe UI Symbol", 16));
         Grid.SetRow(bottom, 1);
         layout.Children.Add(bottom);

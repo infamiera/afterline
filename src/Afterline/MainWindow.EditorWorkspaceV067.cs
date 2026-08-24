@@ -387,16 +387,20 @@ public partial class MainWindow
 
         _editorLayerListV067 = new ListBox
         {
-            MinHeight = 150,
+            MinHeight = 270,
+            MaxHeight = 520,
             HorizontalContentAlignment = HorizontalAlignment.Stretch
         };
         _editorLayerListV067.SelectionChanged += (_, _) =>
         {
             _editorSelectedImageLayerV067 =
                 (_editorLayerListV067.SelectedItem as ListBoxItem)?.Tag as EditorImageLayerV067;
+            if (_editorSelectedImageLayerV067 is not null)
+                DeactivateSelectionInteractionCanary();
             SyncLayerControlsV067();
             RefreshSelectedLayerAdornerV068();
         };
+        ConfigureLayerListDragReorderV069();
         root.Children.Add(_editorLayerListV067);
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 6, 0, 4) };

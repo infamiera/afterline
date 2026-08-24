@@ -68,5 +68,7 @@ public partial class MainWindow
 
         if (System.Windows.Application.Current is App app)
             app.ConfirmHealthyStartup();
+
+        RunEditorImageSmokeTestIfRequestedV069();
     }
 }

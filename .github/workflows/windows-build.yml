@@ -73,6 +73,30 @@ jobs:
 
           Stop-Process -Id $process.Id -Force
 
+          Add-Type -AssemblyName System.Drawing
+          $smokeImage = Join-Path $env:RUNNER_TEMP "afterline-editor-smoke.png"
+          $bitmap = New-Object System.Drawing.Bitmap 64, 64
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.Clear([System.Drawing.Color]::Magenta)
+          $graphics.Dispose()
+          $bitmap.Save($smokeImage, [System.Drawing.Imaging.ImageFormat]::Png)
+          $bitmap.Dispose()
+
+          $imageTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-image", "`"$smokeImage`"") `
+            -PassThru
+          if (-not $imageTest.WaitForExit(45000)) {
+            Stop-Process -Id $imageTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the Base Image render smoke test within 45 seconds."
+          }
+          if ($imageTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the Base Image render smoke test with code $($imageTest.ExitCode)."
+          }
+
       - name: Prepare uniquely identified Canary assets
         shell: pwsh
         run: |
