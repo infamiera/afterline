@@ -40,6 +40,10 @@ public sealed class AppSettings
 
 public sealed class EditorPreferences
 {
+    public string ProjectsFolder { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "Afterline Projects");
+
     public string Font { get; set; } = "Arial Bold";
     public double FontSize { get; set; } = 18;
     public double LineSpacing { get; set; } = 1;

@@ -99,7 +99,8 @@ public partial class MainWindow
                 DefaultExt = ".afterlineproj",
                 AddExtension = true,
                 OverwritePrompt = true,
-                FileName = "Afterline Project.afterlineproj"
+                FileName = "Afterline Project.afterlineproj",
+                InitialDirectory = GetEditorProjectsFolderV070(createDirectory: true)
             };
             if (dialog.ShowDialog(this) != true)
                 return false;
@@ -144,7 +145,8 @@ public partial class MainWindow
             Title = "Load Afterline Editor Project",
             Filter = "Afterline Editor Project (*.afterlineproj)|*.afterlineproj|All files (*.*)|*.*",
             CheckFileExists = true,
-            Multiselect = false
+            Multiselect = false,
+            InitialDirectory = GetEditorProjectsFolderV070(createDirectory: true)
         };
         if (dialog.ShowDialog(this) != true)
             return;
@@ -492,11 +494,18 @@ public partial class MainWindow
 
     private static void WriteBitmapToProjectV067(ZipArchive archive, string entryName, BitmapSource bitmap)
     {
-        ZipArchiveEntry entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
-        using Stream stream = entry.Open();
+        // WPF bitmap encoders seek while writing. ZipArchiveEntry.Open() returns a
+        // forward-only stream, so encoding directly into it throws NotSupportedException.
+        // Encode into a seekable buffer first, then copy the completed PNG into the ZIP.
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        encoder.Save(stream);
+        using var encoded = new MemoryStream();
+        encoder.Save(encoded);
+        encoded.Position = 0;
+
+        ZipArchiveEntry entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+        using Stream stream = entry.Open();
+        encoded.CopyTo(stream);
     }
 
     private static BitmapSource ReadBitmapFromProjectV067(ZipArchiveEntry entry)

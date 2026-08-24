@@ -33,6 +33,12 @@ public sealed class SettingsService
             settings.Editor.RedoKeybind ??= "Ctrl+Shift+Z";
             settings.Editor.FullscreenKeybind ??= "F11";
             settings.Editor.RulerKeybind ??= "R";
+            if (string.IsNullOrWhiteSpace(settings.Editor.ProjectsFolder))
+            {
+                settings.Editor.ProjectsFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "Afterline Projects");
+            }
 
             // Frost is retired because some native/WPF controls can become unreadable
             // under the light palette. Existing Frost users are returned to the default

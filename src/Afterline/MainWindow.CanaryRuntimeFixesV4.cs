@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Afterline.Services;
+using Forms = System.Windows.Forms;
 
 namespace Afterline;
 
@@ -289,6 +290,57 @@ public partial class MainWindow
         content.Children.Add(EditorHelpText(
             "Editor settings are stored locally. Image-specific selections and edits are not saved as defaults."));
 
+        content.Children.Add(new TextBlock
+        {
+            Text = "PROJECTS FOLDER",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText"),
+            Margin = new Thickness(0, 0, 0, 6)
+        });
+
+        var projectFolderRow = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        projectFolderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        projectFolderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7) });
+        projectFolderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var projectFolder = new TextBox
+        {
+            Text = GetEditorProjectsFolderV070(createDirectory: false),
+            IsReadOnly = true,
+            MinHeight = 32,
+            Padding = new Thickness(7, 5, 7, 5),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            ToolTip = "New and existing Afterline Editor projects open from this folder by default."
+        };
+        projectFolderRow.Children.Add(projectFolder);
+        var browseProjects = CreateSmallEditorButton("Browse…", (_, _) =>
+        {
+            using var dialog = new Forms.FolderBrowserDialog
+            {
+                Description = "Choose where Afterline stores Editor projects",
+                SelectedPath = Directory.Exists(projectFolder.Text)
+                    ? projectFolder.Text
+                    : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                UseDescriptionForTitle = true
+            };
+            if (dialog.ShowDialog() != Forms.DialogResult.OK || string.IsNullOrWhiteSpace(dialog.SelectedPath))
+                return;
+
+            Directory.CreateDirectory(dialog.SelectedPath);
+            _settings.Editor.ProjectsFolder = dialog.SelectedPath;
+            projectFolder.Text = dialog.SelectedPath;
+            _settingsService.Save(_settings);
+            SetEditorStatus("Editor projects folder updated.");
+        });
+        browseProjects.MinWidth = 72;
+        Grid.SetColumn(browseProjects, 2);
+        projectFolderRow.Children.Add(browseProjects);
+        content.Children.Add(projectFolderRow);
+        content.Children.Add(EditorSubtleNote(
+            "Defaults to Documents\\Afterline Projects. You can still choose a different location in the Save dialog."));
+
+        content.Children.Add(CreateEditorDivider());
+
         var save = new Button
         {
             Content = "Save Editor Settings",
@@ -344,6 +396,37 @@ public partial class MainWindow
             () => _settings.Editor.RulerKeybind, value => _settings.Editor.RulerKeybind = value, "R"));
 
         _editorToolPanels["settings"] = WrapEditorToolPanel(content);
+    }
+
+    private string GetEditorProjectsFolderV070(bool createDirectory)
+    {
+        string folder = _settings.Editor?.ProjectsFolder ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            folder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "Afterline Projects");
+            _settings.Editor ??= new Afterline.Models.EditorPreferences();
+            _settings.Editor.ProjectsFolder = folder;
+        }
+
+        if (createDirectory)
+        {
+            try
+            {
+                Directory.CreateDirectory(folder);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error("The configured Editor projects folder is unavailable; using Documents instead.", ex);
+                folder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "Afterline Projects");
+                Directory.CreateDirectory(folder);
+                _settings.Editor.ProjectsFolder = folder;
+            }
+        }
+        return folder;
     }
 
     private FrameworkElement CreateKeybindEditorRowCanaryV4(
@@ -650,8 +733,10 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(new Action(() =>
         {
             if (_editorBaseOriginal is null || EditorHasAnimatedGifV060) return;
-            ResetCanaryFilterSource();
+            // Initialize only the committed source here. The previous warm-up ran a
+            // full-resolution filter pass on the dispatcher and blocked first slider
+            // and scrollbar interactions for large screenshots.
             PrewarmEditorFiltersCanaryV3();
-        }), DispatcherPriority.ApplicationIdle);
+        }), DispatcherPriority.ContextIdle);
     }
 }

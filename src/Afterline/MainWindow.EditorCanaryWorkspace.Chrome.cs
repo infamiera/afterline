@@ -172,9 +172,11 @@ public partial class MainWindow
                 text.Contains("Copy", StringComparison.OrdinalIgnoreCase))
             {
                 RenderExtraChatLayersCanary();
-                if (_editorFilterTimerCanary?.IsEnabled == true)
+                if (_editorFilterTimerCanary?.IsEnabled == true ||
+                    _editorFilterPreviewRenderCountV070 > 0)
                 {
                     _editorFilterTimerCanary.Stop();
+                    _editorFilterPreviewVersionV070++;
                     ApplyCanaryFilterPreview();
                 }
             }

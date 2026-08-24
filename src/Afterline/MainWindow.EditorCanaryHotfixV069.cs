@@ -120,6 +120,13 @@ public partial class MainWindow
             return;
 
         string? path = args.Length > index + 1 ? args[index + 1] : null;
+        int projectIndex = Array.FindIndex(args, value => string.Equals(
+            value,
+            "--afterline-smoke-project",
+            StringComparison.OrdinalIgnoreCase));
+        string? projectPath = projectIndex >= 0 && args.Length > projectIndex + 1
+            ? args[projectIndex + 1]
+            : null;
         Dispatcher.BeginInvoke(new Action(() =>
         {
             try
@@ -152,7 +159,24 @@ public partial class MainWindow
                 if (pixel[0] + pixel[1] + pixel[2] < 80 || pixel[3] == 0)
                     throw new InvalidOperationException("The loaded Base Image rendered as an empty or black canvas.");
 
-                Afterline.Services.DiagnosticLogger.Info("Canary Editor image-load smoke test passed.");
+                if (!string.IsNullOrWhiteSpace(projectPath))
+                {
+                    SaveEditorProjectToPathV067(projectPath);
+                    if (!File.Exists(projectPath) || new FileInfo(projectPath).Length == 0)
+                        throw new InvalidOperationException("The Editor project was not written.");
+
+                    ResetEditorProjectV067();
+                    LoadEditorProjectFromPathV067(projectPath);
+                    UpdateLayout();
+                    _editorComposition.UpdateLayout();
+                    if (_editorBaseOriginal is null || _editorBaseImage.Source is null)
+                        throw new InvalidOperationException("The saved Editor project did not restore its Base Image.");
+                }
+
+                Afterline.Services.DiagnosticLogger.Info(
+                    string.IsNullOrWhiteSpace(projectPath)
+                        ? "Canary Editor image-load smoke test passed."
+                        : "Canary Editor image-load and project round-trip smoke test passed.");
                 System.Windows.Application.Current.Shutdown(0);
             }
             catch (Exception ex)

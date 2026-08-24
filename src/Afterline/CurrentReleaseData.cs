@@ -12,7 +12,10 @@ internal static class CurrentReleaseData
             "Promoted the reorganized Settings experience with dedicated navigation for general settings, keybinds, recovery, raw capture failsafe, and the Canary Branch.",
             "Hardened Stable and Canary updates with unique build identities, automatic build refresh, SHA-256 verification, and a detached retrying installer for both channel directions.",
             "Optimized startup by consolidating superseded Canary UI initialization layers, avoiding duplicate handlers and redundant filter prewarming, and leaving the removed Object Select subsystem inactive.",
-            "Reduced background release polling while preserving immediate refresh when Afterline becomes active."
+            "Reduced background release polling while preserving immediate refresh when Afterline becomes active.",
+            "Fixed Editor project saving, added a configurable Documents-based projects folder, and added a packaged project round-trip regression check.",
+            "Moved full-resolution filter preview work off the UI thread so first-use sliders and scrolling remain responsive.",
+            "Made Live Chat resume active journal and raw-cache checkpoints across crashes, power loss, updates, and ordinary Afterline restarts without adding a false new-login marker."
         }),
         new("0.6.5", "23/AUG/2026", new[]
         {

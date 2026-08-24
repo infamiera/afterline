@@ -67,6 +67,7 @@ public partial class MainWindow
         TryReadEditorOutputSizeV060(out int outputWidth, out int outputHeight);
         return new EditorPreferences
         {
+            ProjectsFolder = GetEditorProjectsFolderV070(createDirectory: false),
             Font = _editorFontBox?.SelectedItem?.ToString() ?? "Arial Bold",
             FontSize = _editorFontSizeSlider?.Value ?? 18,
             LineSpacing = _editorLineSpacingSlider?.Value ?? 1,

@@ -36,7 +36,13 @@ public sealed class RawCaptureFailsafeService
                     cancellationToken);
 
                 if (snapshot is not null && snapshot.ProcessedAt is null && snapshot.Lines.Count > 0)
+                {
                     await PreserveCrashSnapshotAsync(snapshot, cancellationToken);
+                    _lastSnapshot = snapshot;
+                    _lastServerKey = snapshot.ServerKey;
+                    _lastLines = NormalizeLines(snapshot.Lines);
+                    _snapshotNeedsProcessedMark = true;
+                }
             }
 
             var manifest = new CaptureRunManifest

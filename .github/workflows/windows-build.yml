@@ -75,6 +75,7 @@ jobs:
 
           Add-Type -AssemblyName System.Drawing
           $smokeImage = Join-Path $env:RUNNER_TEMP "afterline-editor-smoke.png"
+          $smokeProject = Join-Path $env:RUNNER_TEMP "afterline-editor-smoke.afterlineproj"
           $bitmap = New-Object System.Drawing.Bitmap 64, 64
           $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
           $graphics.Clear([System.Drawing.Color]::Magenta)
@@ -83,18 +84,40 @@ jobs:
           $bitmap.Dispose()
 
           $imageTest = Start-Process -FilePath $exe `
-            -ArgumentList @("--afterline-smoke-image", "`"$smokeImage`"") `
+            -ArgumentList @(
+              "--afterline-smoke-image", "`"$smokeImage`"",
+              "--afterline-smoke-project", "`"$smokeProject`"
+            ) `
             -PassThru
           if (-not $imageTest.WaitForExit(45000)) {
             Stop-Process -Id $imageTest.Id -Force -ErrorAction SilentlyContinue
-            throw "Afterline did not finish the Base Image render smoke test within 45 seconds."
+            throw "Afterline did not finish the Base Image/project round-trip smoke test within 45 seconds."
           }
           if ($imageTest.ExitCode -ne 0) {
             if (Test-Path $log) {
               Write-Host "--- Afterline diagnostic log ---"
               Get-Content $log
             }
-            throw "Afterline failed the Base Image render smoke test with code $($imageTest.ExitCode)."
+            throw "Afterline failed the Base Image/project round-trip smoke test with code $($imageTest.ExitCode)."
+          }
+          if (-not (Test-Path $smokeProject) -or (Get-Item $smokeProject).Length -le 0) {
+            throw "Afterline reported success without producing the Editor project smoke artifact."
+          }
+
+          $sessionSmokeRoot = Join-Path $env:RUNNER_TEMP "afterline-session-recovery-smoke"
+          $sessionTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-session-recovery", "`"$sessionSmokeRoot`"") `
+            -PassThru
+          if (-not $sessionTest.WaitForExit(45000)) {
+            Stop-Process -Id $sessionTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the session-recovery smoke test within 45 seconds."
+          }
+          if ($sessionTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the session-recovery smoke test with code $($sessionTest.ExitCode)."
           }
 
       - name: Prepare uniquely identified Canary assets

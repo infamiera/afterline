@@ -21,6 +21,29 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        int recoverySmokeIndex = Array.FindIndex(e.Args, value => string.Equals(
+            value,
+            "--afterline-smoke-session-recovery",
+            StringComparison.OrdinalIgnoreCase));
+        if (recoverySmokeIndex >= 0)
+        {
+            try
+            {
+                string archiveRoot = e.Args.Length > recoverySmokeIndex + 1
+                    ? e.Args[recoverySmokeIndex + 1]
+                    : throw new ArgumentException("The session-recovery smoke-test archive folder is missing.");
+                SessionRecoverySmokeTest.RunAsync(archiveRoot).GetAwaiter().GetResult();
+                DiagnosticLogger.Info("Canary session-recovery smoke test passed.");
+                Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error("Canary session-recovery smoke test failed.", ex);
+                Environment.Exit(1);
+            }
+            return;
+        }
+
         try
         {
             RetiredThemeGuard.EnsureUiFilter();

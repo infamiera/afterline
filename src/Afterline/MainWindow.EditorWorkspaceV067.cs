@@ -225,7 +225,8 @@ public partial class MainWindow
                 RefreshSelectionHighlightV067();
             }
 
-            PrewarmEditorFiltersCanaryV3();
+            // Filter rendering is intentionally deferred until a control changes so
+            // opening the panel never blocks scrolling or the first slider gesture.
         }), DispatcherPriority.Background);
     }
 

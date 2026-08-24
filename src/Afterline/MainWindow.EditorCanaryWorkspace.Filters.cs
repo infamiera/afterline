@@ -13,6 +13,22 @@ namespace Afterline;
 
 public partial class MainWindow
 {
+    private sealed record CanaryFilterRenderSettingsV070(
+        string Preset,
+        double Strength,
+        double Brightness,
+        double Contrast,
+        double Saturation,
+        double Temperature,
+        double Fade,
+        double Blur,
+        bool[]? SelectionMask,
+        int SelectionWidth,
+        int SelectionHeight);
+
+    private int _editorFilterPreviewVersionV070;
+    private int _editorFilterPreviewRenderCountV070;
+
     private FrameworkElement BuildFilterToolPanelCanary()
     {
         var content = new StackPanel();
@@ -97,10 +113,10 @@ public partial class MainWindow
         RemoveLegacyImageToneControlsCanary();
 
         _editorFilterTimerCanary = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(110) };
-        _editorFilterTimerCanary.Tick += (_, _) =>
+        _editorFilterTimerCanary.Tick += async (_, _) =>
         {
             _editorFilterTimerCanary.Stop();
-            ApplyCanaryFilterPreview();
+            await ApplyCanaryFilterPreviewBackgroundV070();
         };
 
         foreach (Button button in FindVisualChildrenCanary<Button>(_editorPage!))
@@ -166,19 +182,21 @@ public partial class MainWindow
     private void ScheduleCanaryFilterPreview()
     {
         if (_editorFilterUiUpdatingCanary || _editorFilterTimerCanary is null) return;
+        _editorFilterPreviewVersionV070++;
         _editorFilterTimerCanary.Stop();
         _editorFilterTimerCanary.Start();
     }
 
     private void ResetCanaryFilterSource()
     {
+        _editorFilterPreviewVersionV070++;
         _editorFilterTimerCanary?.Stop();
         _editorFilterPreviewCanary = null;
         _editorFilterCommittedCanary = null;
         _editorFilterTrackedMediaCanary = _editorLoadedMediaPath;
         ClearSelectionCanarySilently();
         if (_editorBaseOriginal is not null && !EditorHasAnimatedGifV060)
-            _editorFilterCommittedCanary = CloneBitmapCanary(_editorBaseOriginal);
+            _editorFilterCommittedCanary = _editorBaseOriginal;
         ResetCanaryFilterControls();
     }
 
@@ -202,7 +220,10 @@ public partial class MainWindow
         if (_editorFilterCommittedCanary is null || pathChanged || (!currentIsPreview && !currentIsCommitted))
         {
             _editorFilterTrackedMediaCanary = _editorLoadedMediaPath;
-            _editorFilterCommittedCanary = CloneBitmapCanary(_editorBaseOriginal);
+            // Loaded and generated BitmapSources are immutable in the Editor. Keep
+            // the source reference until an edit is committed instead of copying
+            // every pixel during the first interaction.
+            _editorFilterCommittedCanary = _editorBaseOriginal;
             _editorFilterPreviewCanary = null;
             ClearSelectionCanarySilently();
         }
@@ -216,7 +237,9 @@ public partial class MainWindow
 
         try
         {
-            BitmapSource preview = BuildFilteredBitmapCanary(_editorFilterCommittedCanary);
+            BitmapSource preview = BuildFilteredBitmapCanary(
+                _editorFilterCommittedCanary,
+                CaptureCanaryFilterRenderSettingsV070());
             _editorFilterPreviewCanary = preview;
             _editorBaseOriginal = preview;
             ApplyEditorImageAdjustments();
@@ -229,7 +252,62 @@ public partial class MainWindow
         }
     }
 
-    private BitmapSource BuildFilteredBitmapCanary(BitmapSource source)
+    private async Task ApplyCanaryFilterPreviewBackgroundV070()
+    {
+        if (!EnsureCanaryFilterSource() || _editorFilterCommittedCanary is null)
+            return;
+
+        BitmapSource source = _editorFilterCommittedCanary;
+        if (!source.IsFrozen)
+        {
+            ApplyCanaryFilterPreview();
+            return;
+        }
+
+        CanaryFilterRenderSettingsV070 settings = CaptureCanaryFilterRenderSettingsV070();
+        int version = _editorFilterPreviewVersionV070;
+        _editorFilterPreviewRenderCountV070++;
+        try
+        {
+            BitmapSource preview = await Task.Run(() =>
+                BuildFilteredBitmapCanary(source, settings));
+            if (version != _editorFilterPreviewVersionV070 ||
+                !ReferenceEquals(source, _editorFilterCommittedCanary))
+                return;
+
+            _editorFilterPreviewCanary = preview;
+            _editorBaseOriginal = preview;
+            ApplyEditorImageAdjustments();
+            UpdateEditorCanvasSize();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to render the background Canary filter preview.", ex);
+            SetEditorStatus("Filter preview could not be rendered.");
+        }
+        finally
+        {
+            _editorFilterPreviewRenderCountV070 = Math.Max(0, _editorFilterPreviewRenderCountV070 - 1);
+        }
+    }
+
+    private CanaryFilterRenderSettingsV070 CaptureCanaryFilterRenderSettingsV070()
+        => new(
+            _editorFilterPresetCanary?.SelectedItem?.ToString() ?? "None",
+            (_editorFilterStrengthCanary?.Value ?? 100) / 100.0,
+            _editorFilterBrightnessCanary?.Value ?? 0,
+            _editorFilterContrastCanary?.Value ?? 0,
+            _editorFilterSaturationCanary?.Value ?? 0,
+            _editorFilterTemperatureCanary?.Value ?? 0,
+            _editorFilterFadeCanary?.Value ?? 0,
+            _editorFilterBlurCanary?.Value ?? 0,
+            _editorSelectionMaskCanary?.ToArray(),
+            _editorSelectionWidthCanary,
+            _editorSelectionHeightCanary);
+
+    private static BitmapSource BuildFilteredBitmapCanary(
+        BitmapSource source,
+        CanaryFilterRenderSettingsV070 settings)
     {
         var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
         int width = converted.PixelWidth;
@@ -239,13 +317,13 @@ public partial class MainWindow
         converted.CopyPixels(original, stride, 0);
         byte[] adjusted = (byte[])original.Clone();
 
-        double strength = (_editorFilterStrengthCanary?.Value ?? 100) / 100.0;
-        string preset = _editorFilterPresetCanary?.SelectedItem?.ToString() ?? "None";
-        double brightness = _editorFilterBrightnessCanary?.Value ?? 0;
-        double contrast = _editorFilterContrastCanary?.Value ?? 0;
-        double saturation = _editorFilterSaturationCanary?.Value ?? 0;
-        double temperature = _editorFilterTemperatureCanary?.Value ?? 0;
-        double fade = _editorFilterFadeCanary?.Value ?? 0;
+        double strength = settings.Strength;
+        string preset = settings.Preset;
+        double brightness = settings.Brightness;
+        double contrast = settings.Contrast;
+        double saturation = settings.Saturation;
+        double temperature = settings.Temperature;
+        double fade = settings.Fade;
 
         switch (preset)
         {
@@ -285,13 +363,13 @@ public partial class MainWindow
         double temperatureOffset = temperature * 0.75;
         double fadeAmount = Math.Clamp(fade / 100.0, 0, 1);
 
-        bool useSelection = _editorSelectionMaskCanary is not null &&
-                            _editorSelectionWidthCanary == width &&
-                            _editorSelectionHeightCanary == height;
+        bool useSelection = settings.SelectionMask is not null &&
+                            settings.SelectionWidth == width &&
+                            settings.SelectionHeight == height;
 
         for (int pixel = 0, i = 0; pixel < width * height; pixel++, i += 4)
         {
-            if (useSelection && !_editorSelectionMaskCanary![pixel]) continue;
+            if (useSelection && !settings.SelectionMask![pixel]) continue;
 
             double b = original[i];
             double g = original[i + 1];
@@ -322,13 +400,13 @@ public partial class MainWindow
             adjusted[i + 2] = ClampEditorByte(r);
         }
 
-        int blurRadius = (int)Math.Round(_editorFilterBlurCanary?.Value ?? 0);
+        int blurRadius = (int)Math.Round(settings.Blur);
         if (blurRadius > 0)
         {
             byte[] blurred = BoxBlurCanary(adjusted, width, height, stride, Math.Clamp(blurRadius, 1, 16));
             for (int pixel = 0, i = 0; pixel < width * height; pixel++, i += 4)
             {
-                if (useSelection && !_editorSelectionMaskCanary![pixel]) continue;
+                if (useSelection && !settings.SelectionMask![pixel]) continue;
                 adjusted[i] = blurred[i];
                 adjusted[i + 1] = blurred[i + 1];
                 adjusted[i + 2] = blurred[i + 2];
@@ -397,7 +475,8 @@ public partial class MainWindow
 
     private void CommitCanaryFilterPreview()
     {
-        if (_editorFilterPreviewCanary is null)
+        _editorFilterPreviewVersionV070++;
+        if (_editorFilterPreviewCanary is null || _editorFilterPreviewRenderCountV070 > 0)
         {
             ApplyCanaryFilterPreview();
             if (_editorFilterPreviewCanary is null) return;
@@ -415,6 +494,7 @@ public partial class MainWindow
 
     private void RevertCanaryFilterPreview()
     {
+        _editorFilterPreviewVersionV070++;
         if (_editorFilterCommittedCanary is null) return;
         _editorBaseOriginal = _editorFilterCommittedCanary;
         _editorFilterPreviewCanary = null;
