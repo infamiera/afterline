@@ -52,7 +52,11 @@ jobs:
         shell: pwsh
         run: |
           $exe = Resolve-Path "publish/Afterline/Afterline.exe"
-          $log = Join-Path $env:LOCALAPPDATA "Afterline/Logs/afterline.log"
+          $dataRoot = Join-Path $env:LOCALAPPDATA "Afterline"
+          $log = Join-Path $dataRoot "Logs/afterline.log"
+          New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+          '{"FirstRunCompleted":true,"StartMinimized":false,"MinimizeToTray":false}' |
+            Set-Content -Path (Join-Path $dataRoot "settings.json") -Encoding utf8
           Remove-Item $log -Force -ErrorAction SilentlyContinue
 
           $process = Start-Process -FilePath $exe -PassThru
