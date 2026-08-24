@@ -42,6 +42,7 @@ public partial class MainWindow
     private ListBox? _editorLineColorList;
     private ComboBox? _editorLineColorPresetBox;
     private TextBlock? _editorLineColorHint;
+    private Expander? _editorChatColorsExpanderV071;
     private bool _editorUpdatingLineColorUi;
 
     private CheckBox? _editorShadowEnabledCheck;
@@ -185,7 +186,6 @@ public partial class MainWindow
         body.Children.Add(_editorToolPanelHost);
 
         _editorToolPanels["chat"] = BuildEditorV041ChatPanel(existingInput);
-        _editorToolPanels["colors"] = BuildEditorV041ColorsPanel();
         _editorToolPanels["effects"] = BuildEditorV041TextEffectsPanel();
         _editorToolPanels["image"] = BuildEditorV041ImagePanel();
         _editorToolPanels["markup"] = BuildEditorV041MarkupPanel();
@@ -202,7 +202,6 @@ public partial class MainWindow
         var rail = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(5, 8, 5, 8) };
         var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
         stack.Children.Add(CreateEditorToolIconButton("\uE8C8", "Chat & font", "chat"));
-        stack.Children.Add(CreateEditorToolIconButton("\uE790", "Line colors", "colors"));
         stack.Children.Add(CreateEditorToolIconButton("\uE71C", "Text effects", "effects"));
         stack.Children.Add(CreateEditorToolIconButton("\uEB9F", "Image & canvas", "image"));
         stack.Children.Add(CreateEditorToolIconButton("\uE76D", "Paint & markup", "markup"));
@@ -233,8 +232,9 @@ public partial class MainWindow
 
     private FrameworkElement BuildEditorV041ChatPanel(string existingInput)
     {
-        var content = new StackPanel();
-        content.Children.Add(EditorHelpText("Paste or import chat. Afterline applies the closest RP colors automatically, so most users can leave the color tool alone."));
+        var sections = new StackPanel();
+        var chatContent = new StackPanel();
+        chatContent.Children.Add(EditorHelpText("Paste or import chat. Afterline applies the closest RP colors automatically, and selected text can be recolored in the Line Colors section below."));
 
         _editorInput = new TextBox
         {
@@ -253,38 +253,50 @@ public partial class MainWindow
             PruneEditorLineColorOverrides();
             ScheduleEditorChatRender();
         };
-        _editorInput.SelectionChanged += (_, _) => UpdateEditorLineColorControls();
-        content.Children.Add(_editorInput);
+        _editorInput.SelectionChanged += (_, _) =>
+        {
+            if (_editorInput.SelectionLength > 0 && _editorChatColorsExpanderV071 is not null)
+            {
+                bool wasCollapsed = !_editorChatColorsExpanderV071.IsExpanded;
+                _editorChatColorsExpanderV071.IsExpanded = true;
+                if (wasCollapsed)
+                    _ = Dispatcher.BeginInvoke(new Action(() => _editorChatColorsExpanderV071?.BringIntoView()));
+            }
+            UpdateEditorLineColorControls();
+        };
+        chatContent.Children.Add(_editorInput);
 
         var inputButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 2) };
         inputButtons.Children.Add(CreateSmallEditorButton("Paste", EditorPaste_Click));
         inputButtons.Children.Add(CreateSmallEditorButton("Import .txt", EditorImportText_Click));
         inputButtons.Children.Add(CreateSmallEditorButton("Clear", EditorClearInput_Click));
-        content.Children.Add(inputButtons);
-        content.Children.Add(CreateEditorDivider());
+        chatContent.Children.Add(inputButtons);
+        sections.Children.Add(CreateEditorSidebarExpanderV068("CHAT TEXT", chatContent, expanded: true));
+
+        var fontContent = new StackPanel();
 
         _editorFontBox = new ComboBox { Height = 34 };
         PopulateEditorFontBoxV071(_editorFontBox);
         _editorFontBox.SelectedIndex = 0;
         _editorFontBox.SelectionChanged += (_, _) => ScheduleEditorChatRender();
-        content.Children.Add(CreateEditorField("Font", _editorFontBox));
-        content.Children.Add(EditorSubtleNote(
+        fontContent.Children.Add(CreateEditorField("Font", _editorFontBox));
+        fontContent.Children.Add(EditorSubtleNote(
             "Font stacks use the first installed Windows font and fall back safely. Server webfonts such as Raleway or Mukta render exactly when that font is installed locally."));
 
         var fontSize = CreateEditorV041Slider("Font size", 12, 32, 18);
         _editorFontSizeSlider = fontSize.Slider;
         _editorFontSizeSlider.ValueChanged += (_, _) => ScheduleEditorChatRender();
-        content.Children.Add(fontSize.Panel);
+        fontContent.Children.Add(fontSize.Panel);
 
         var spacing = CreateEditorV041Slider("Line spacing", 0, 8, 1);
         _editorLineSpacingSlider = spacing.Slider;
         _editorLineSpacingSlider.ValueChanged += (_, _) => ScheduleEditorChatRender();
-        content.Children.Add(spacing.Panel);
+        fontContent.Children.Add(spacing.Panel);
 
         var width = CreateEditorV041Slider("Chat width", 320, 1200, 900, 10);
         _editorChatWidthSlider = width.Slider;
         _editorChatWidthSlider.ValueChanged += (_, _) => ScheduleEditorChatRender();
-        content.Children.Add(width.Panel);
+        fontContent.Children.Add(width.Panel);
 
         _editorShowTimestampsCheck = new CheckBox
         {
@@ -295,9 +307,20 @@ public partial class MainWindow
         };
         _editorShowTimestampsCheck.Checked += (_, _) => ScheduleEditorChatRender();
         _editorShowTimestampsCheck.Unchecked += (_, _) => ScheduleEditorChatRender();
-        content.Children.Add(_editorShowTimestampsCheck);
+        fontContent.Children.Add(_editorShowTimestampsCheck);
 
-        return WrapEditorToolPanel(content);
+        Expander fontSection = CreateEditorSidebarExpanderV068("FONT & LAYOUT", fontContent, expanded: true);
+        fontSection.Margin = new Thickness(0, 8, 0, 0);
+        sections.Children.Add(fontSection);
+
+        _editorChatColorsExpanderV071 = CreateEditorSidebarExpanderV068(
+            "LINE COLORS",
+            BuildEditorV041ColorsContent(),
+            expanded: false);
+        _editorChatColorsExpanderV071.Margin = new Thickness(0, 8, 0, 0);
+        sections.Children.Add(_editorChatColorsExpanderV071);
+
+        return WrapEditorToolPanel(sections);
     }
 
 }

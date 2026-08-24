@@ -24,6 +24,8 @@ public partial class MainWindow
     private CheckBox? _logReaderOocCheck;
     private CheckBox? _logReaderRpCheck;
     private CheckBox? _logReaderTimestampCheck;
+    private Button? _logReaderJumpTopButton;
+    private Button? _logReaderJumpBottomButton;
     private string? _logReaderCurrentPath;
     private string _logReaderCurrentServer = "Unknown Server";
 
@@ -177,9 +179,56 @@ public partial class MainWindow
             item is not LogReaderLineItem line || _settings.ShowOocChat || !line.IsOocLine;
         _logReaderList.ItemsSource = _logReaderView;
 
-        bodyCard.Child = _logReaderList;
+        var body = new Grid();
+        body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        body.Children.Add(_logReaderList);
+
+        var jumpBar = new Border
+        {
+            Background = (Brush)FindResource("Panel"),
+            BorderBrush = (Brush)FindResource("Border"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+        Grid.SetRow(jumpBar, 1);
+        var jumpButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        _logReaderJumpTopButton = new Button
+        {
+            Content = "↑",
+            Width = 32,
+            Padding = new Thickness(6, 5, 6, 5),
+            Margin = new Thickness(0, 0, 4, 0),
+            ToolTip = "Jump to the top of the opened log"
+        };
+        _logReaderJumpTopButton.Click += (_, _) => ScrollLogReaderToBoundary(top: true);
+        _logReaderJumpBottomButton = new Button
+        {
+            Content = "↓",
+            Width = 32,
+            Padding = new Thickness(6, 5, 6, 5),
+            ToolTip = "Jump to the bottom of the opened log"
+        };
+        _logReaderJumpBottomButton.Click += (_, _) => ScrollLogReaderToBoundary(top: false);
+        jumpButtons.Children.Add(_logReaderJumpTopButton);
+        jumpButtons.Children.Add(_logReaderJumpBottomButton);
+        jumpBar.Child = jumpButtons;
+        body.Children.Add(jumpBar);
+
+        bodyCard.Child = body;
         page.Children.Add(bodyCard);
         return page;
+    }
+
+    private void ScrollLogReaderToBoundary(bool top)
+    {
+        if (_logReaderList is null || _logReaderList.Items.Count == 0) return;
+        object target = _logReaderList.Items[top ? 0 : _logReaderList.Items.Count - 1];
+        _logReaderList.ScrollIntoView(target);
     }
 
     private DataTemplate BuildLogReaderItemTemplate()

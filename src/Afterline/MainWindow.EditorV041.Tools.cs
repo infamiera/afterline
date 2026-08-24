@@ -9,6 +9,9 @@ namespace Afterline;
 public partial class MainWindow
 {
     private FrameworkElement BuildEditorV041ColorsPanel()
+        => WrapEditorToolPanel(BuildEditorV041ColorsContent());
+
+    private StackPanel BuildEditorV041ColorsContent()
     {
         var content = new StackPanel();
         content.Children.Add(EditorHelpText("Select text in Chat & Font to color only those characters, or select a line below to override the entire line. Presets and custom colors use the same saved project data."));
@@ -50,7 +53,7 @@ public partial class MainWindow
         content.Children.Add(buttons);
 
         content.Children.Add(EditorSubtleNote("Text-range colors take priority over captured and automatic colors while preserving italics. Use Auto on a selection to remove only its manual range color."));
-        return WrapEditorToolPanel(content);
+        return content;
     }
 
     private FrameworkElement BuildEditorV041TextEffectsPanel()

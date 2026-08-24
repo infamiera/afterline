@@ -99,7 +99,6 @@ public partial class MainWindow
         };
 
         tools.Children.Add(CreateCanaryRailButtonV2("T", "Chat & Font", "chat", "Segoe UI", 18));
-        tools.Children.Add(CreateCanaryRailButtonV2("◉", "Line Colors", "colors", "Segoe UI Symbol", 18));
         tools.Children.Add(CreateCanaryRailButtonV2("fx", "Text Effects", "effects", "Segoe UI", 13));
         tools.Children.Add(CreateCanaryRailButtonV2("▧", "Image & Canvas", "image", "Segoe UI Symbol", 19));
         tools.Children.Add(CreateCanaryRailButtonV2("⬚", "Selection Tools", "selection", "Segoe UI Symbol", 17));

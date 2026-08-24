@@ -141,6 +141,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private string? _lastResolutionAddress;
     private DateTime _lastResolutionAttemptUtc = DateTime.MinValue;
     private bool _exactColorFallbackLogged;
+    private string[] _lastExactVisibleText = Array.Empty<string>();
 
     public ServerSessionInfo CurrentServer => _currentServer;
 
@@ -167,6 +168,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             {
                 CapturedChatLine[] lines = JsonSerializer.Deserialize<CapturedChatLine[]>(json)
                     ?? Array.Empty<CapturedChatLine>();
+                lines = await StabilizeNewChatRowsAsync(lines, cancellationToken);
                 _exactColorFallbackLogged = false;
                 return lines
                     .Where(line => !string.IsNullOrWhiteSpace(line.Text))
@@ -195,6 +197,79 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line => new CapturedChatLine(line.Trim()))
             .ToArray();
+    }
+
+    private async Task<CapturedChatLine[]> StabilizeNewChatRowsAsync(
+        CapturedChatLine[] initial,
+        CancellationToken cancellationToken)
+    {
+        CapturedChatLine[] current = initial;
+        string[] text = current.Select(line => line.Text ?? string.Empty).ToArray();
+        bool visibleTextChanged = !_lastExactVisibleText.SequenceEqual(text, StringComparer.Ordinal);
+
+        if (visibleTextChanged)
+        {
+            // FiveM can insert a complete text row one or two frames before the
+            // nested action/speech spans receive their final computed colors.
+            // Stabilize only changed chat, so idle capture remains unaffected.
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(65), cancellationToken);
+                string? retryJson = await EvaluateChatExpressionAsync(
+                    ReadChatExpression,
+                    cancellationToken);
+                if (string.IsNullOrWhiteSpace(retryJson)) break;
+
+                CapturedChatLine[] retry = JsonSerializer.Deserialize<CapturedChatLine[]>(retryJson)
+                    ?? Array.Empty<CapturedChatLine>();
+                if (retry.Length == 0) break;
+
+                current = retry;
+                text = current.Select(line => line.Text ?? string.Empty).ToArray();
+                if (!ContainsFlattenedLeadingAction(current)) break;
+            }
+        }
+
+        _lastExactVisibleText = text;
+        return current;
+    }
+
+    internal static bool ContainsFlattenedLeadingAction(IEnumerable<CapturedChatLine> lines)
+    {
+        foreach (CapturedChatLine line in lines)
+        {
+            string text = line.Text ?? string.Empty;
+            int bodyStart = 0;
+            if (text.Length > 10 && text[0] == '[')
+            {
+                int closing = text.IndexOf(']');
+                if (closing >= 0)
+                {
+                    bodyStart = closing + 1;
+                    while (bodyStart < text.Length && char.IsWhiteSpace(text[bodyStart]))
+                        bodyStart++;
+                }
+            }
+
+            if (bodyStart >= text.Length || text[bodyStart] != '*') continue;
+            IReadOnlyList<ChatColorRun> runs = ChatColorData.SliceRuns(
+                text,
+                line.ColorRuns,
+                bodyStart,
+                text.Length - bodyStart);
+            if (runs.Count == 0 || !ChatColorData.HasCompleteCoverage(text[bodyStart..], runs))
+                continue;
+
+            if (runs.All(run =>
+                    run.Alpha >= 128 &&
+                    run.Red >= 135 &&
+                    run.Blue >= 145 &&
+                    run.Red - run.Green >= 15 &&
+                    run.Blue - run.Green >= 20))
+                return true;
+        }
+
+        return false;
     }
 
     private static CapturedChatLine NormalizeCapturedLine(CapturedChatLine line)
@@ -249,6 +324,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _currentServer = ServerSessionInfo.Unknown;
         _lastResolutionAddress = null;
         _lastResolutionAttemptUtc = DateTime.MinValue;
+        _lastExactVisibleText = Array.Empty<string>();
     }
 
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)

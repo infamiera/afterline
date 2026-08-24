@@ -288,6 +288,15 @@ internal static class SessionRecoverySmokeTest
     private static void VerifyMixedActionSpeechColors(DateTime observedAt)
     {
         const string text = "[17:39:53] * Bianca Yurei grabs the mop from the counter. Welp— someone's gotta do it. She starts sweeping the floor.";
+        var prematurelyFlat = new CapturedChatLine(
+            text,
+            new[] { new ChatColorRun(0, text.Length, 0xC2, 0xA3, 0xDA) });
+        if (!FiveMDevToolsChatReader.ContainsFlattenedLeadingAction(new[] { prematurelyFlat }))
+        {
+            throw new InvalidOperationException(
+                "A prematurely flattened leading-star action row would bypass capture stabilization.");
+        }
+
         int speechStart = text.IndexOf("Welp", StringComparison.Ordinal);
         int secondAction = text.IndexOf("She starts", StringComparison.Ordinal);
         var exact = new ChatEntry(

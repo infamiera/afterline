@@ -55,7 +55,7 @@ public partial class MainWindow
             Height = 34,
             VerticalContentAlignment = VerticalAlignment.Center
         };
-        _archiveFilterModeV071.Items.Add(new ComboBoxItem { Content = "Last X days", Tag = "LastDays" });
+        _archiveFilterModeV071.Items.Add(new ComboBoxItem { Content = "Last # days", Tag = "LastDays" });
         _archiveFilterModeV071.Items.Add(new ComboBoxItem { Content = "Between dates", Tag = "Between" });
         _archiveFilterModeV071.Items.Add(new ComboBoxItem { Content = "All dates", Tag = "All" });
         _archiveFilterModeV071.SelectionChanged += ArchiveFilterModeV071_Changed;

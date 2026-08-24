@@ -161,6 +161,32 @@ public partial class MainWindow
 
                 if (!string.IsNullOrWhiteSpace(projectPath))
                 {
+                    if (_editorToolPanels.ContainsKey("colors") ||
+                        !_editorToolPanels.ContainsKey("chat") ||
+                        _editorChatColorsExpanderV071 is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Line Colors was not merged into the Chat & Font panel.");
+                    }
+                    if (_editorInput is null)
+                        throw new InvalidOperationException("The Chat & Font input was not initialized.");
+                    _editorInput.Text = "Select this text";
+                    _editorChatColorsExpanderV071.IsExpanded = false;
+                    _editorInput.Select(0, 6);
+                    if (!_editorChatColorsExpanderV071.IsExpanded || _editorLineColorPresetBox is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Selecting Editor text did not reveal its color controls.");
+                    }
+                    if (_archiveFilterModeV071 is null ||
+                        !_archiveFilterModeV071.Items.OfType<ComboBoxItem>().Any(item =>
+                            string.Equals(item.Content?.ToString(), "Last # days", StringComparison.Ordinal)))
+                    {
+                        throw new InvalidOperationException("The Archive last-days label was not updated.");
+                    }
+                    if (_logReaderJumpTopButton is null || _logReaderJumpBottomButton is null)
+                        throw new InvalidOperationException("The Log Reader jump controls were not initialized.");
+
                     string[] requiredFonts =
                     {
                         "Arial, Helvetica, sans-serif",
