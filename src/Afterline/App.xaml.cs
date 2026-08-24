@@ -21,6 +21,61 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        int canaryManifestSmokeIndex = Array.FindIndex(e.Args, value => string.Equals(
+            value,
+            "--afterline-smoke-canary-manifest",
+            StringComparison.OrdinalIgnoreCase));
+        if (canaryManifestSmokeIndex >= 0)
+        {
+            try
+            {
+                string manifestPath = e.Args.Length > canaryManifestSmokeIndex + 1
+                    ? e.Args[canaryManifestSmokeIndex + 1]
+                    : throw new ArgumentException("The Canary manifest smoke-test file is missing.");
+                CanaryUpdateCheckResult parsed = CanaryUpdateService.ParseManifestForSmokeTest(
+                    File.ReadAllText(manifestPath));
+
+                if (!string.IsNullOrWhiteSpace(parsed.Release.Error) ||
+                    parsed.BuildNumber is not int buildNumber ||
+                    buildNumber <= 0 ||
+                    string.IsNullOrWhiteSpace(parsed.BuildId) ||
+                    string.IsNullOrWhiteSpace(parsed.Release.DownloadUrl) ||
+                    string.IsNullOrWhiteSpace(parsed.Release.ChecksumUrl) ||
+                    string.IsNullOrWhiteSpace(parsed.Release.PackageId))
+                {
+                    throw new InvalidDataException("The parsed Canary manifest was incomplete.");
+                }
+
+                if (!CanaryUpdateService.IsNewerBuild(
+                        buildNumber,
+                        parsed.BuildId,
+                        buildNumber - 1,
+                        $"{buildNumber - 1}.older") ||
+                    CanaryUpdateService.IsNewerBuild(
+                        buildNumber,
+                        parsed.BuildId,
+                        buildNumber,
+                        parsed.BuildId) ||
+                    CanaryUpdateService.IsNewerBuild(
+                        buildNumber - 1,
+                        $"{buildNumber - 1}.older",
+                        buildNumber,
+                        parsed.BuildId))
+                {
+                    throw new InvalidDataException("Canary build ordering failed its smoke test.");
+                }
+
+                DiagnosticLogger.Info("Canary update-manifest smoke test passed.");
+                Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error("Canary update-manifest smoke test failed.", ex);
+                Environment.Exit(1);
+            }
+            return;
+        }
+
         int recoverySmokeIndex = Array.FindIndex(e.Args, value => string.Equals(
             value,
             "--afterline-smoke-session-recovery",

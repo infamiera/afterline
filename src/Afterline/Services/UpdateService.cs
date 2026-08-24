@@ -110,7 +110,10 @@ public sealed class UpdateService
         Directory.CreateDirectory(AppPaths.UpdatesDirectory);
         CleanupStaleUpdateFiles();
 
-        string finalName = $"Afterline-v{release.LatestVersion}-update.exe";
+        string packageIdentity = string.IsNullOrWhiteSpace(release.PackageId)
+            ? "v" + release.LatestVersion
+            : Regex.Replace(release.PackageId, @"[^0-9A-Za-z._-]", "-");
+        string finalName = $"Afterline-{packageIdentity}-update.exe";
         string finalPath = Path.Combine(AppPaths.UpdatesDirectory, finalName);
         string temporaryPath = finalPath + ".download";
         DeleteIfExists(temporaryPath);
@@ -383,6 +386,7 @@ public sealed record UpdateCheckResult(
     string? ReleaseNotes,
     string? DownloadUrl,
     string? ChecksumUrl,
-    string? Error);
+    string? Error,
+    string? PackageId = null);
 
 public sealed record UpdateDownloadResult(string FilePath, string Sha256, string Version);

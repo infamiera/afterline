@@ -86,8 +86,9 @@ public partial class MainWindow
         _uiTimer.Tick += UpdateChannelFooterV062_Tick;
         RefreshUpdateChannelUiV062();
 
-        if (IsCanaryChannelV062())
-            _ = CheckForCanaryUpdatesAsyncV062(false);
+        // BuildIdentityV065 owns the single authoritative startup check. Starting the
+        // legacy check here caused duplicate requests and allowed its result to race
+        // the build-number-aware updater controls.
     }
 
     private void UpdateChannelFooterV062_Tick(object? sender, EventArgs e)

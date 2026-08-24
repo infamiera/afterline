@@ -46,10 +46,10 @@ public partial class MainWindow
         CenterSettingsNavigationCanaryV4();
         ConfigureEditorPrewarmCanaryV4();
 
-        // One minute is frequent enough to discover Canary builds automatically,
-        // while halving the background GitHub requests made by the previous 30s
-        // polling interval. Window activation still triggers an immediate refresh.
-        _buildIdentityRefreshTimerV065.Interval = TimeSpan.FromMinutes(1);
+        // Canary discovery now uses a lightweight release manifest. Ten-minute
+        // polling plus a throttled activation refresh keeps discovery prompt without
+        // hammering GitHub or racing several duplicate checks during startup.
+        _buildIdentityRefreshTimerV065.Interval = TimeSpan.FromMinutes(10);
     }
 
     private void EnsureFinalChannelHandoffV066()
