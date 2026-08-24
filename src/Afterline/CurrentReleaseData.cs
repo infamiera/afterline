@@ -6,6 +6,24 @@ internal static class CurrentReleaseData
     // release-ready build can evolve without rewriting previous patch history.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.6.7", "24/AUG/2026", new[]
+        {
+            "Image Editor — Added independently editable image layers with direct dragging, mouse resizing, exact pixel dimensions, four-edge snapping, locking, visible lock badges, drag-to-reorder stacking, and per-layer paint and transparent eraser tools with undo and redo.",
+            "Image Editor — Added top and left rulers with a configurable keybind, collapsible Filter Presets and Filters & Adjustments panels, a taller Layers panel, smaller controls, automatic main-sidebar collapse, and an explicit Close Editor button that restores the application sidebar.",
+            "Image Editor — Fixed invisible Base Images, black previews caused by missing ruler theme resources, layer dragging being blocked by Marquee mode, layer-only exports, and exports containing layers beyond the original canvas.",
+            "Projects — Fixed .afterlineproj PNG serialization, preserved edited pixels and complete layer state, and added Documents\\Afterline Projects as the configurable default project folder.",
+            "Performance — Moved full-resolution filter work off the UI thread, removed blocking preview warm-up, and reused frozen chat brushes to improve initial slider, scrolling, and long-chat responsiveness.",
+            "Live Chat — Added direct capture of FiveM's rendered text colors while retaining the existing automatic formatter as a safe fallback for neutral, incomplete, older, or unsupported chat data.",
+            "Live Chat — Added reliable coloring for tattoo purchases, attachment commands, Panda Points activity rewards, and other recognized messages when FiveM briefly exposes an all-white chat row.",
+            "Live Chat — Added top and bottom jump arrows beside Clear Display.",
+            "Exports — Added self-contained, color-preserving HTML export for the current Live Chat view and opened or filtered Log Reader files, including safe HTML escaping and Log Reader line numbers.",
+            "Storage — Kept standard chatlogs as readable .txt files and stored exact per-character colors in optional .colors.jsonl sidecars; all chat, project, settings, cache, and recovery data remains local.",
+            "Recovery — Made Parse Current Chat replay persisted cache data, resume interrupted journals after crashes, outages, updates, and ordinary restarts, and avoid false [NEW LOGIN] markers for program interruptions.",
+            "Updater — Replaced rate-limited Canary polling with a lightweight release manifest, removed duplicate checks, added exact build-number and commit comparison, and prevented installed or older Canary builds from being offered as updates.",
+            "Updater — Retained the previous executable until the replacement stays healthy, kept Retry and Check Again usable after failures, and added packaged startup validation before publication.",
+            "Idle usage — Reduced disconnected FiveM detection, backed off unchanged chat polling, stopped hidden UI refreshes, avoided duplicate snapshot and archive-index writes, and limited page-specific status scans to visible pages.",
+            "Quality — Expanded the Windows release gate with startup survival, Base Image rendering, project round-trip, interrupted-session recovery, exact and fallback color checks, safe HTML export, updater-manifest validation, and measured idle CPU and memory limits."
+        }),
         new("0.6.6", "23/AUG/2026", new[]
         {
             "Promoted the Canary Editor workspace to Stable with compact top menus, dedicated tool panels, full-screen editing, configurable Editor keybinds, selection tools, snapping, multi-chat overlays, saved filter presets, pixelation, and expanded image adjustments.",
