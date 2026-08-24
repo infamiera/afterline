@@ -48,6 +48,31 @@ jobs:
             -p:InformationalVersion="$informational" `
             -o publish/Afterline
 
+      - name: Smoke test Canary startup
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $dataRoot = Join-Path $env:LOCALAPPDATA "Afterline"
+          $log = Join-Path $dataRoot "Logs/afterline.log"
+          New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
+          '{"FirstRunCompleted":true,"StartMinimized":false,"MinimizeToTray":false,"Editor":null,"Theme":null,"RecentLogPaths":null,"PinnedLogPaths":null}' |
+            Set-Content -Path (Join-Path $dataRoot "settings.json") -Encoding utf8
+          Remove-Item $log -Force -ErrorAction SilentlyContinue
+
+          $process = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 15
+          $process.Refresh()
+
+          if ($process.HasExited) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline exited during the 15-second startup smoke test with code $($process.ExitCode)."
+          }
+
+          Stop-Process -Id $process.Id -Force
+
       - name: Prepare uniquely identified Canary assets
         shell: pwsh
         run: |

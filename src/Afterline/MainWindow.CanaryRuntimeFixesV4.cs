@@ -340,6 +340,8 @@ public partial class MainWindow
             () => _settings.Editor.RedoKeybind, value => _settings.Editor.RedoKeybind = value, "Ctrl+Shift+Z"));
         content.Children.Add(CreateKeybindEditorRowCanaryV4("Full Screen Editor", "Enter or leave the full Editor workspace.",
             () => _settings.Editor.FullscreenKeybind, value => _settings.Editor.FullscreenKeybind = value, "F11"));
+        content.Children.Add(CreateKeybindEditorRowCanaryV4("Canvas Rulers", "Show or hide the pixel rulers around the canvas.",
+            () => _settings.Editor.RulerKeybind, value => _settings.Editor.RulerKeybind = value, "R"));
 
         _editorToolPanels["settings"] = WrapEditorToolPanel(content);
     }
