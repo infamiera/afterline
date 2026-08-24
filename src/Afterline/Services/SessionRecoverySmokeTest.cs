@@ -187,6 +187,25 @@ internal static class SessionRecoverySmokeTest
         int body = text.IndexOf("Alexandra", StringComparison.Ordinal);
         if (!HasColorAt(entry.CapturedColorRuns, body, 0xFF, 0xFF, 0xFF))
             throw new InvalidOperationException("A [low] speech line retained a leaked green row color.");
+
+        const string faded = "[18:47:45] Samayo Yurei says [low]: Mh— neither but—";
+        int fadedBody = faded.IndexOf("Samayo", StringComparison.Ordinal);
+        var fadedEntry = new ChatEntry(
+            observedAt,
+            faded,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, fadedBody, 0x72, 0x76, 0x7B, 0xB8),
+                new ChatColorRun(fadedBody, faded.Length - fadedBody, 0xFF, 0xFF, 0xFF)
+            });
+
+        int fadedMessage = faded.IndexOf("Mh", StringComparison.Ordinal);
+        if (!HasColorAt(fadedEntry.CapturedColorRuns, fadedBody, 0x72, 0x76, 0x7B, 0xB8) ||
+            !HasColorAt(fadedEntry.CapturedColorRuns, fadedMessage, 0x72, 0x76, 0x7B, 0xB8))
+        {
+            throw new InvalidOperationException(
+                "A faded [low] timestamp shade was not propagated through its chat body.");
+        }
     }
 
     private static void VerifyUniformLineColorPropagation(DateTime observedAt)
@@ -198,14 +217,14 @@ internal static class SessionRecoverySmokeTest
             text,
             capturedColorRuns: new[]
             {
-                new ChatColorRun(0, bodyStart, 0xFB, 0xF7, 0x24),
+                new ChatColorRun(0, bodyStart, 0x9C, 0x99, 0x16, 0xC0),
                 new ChatColorRun(bodyStart, text.Length - bodyStart, 0xFF, 0xFF, 0xFF)
             });
 
         int speaker = text.IndexOf("Alexandra", StringComparison.Ordinal);
         int message = text.IndexOf("Tryna'", StringComparison.Ordinal);
-        if (!HasColorAt(entry.CapturedColorRuns, speaker, 0xFB, 0xF7, 0x24) ||
-            !HasColorAt(entry.CapturedColorRuns, message, 0xFB, 0xF7, 0x24))
+        if (!HasColorAt(entry.CapturedColorRuns, speaker, 0x9C, 0x99, 0x16, 0xC0) ||
+            !HasColorAt(entry.CapturedColorRuns, message, 0x9C, 0x99, 0x16, 0xC0))
         {
             throw new InvalidOperationException(
                 "A recognized whole-line phone color was applied only to its timestamp.");
@@ -218,7 +237,7 @@ internal static class SessionRecoverySmokeTest
                 Text = text,
                 ColorRuns = new List<ChatColorRun>
                 {
-                    new(0, bodyStart, 0xFB, 0xF7, 0x24),
+                    new(0, bodyStart, 0x9C, 0x99, 0x16, 0xC0),
                     new(bodyStart, text.Length - bodyStart, 0xFF, 0xFF, 0xFF)
                 }
             }
@@ -226,8 +245,9 @@ internal static class SessionRecoverySmokeTest
         EditorChatLine displayed = UnifiedChatFormatter
             .FormatLines(text, showTimestamps: true, exactColors: exact)
             .First();
+        Color fadedPhone = Color.FromArgb(0xC0, 0x9C, 0x99, 0x16);
         if (!displayed.Segments.Any(segment =>
-                segment.Color == EditorChatFormatter.Yellow &&
+                segment.Color == fadedPhone &&
                 segment.Text.Contains("Tryna'", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException(
@@ -451,13 +471,15 @@ internal static class SessionRecoverySmokeTest
         int index,
         byte red,
         byte green,
-        byte blue)
+        byte blue,
+        byte alpha = 255)
         => index >= 0 && runs.Any(run =>
             run.Start <= index &&
             run.End > index &&
             run.Red == red &&
             run.Green == green &&
-            run.Blue == blue);
+            run.Blue == blue &&
+            run.Alpha == alpha);
 
     private static void VerifyCapturedAccentPrecedence(
         DateTime observedAt,

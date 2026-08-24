@@ -11,7 +11,7 @@ internal static class ChatColorReliabilityService
     // small set of structurally unambiguous lines receives stricter validation to
     // prevent a previous row's color from leaking into the new message.
     private static readonly Regex TimestampPrefix = new(
-        @"^\s*\[\d{1,2}:\d{2}:\d{2}\]\s*",
+        @"^\s*(?<timestamp>\[\d{1,2}:\d{2}:\d{2}\])\s*",
         RegexOptions.Compiled);
 
     private static readonly Regex NeutralLowSpeech = new(
@@ -37,9 +37,20 @@ internal static class ChatColorReliabilityService
         Match timestamp = TimestampPrefix.Match(text);
         int bodyStart = timestamp.Success ? timestamp.Length : 0;
         string body = text[bodyStart..];
+        Color? timestampColor = ResolveTimestampReferenceColor(normalized, timestamp);
 
         if (IsNeutralLowSpeech(body))
-            return NormalizeLowSpeechColors(text, normalized, bodyStart, body.Length);
+        {
+            Color baseColor = timestampColor is Color captured && IsNeutralColor(captured)
+                ? captured
+                : EditorChatFormatter.White;
+            return NormalizeLowSpeechColors(
+                text,
+                normalized,
+                bodyStart,
+                body.Length,
+                baseColor);
+        }
 
         Match globalOoc = GlobalOoc.Match(body);
         if (globalOoc.Success)
@@ -82,12 +93,16 @@ internal static class ChatColorReliabilityService
             // success and inventory rows must stay one color. A temporarily
             // neutral FiveM body must not override the recognized line color
             // merely because its timestamp already received the correct style.
+            Color lineColor = timestampColor is Color captured &&
+                              IsCompatibleTint(captured, expectedColors[0])
+                ? captured
+                : expectedColors[0];
             return OverrideColor(
                 text,
                 normalized,
                 bodyStart,
                 body.Length,
-                expectedColors[0]);
+                lineColor);
         }
 
         IReadOnlyList<ChatColorRun> reliable = normalized;
@@ -185,7 +200,8 @@ internal static class ChatColorReliabilityService
         string text,
         IReadOnlyList<ChatColorRun> runs,
         int start,
-        int length)
+        int length,
+        Color baseColor)
     {
         int end = start + length;
         IReadOnlyList<ChatColorRun> corrected = runs;
@@ -199,9 +215,48 @@ internal static class ChatColorReliabilityService
                 corrected,
                 overlapStart,
                 overlapEnd - overlapStart,
-                EditorChatFormatter.White);
+                baseColor);
         }
         return corrected;
+    }
+
+    private static Color? ResolveTimestampReferenceColor(
+        IReadOnlyList<ChatColorRun> runs,
+        Match timestamp)
+    {
+        if (!timestamp.Success || !timestamp.Groups["timestamp"].Success)
+            return null;
+
+        int index = timestamp.Groups["timestamp"].Index;
+        ChatColorRun? run = runs.FirstOrDefault(value =>
+            value.Start <= index && value.End > index && value.Alpha > 0);
+        return run is null
+            ? null
+            : Color.FromArgb(run.Alpha, run.Red, run.Green, run.Blue);
+    }
+
+    private static bool IsNeutralColor(Color color)
+    {
+        int maximum = Math.Max(color.R, Math.Max(color.G, color.B));
+        int minimum = Math.Min(color.R, Math.Min(color.G, color.B));
+        return maximum - minimum <= 28;
+    }
+
+    private static bool IsCompatibleTint(Color captured, Color expected)
+    {
+        double denominator = expected.R * expected.R +
+                             expected.G * expected.G +
+                             expected.B * expected.B;
+        if (denominator <= 0) return false;
+
+        double scale = (captured.R * expected.R +
+                        captured.G * expected.G +
+                        captured.B * expected.B) / denominator;
+        scale = Math.Clamp(scale, 0.15, 1.5);
+        double red = captured.R - expected.R * scale;
+        double green = captured.G - expected.G * scale;
+        double blue = captured.B - expected.B * scale;
+        return Math.Sqrt(red * red + green * green + blue * blue) <= 52;
     }
 
     private static bool IsActionPurple(ChatColorRun run)
