@@ -50,7 +50,7 @@ public partial class MainWindow
         EnsureBuildIdentityV065();
         EnsureFinalChannelHandoffV066();
 
-        // Canary 0.6.7 workspace: persistent selections, visual presets, layers,
+        // 0.7.0 workspace: persistent selections, visual presets, layers,
         // right-side editing tools, and local project save/load support.
         try
         {

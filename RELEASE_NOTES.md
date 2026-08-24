@@ -1,4 +1,4 @@
-# Afterline 0.6.7 — Advanced Editor & Live Chat Update
+# Afterline 0.7.0 — Advanced Editor & Live Chat Update
 
 This release turns the Image Editor into a proper layered workspace, makes Live Chat colors and recovery considerably more reliable, and reduces Afterline's resource usage while idle.
 

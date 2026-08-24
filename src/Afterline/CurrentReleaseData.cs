@@ -6,7 +6,7 @@ internal static class CurrentReleaseData
     // release-ready build can evolve without rewriting previous patch history.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
-        new("0.6.7", "24/AUG/2026", new[]
+        new("0.7.0", "24/AUG/2026", new[]
         {
             "Image Editor — Added independently editable image layers with direct dragging, mouse resizing, exact pixel dimensions, four-edge snapping, locking, visible lock badges, drag-to-reorder stacking, and per-layer paint and transparent eraser tools with undo and redo.",
             "Image Editor — Added top and left rulers with a configurable keybind, collapsible Filter Presets and Filters & Adjustments panels, a taller Layers panel, smaller controls, automatic main-sidebar collapse, and an explicit Close Editor button that restores the application sidebar.",
