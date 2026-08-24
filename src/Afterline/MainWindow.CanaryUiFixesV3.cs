@@ -186,6 +186,12 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
+        if (editorVisible && ShortcutMatchesCanaryV3(_settings.Editor.RulerKeybind, e))
+        {
+            ToggleEditorRulersV068();
+            e.Handled = true;
+            return;
+        }
 
         if (ShortcutMatchesCanaryV3(_settings.FindKeybind, e))
         {
