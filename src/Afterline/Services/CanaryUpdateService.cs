@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -327,7 +328,7 @@ public sealed class CanaryUpdateService
         return http;
     }
 
-    private static bool TryGetCached(out CanaryUpdateCheckResult? result)
+    private static bool TryGetCached([NotNullWhen(true)] out CanaryUpdateCheckResult? result)
     {
         result = _cachedResult;
         return result is not null && DateTimeOffset.UtcNow < _cachedUntilUtc;
