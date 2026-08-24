@@ -53,5 +53,6 @@ public partial class MainWindow
         // Canary 0.6.7 workspace: persistent selections, visual presets, layers,
         // right-side editing tools, and local project save/load support.
         EnsureEditorWorkspaceV067();
+        EnsureEditorSelectionGuardV067();
     }
 }
