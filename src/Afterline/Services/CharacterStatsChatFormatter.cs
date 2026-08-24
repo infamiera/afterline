@@ -14,6 +14,9 @@ internal static class CharacterStatsChatFormatter
     private static readonly Regex FinalVacationValue = new(@"\b\d+(?:\.\d+)?\s+day(?:\(s\)|s)?\s*$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex NumberAfterColon = new(@":\s*(?<value>\d[\d,.]*)", RegexOptions.Compiled);
     private static readonly Regex ValueAfterColon = new(@":\s*(?<value>[^|]+)", RegexOptions.Compiled);
+    private static readonly Regex ActivityPandaPointValue = new(
+        @"\b\d[\d,]*(?=\s+Panda Points\b)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static bool TryFormat(string body, out IReadOnlyList<EditorChatSegment> segments)
     {
@@ -122,6 +125,15 @@ internal static class CharacterStatsChatFormatter
         {
             segments = ValuesAfterColon(body, NumberAfterColon, EditorChatFormatter.Yellow, EditorChatFormatter.White);
             return true;
+        }
+
+        if (trimmed.Contains("Panda Points for your activity", StringComparison.OrdinalIgnoreCase) &&
+            trimmed.Contains("You can earn up to", StringComparison.OrdinalIgnoreCase))
+        {
+            var highlights = new List<(int Index, int Length, Color Color)>();
+            AddMatches(highlights, ActivityPandaPointValue, body, EditorChatFormatter.Green);
+            segments = HighlightRanges(body, EditorChatFormatter.White, highlights);
+            return highlights.Count > 0;
         }
 
         if (trimmed.StartsWith("Current Time:", StringComparison.OrdinalIgnoreCase))

@@ -99,6 +99,7 @@ internal static class SessionRecoverySmokeTest
             });
         VerifyRecoveredCommandAccents(initiallyWhiteInstruction, attachmentInstruction);
         VerifyCapturedAccentPrecedence(exportedAt, attachmentInstruction);
+        VerifyActivityPandaPointAccents(exportedAt);
 
         string html = ChatHtmlExportService.BuildDocument(
             "Afterline <Export>",
@@ -123,6 +124,24 @@ internal static class SessionRecoverySmokeTest
         {
             throw new InvalidOperationException(
                 "The HTML export did not preserve exact/manual colors or safely encode chat text.");
+        }
+    }
+
+    private static void VerifyActivityPandaPointAccents(DateTime observedAt)
+    {
+        const string text = "[08:35:00] ((You've received 100 Panda Points for your activity! You can earn up to 800 Panda Points per day.))";
+        var entry = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[] { new ChatColorRun(0, text.Length, 255, 255, 255) });
+
+        int firstValue = text.IndexOf("100 Panda Points", StringComparison.Ordinal);
+        int secondValue = text.IndexOf("800 Panda Points", StringComparison.Ordinal);
+        if (!HasColorAt(entry.DisplayColorRuns, firstValue, 0x56, 0xD6, 0x4B) ||
+            !HasColorAt(entry.DisplayColorRuns, secondValue, 0x56, 0xD6, 0x4B))
+        {
+            throw new InvalidOperationException(
+                "An all-white FiveM snapshot suppressed Panda Point activity values in Live Chat.");
         }
     }
 

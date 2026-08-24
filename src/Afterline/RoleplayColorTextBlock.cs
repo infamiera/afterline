@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Collections.Concurrent;
 using Afterline.Models;
 using Afterline.Services;
 
@@ -9,6 +10,7 @@ namespace Afterline;
 
 internal sealed class RoleplayColorTextBlock : TextBlock
 {
+    private static readonly ConcurrentDictionary<uint, SolidColorBrush> FrozenBrushes = new();
     public static readonly DependencyProperty DisplayTextProperty = DependencyProperty.Register(
         nameof(DisplayText),
         typeof(string),
@@ -91,8 +93,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         // consistently blue in Live Chat and Log Reader even if automatic colors are disabled.
         if (IsSystemMessage && EditorChatFormatter.IsSessionBoundaryMarker(text))
         {
-            var markerBrush = new SolidColorBrush(EditorChatFormatter.Blue);
-            markerBrush.Freeze();
+            SolidColorBrush markerBrush = GetFrozenBrush(EditorChatFormatter.Blue);
             Inlines.Add(new Run(text) { Foreground = markerBrush });
             return;
         }
@@ -103,7 +104,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             return;
         }
 
-        IReadOnlyList<ChatColorRun> exactRuns = ChatColorData.NormalizeRuns(text, ExactColorRuns);
+        IReadOnlyList<ChatColorRun> exactRuns = ChatColorReliabilityService.EnsureExpectedAccents(text, ExactColorRuns);
         if (exactRuns.Count > 0 && ChatColorData.HasCompleteCoverage(text, exactRuns))
         {
             AddExactColorRuns(text, exactRuns, fallback);
@@ -120,8 +121,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
 
         foreach (EditorChatSegment segment in line.Segments)
         {
-            var brush = new SolidColorBrush(segment.Color);
-            if (brush.CanFreeze) brush.Freeze();
+            SolidColorBrush brush = GetFrozenBrush(segment.Color);
             Inlines.Add(new Run(segment.Text) { Foreground = brush });
         }
     }
@@ -137,17 +137,27 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             if (colorRun.Start > cursor)
                 Inlines.Add(new Run(text[cursor..colorRun.Start]) { Foreground = fallback });
 
-            var brush = new SolidColorBrush(Color.FromArgb(
+            SolidColorBrush brush = GetFrozenBrush(Color.FromArgb(
                 colorRun.Alpha,
                 colorRun.Red,
                 colorRun.Green,
                 colorRun.Blue));
-            if (brush.CanFreeze) brush.Freeze();
             Inlines.Add(new Run(text.Substring(colorRun.Start, colorRun.Length)) { Foreground = brush });
             cursor = colorRun.End;
         }
 
         if (cursor < text.Length)
             Inlines.Add(new Run(text[cursor..]) { Foreground = fallback });
+    }
+
+    private static SolidColorBrush GetFrozenBrush(Color color)
+    {
+        uint key = ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
+        return FrozenBrushes.GetOrAdd(key, _ =>
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        });
     }
 }
