@@ -423,7 +423,7 @@ public partial class MainWindow
                     Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                     "Afterline Projects");
                 Directory.CreateDirectory(folder);
-                _settings.Editor.ProjectsFolder = folder;
+                (_settings.Editor ??= new Afterline.Models.EditorPreferences()).ProjectsFolder = folder;
             }
         }
         return folder;

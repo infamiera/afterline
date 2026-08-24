@@ -175,7 +175,7 @@ public partial class MainWindow
                 if (_editorFilterTimerCanary?.IsEnabled == true ||
                     _editorFilterPreviewRenderCountV070 > 0)
                 {
-                    _editorFilterTimerCanary.Stop();
+                    _editorFilterTimerCanary?.Stop();
                     _editorFilterPreviewVersionV070++;
                     ApplyCanaryFilterPreview();
                 }

@@ -86,7 +86,7 @@ jobs:
           $imageTest = Start-Process -FilePath $exe `
             -ArgumentList @(
               "--afterline-smoke-image", "`"$smokeImage`"",
-              "--afterline-smoke-project", "`"$smokeProject`"
+              "--afterline-smoke-project", "`"$smokeProject`""
             ) `
             -PassThru
           if (-not $imageTest.WaitForExit(45000)) {
