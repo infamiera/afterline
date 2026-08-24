@@ -328,17 +328,17 @@ public partial class MainWindow
 
     private void ConfigureLayerPointerInteractionV068()
     {
-        UIElement? host = _editorGuideHostCanary ?? _editorComposition;
+        FrameworkElement? host = _editorGuideHostCanary ?? _editorComposition;
         if (host is null)
             return;
 
-        host.AddHandler(Mouse.PreviewMouseLeftButtonDownEvent,
+        host.AddHandler(UIElement.PreviewMouseLeftButtonDownEvent,
             new MouseButtonEventHandler(LayerPointerDownV068), true);
         host.AddHandler(Mouse.PreviewMouseMoveEvent,
             new MouseEventHandler(LayerPointerMoveV068), true);
-        host.AddHandler(Mouse.PreviewMouseLeftButtonUpEvent,
+        host.AddHandler(UIElement.PreviewMouseLeftButtonUpEvent,
             new MouseButtonEventHandler(LayerPointerUpV068), true);
-        host.AddHandler(Mouse.PreviewMouseRightButtonDownEvent,
+        host.AddHandler(UIElement.PreviewMouseRightButtonDownEvent,
             new MouseButtonEventHandler(LayerPointerRightDownV068), true);
         host.LostMouseCapture += (_, _) => EndLayerPointerInteractionV068();
     }
@@ -454,7 +454,7 @@ public partial class MainWindow
         _editorLayerStrokePixelsV068 = null;
         _editorLayerStrokeStrideV068 = 0;
 
-        UIElement? host = _editorGuideHostCanary ?? _editorComposition;
+        FrameworkElement? host = _editorGuideHostCanary ?? _editorComposition;
         if (host?.IsMouseCaptured == true)
             host.ReleaseMouseCapture();
         if (host is not null)
