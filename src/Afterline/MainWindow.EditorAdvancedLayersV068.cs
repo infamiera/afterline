@@ -389,7 +389,7 @@ public partial class MainWindow
         _editorLayerDragStartV068 = point;
         _editorLayerDragStartXV068 = hit.X;
         _editorLayerDragStartYV068 = hit.Y;
-        if (sender is UIElement element)
+        if (sender is FrameworkElement element)
         {
             element.Cursor = Cursors.SizeAll;
             element.CaptureMouse();
