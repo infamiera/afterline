@@ -29,11 +29,33 @@ internal static class ChatColorRefinementsV045
         @"^\s*(?<tag>\[INFO\])\s+You have bought the\s+(?<name>.+?)\s+tattoo for\s+(?<price>\$[\d,.]+)(?<trailing>.*)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex WeaponAttachmentInstructionLine = new(
+        @"^\s*Attachments found on your Weapons\.",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex WeaponDetachCommand = new(
+        @"/detach\s+weaponIndex(?:\s+attachmentIndex)?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     internal static bool TryFormat(string body, out IReadOnlyList<EditorChatSegment> segments)
     {
         segments = Array.Empty<EditorChatSegment>();
         string trimmed = body.TrimStart();
         if (trimmed.Length == 0) return false;
+
+        if (WeaponAttachmentInstructionLine.IsMatch(body))
+        {
+            Match[] commands = WeaponDetachCommand.Matches(body).Cast<Match>().ToArray();
+            if (commands.Length > 0)
+            {
+                segments = HighlightRanges(
+                    body,
+                    EditorChatFormatter.White,
+                    commands.Select(command =>
+                        (command.Index, command.Length, EditorChatFormatter.Orange)));
+                return true;
+            }
+        }
 
         Match friendLogin = FriendLoginLine.Match(body);
         if (friendLogin.Success)

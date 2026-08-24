@@ -203,6 +203,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             line.ColorRuns,
             Math.Max(0, start),
             text.Length);
+        runs = ChatColorReliabilityService.EnsureExpectedAccents(text, runs);
         return new CapturedChatLine(text, runs);
     }
 

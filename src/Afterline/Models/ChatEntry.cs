@@ -98,7 +98,7 @@ public sealed class ChatEntry
         CapturedAt = isSystemMessage ? capturedAt : ResolveTimestamp(capturedAt, Text);
         CapturedColorRuns = isSystemMessage
             ? Array.Empty<ChatColorRun>()
-            : ChatColorData.NormalizeRuns(Text, capturedColorRuns);
+            : ChatColorReliabilityService.EnsureExpectedAccents(Text, capturedColorRuns);
     }
 
     public static ChatEntry System(DateTime timestamp, string text) => new(timestamp, text, true);

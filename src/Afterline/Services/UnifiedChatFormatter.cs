@@ -111,9 +111,12 @@ internal static class UnifiedChatFormatter
             }
         }
 
+        IReadOnlyList<ChatColorRun> reliableRuns = ChatColorReliabilityService.EnsureExpectedAccents(
+            source,
+            exact.ColorRuns);
         IReadOnlyList<ChatColorRun> runs = ChatColorData.SliceRuns(
             source,
-            exact.ColorRuns,
+            reliableRuns,
             sourceStart,
             visibleText.Length);
         if (runs.Count == 0 || !ChatColorData.HasCompleteCoverage(visibleText, runs))

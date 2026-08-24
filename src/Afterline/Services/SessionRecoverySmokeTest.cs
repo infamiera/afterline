@@ -88,7 +88,18 @@ internal static class SessionRecoverySmokeTest
     private static void VerifyHtmlChatExport(ChatEntry exactColorEntry, DateTime exportedAt)
     {
         const string tattoo = "[05:58:23] [INFO] You have bought the My Crazy Life tattoo for $735.";
+        const string attachmentInstruction = "[07:05:34] Attachments found on your Weapons. Use /detach weaponIndex or /detach weaponIndex attachmentIndex to disassemble the Weapon!";
         const string unsafeText = "[05:59:00] <script>alert('Afterline')</script>";
+        var initiallyWhiteInstruction = new ChatEntry(
+            exportedAt,
+            attachmentInstruction,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, attachmentInstruction.Length, 255, 255, 255)
+            });
+        VerifyRecoveredCommandAccents(initiallyWhiteInstruction, attachmentInstruction);
+        VerifyCapturedAccentPrecedence(exportedAt, attachmentInstruction);
+
         string html = ChatHtmlExportService.BuildDocument(
             "Afterline <Export>",
             "Smoke test <context>",
@@ -96,7 +107,8 @@ internal static class SessionRecoverySmokeTest
             {
                 new ChatHtmlExportItem(exactColorEntry, exactColorEntry.Text, 1),
                 new ChatHtmlExportItem(new ChatEntry(exportedAt, tattoo), tattoo, 2),
-                new ChatHtmlExportItem(new ChatEntry(exportedAt, unsafeText), unsafeText, 3)
+                new ChatHtmlExportItem(initiallyWhiteInstruction, attachmentInstruction, 3),
+                new ChatHtmlExportItem(new ChatEntry(exportedAt, unsafeText), unsafeText, 4)
             },
             useAutomaticColors: true,
             exportedAt: exportedAt);
@@ -104,12 +116,77 @@ internal static class SessionRecoverySmokeTest
         if (!html.Contains("color:#3896F3", StringComparison.Ordinal) ||
             !html.Contains("color:#FBF724", StringComparison.Ordinal) ||
             !html.Contains("color:#56D64B", StringComparison.Ordinal) ||
+            !html.Contains("color:#EDA841", StringComparison.Ordinal) ||
             !html.Contains("&lt;script&gt;", StringComparison.Ordinal) ||
             !html.Contains("&lt;/script&gt;", StringComparison.Ordinal) ||
             html.Contains("<script>alert", StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
                 "The HTML export did not preserve exact/manual colors or safely encode chat text.");
+        }
+    }
+
+    private static void VerifyRecoveredCommandAccents(
+        ChatEntry entry,
+        string text)
+    {
+        int firstCommand = text.IndexOf("/detach weaponIndex", StringComparison.Ordinal);
+        int secondCommand = text.LastIndexOf("/detach weaponIndex attachmentIndex", StringComparison.Ordinal);
+        int surroundingText = text.IndexOf("Attachments found", StringComparison.Ordinal);
+        EditorChatLine? manualFallback = UnifiedChatFormatter
+            .FormatLines(text, showTimestamps: true)
+            .FirstOrDefault();
+        int manualCommandAccents = manualFallback?.Segments.Count(segment =>
+            segment.Color == EditorChatFormatter.Orange &&
+            segment.Text.StartsWith("/detach", StringComparison.OrdinalIgnoreCase)) ?? 0;
+        if (!HasColorAt(entry.CapturedColorRuns, firstCommand, 0xED, 0xA8, 0x41) ||
+            !HasColorAt(entry.CapturedColorRuns, secondCommand, 0xED, 0xA8, 0x41) ||
+            !HasColorAt(entry.CapturedColorRuns, surroundingText, 0xFF, 0xFF, 0xFF) ||
+            manualCommandAccents != 2)
+        {
+            throw new InvalidOperationException(
+                "A temporarily unstyled FiveM snapshot suppressed required command accents.");
+        }
+    }
+
+    private static bool HasColorAt(
+        IEnumerable<ChatColorRun> runs,
+        int index,
+        byte red,
+        byte green,
+        byte blue)
+        => index >= 0 && runs.Any(run =>
+            run.Start <= index &&
+            run.End > index &&
+            run.Red == red &&
+            run.Green == green &&
+            run.Blue == blue);
+
+    private static void VerifyCapturedAccentPrecedence(
+        DateTime observedAt,
+        string text)
+    {
+        const string shortCommand = "/detach weaponIndex";
+        int firstCommand = text.IndexOf(shortCommand, StringComparison.Ordinal);
+        int secondCommand = text.LastIndexOf(
+            "/detach weaponIndex attachmentIndex",
+            StringComparison.Ordinal);
+        int firstEnd = firstCommand + shortCommand.Length;
+        var partlyStyled = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, firstCommand, 255, 255, 255),
+                new ChatColorRun(firstCommand, shortCommand.Length, 0x12, 0xB4, 0xE8),
+                new ChatColorRun(firstEnd, text.Length - firstEnd, 255, 255, 255)
+            });
+
+        if (!HasColorAt(partlyStyled.CapturedColorRuns, firstCommand, 0x12, 0xB4, 0xE8) ||
+            !HasColorAt(partlyStyled.CapturedColorRuns, secondCommand, 0xED, 0xA8, 0x41))
+        {
+            throw new InvalidOperationException(
+                "The reliability check replaced a genuine FiveM accent or missed a neutral one.");
         }
     }
 }
