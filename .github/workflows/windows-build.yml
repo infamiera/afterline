@@ -110,6 +110,10 @@ jobs:
             -PassThru
           if (-not $sessionTest.WaitForExit(45000)) {
             Stop-Process -Id $sessionTest.Id -Force -ErrorAction SilentlyContinue
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
             throw "Afterline did not finish the session-recovery smoke test within 45 seconds."
           }
           if ($sessionTest.ExitCode -ne 0) {

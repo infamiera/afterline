@@ -32,7 +32,12 @@ public partial class App : System.Windows.Application
                 string archiveRoot = e.Args.Length > recoverySmokeIndex + 1
                     ? e.Args[recoverySmokeIndex + 1]
                     : throw new ArgumentException("The session-recovery smoke-test archive folder is missing.");
-                SessionRecoverySmokeTest.RunAsync(archiveRoot).GetAwaiter().GetResult();
+                // Run outside WPF's dispatcher synchronization context so the
+                // file-I/O continuations used by the smoke test cannot deadlock
+                // the startup thread.
+                Task.Run(() => SessionRecoverySmokeTest.RunAsync(archiveRoot))
+                    .GetAwaiter()
+                    .GetResult();
                 DiagnosticLogger.Info("Canary session-recovery smoke test passed.");
                 Environment.Exit(0);
             }
