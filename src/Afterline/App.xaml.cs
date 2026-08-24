@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using Afterline.Services;
@@ -63,6 +64,17 @@ public partial class App : System.Windows.Application
                         parsed.BuildId))
                 {
                     throw new InvalidDataException("Canary build ordering failed its smoke test.");
+                }
+
+                string informational = Assembly.GetExecutingAssembly()
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                    .InformationalVersion ?? string.Empty;
+                string expectedInformational =
+                    $"{parsed.Release.LatestVersion}-canary.{buildNumber}+{buildNumber}.{parsed.CommitSha}";
+                if (!string.Equals(informational, expectedInformational, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        $"The executable identity '{informational}' did not match '{expectedInformational}'.");
                 }
 
                 DiagnosticLogger.Info("Canary update-manifest smoke test passed.");

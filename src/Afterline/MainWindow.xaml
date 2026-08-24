@@ -166,7 +166,14 @@
                             </ListBox.ItemTemplate>
                         </ListBox>
                         <Border Grid.Row="1" Background="#141A21" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="12">
-                            <Grid><TextBlock x:Name="LiveCountText" Text="0 messages shown" Foreground="{StaticResource MutedText}"/><Button Content="Clear display" HorizontalAlignment="Right" Padding="10,5" Click="ClearLive_Click"/></Grid>
+                            <Grid>
+                                <TextBlock x:Name="LiveCountText" Text="0 messages shown" Foreground="{StaticResource MutedText}" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="Clear display" Padding="10,5" Margin="0,0,6,0" Click="ClearLive_Click"/>
+                                    <Button Content="↑" Width="32" Padding="6,5" Margin="0,0,4,0" ToolTip="Jump to the top of Live Chat" Click="ScrollLiveTop_Click"/>
+                                    <Button Content="↓" Width="32" Padding="6,5" ToolTip="Jump to the bottom of Live Chat" Click="ScrollLiveBottom_Click"/>
+                                </StackPanel>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Border>

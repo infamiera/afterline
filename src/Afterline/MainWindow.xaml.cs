@@ -118,6 +118,19 @@ public partial class MainWindow : Window
         Activate();
     }
 
+    private void ScrollLiveTop_Click(object sender, RoutedEventArgs e)
+    {
+        if (LiveChatList.Items.Count > 0)
+            LiveChatList.ScrollIntoView(LiveChatList.Items[0]);
+    }
+
+    private void ScrollLiveBottom_Click(object sender, RoutedEventArgs e)
+    {
+        int lastIndex = LiveChatList.Items.Count - 1;
+        if (lastIndex >= 0)
+            LiveChatList.ScrollIntoView(LiveChatList.Items[lastIndex]);
+    }
+
     private void ExitApplication()
     {
         _isExiting = true;

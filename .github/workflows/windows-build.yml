@@ -46,6 +46,7 @@ jobs:
             -p:DebugType=None `
             -p:SatelliteResourceLanguages=en `
             -p:InformationalVersion="$informational" `
+            -p:IncludeSourceRevisionInInformationalVersion=false `
             -o publish/Afterline
 
       - name: Smoke test Canary startup

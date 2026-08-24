@@ -16,7 +16,7 @@ public partial class MainWindow
         string DisplayLabel);
 
     private static readonly Regex CanaryInformationalVersionV065 = new(
-        @"^(?<version>\d+\.\d+\.\d+)-canary\.(?<run>\d+)\+(?:(?<metaRun>\d+)\.)?(?<sha>[0-9a-f]{7,40})$",
+        @"^(?<version>\d+\.\d+\.\d+)-canary\.(?<run>\d+)\+(?:(?<metaRun>\d+)\.)?(?<sha>[0-9a-f]{7,40})(?:\.(?<sourceSha>[0-9a-f]{7,40}))?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private bool _buildIdentityV065Initialized;

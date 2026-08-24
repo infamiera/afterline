@@ -116,6 +116,16 @@ public partial class MainWindow
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? string.Empty;
 
+        var identified = CanaryInformationalVersionV065.Match(informational.Trim());
+        if (identified.Success)
+        {
+            string sha = identified.Groups["sha"].Value.ToLowerInvariant();
+            return identified.Groups["metaRun"].Success &&
+                   int.TryParse(identified.Groups["run"].Value, out int run)
+                ? $"{run}.{sha}"
+                : sha;
+        }
+
         int plus = informational.LastIndexOf('+');
         if (plus >= 0 && plus < informational.Length - 1)
             return informational[(plus + 1)..].Trim();
