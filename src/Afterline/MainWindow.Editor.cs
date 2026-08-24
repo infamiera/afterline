@@ -225,8 +225,7 @@ public partial class MainWindow
         content.Children.Add(CreateEditorSectionHeading("CHAT STYLE", "Arial and Arial Bold are built in as the primary output fonts. Other choices use Windows system fonts only."));
 
         _editorFontBox = new ComboBox { Height = 34, Margin = new Thickness(0, 0, 0, 8) };
-        foreach (string font in new[] { "Arial Bold", "Arial", "Segoe UI Semibold", "Tahoma", "Verdana" })
-            _editorFontBox.Items.Add(font);
+        PopulateEditorFontBoxV071(_editorFontBox);
         _editorFontBox.SelectedIndex = 0;
         _editorFontBox.SelectionChanged += (_, _) => ScheduleEditorChatRender();
         content.Children.Add(CreateEditorField("Font", _editorFontBox));

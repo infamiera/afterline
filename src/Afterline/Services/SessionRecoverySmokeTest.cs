@@ -138,6 +138,8 @@ internal static class SessionRecoverySmokeTest
         VerifyLowSpeechNeutrality(exportedAt);
         VerifyGlobalOocRoles(exportedAt);
         VerifyItalicTypography(exportedAt);
+        VerifyMixedActionSpeechColors(exportedAt);
+        VerifyEditorTextRangeColors();
 
         string html = ChatHtmlExportService.BuildDocument(
             "Afterline <Export>",
@@ -280,6 +282,88 @@ internal static class SessionRecoverySmokeTest
         {
             throw new InvalidOperationException(
                 "An all-white FiveM snapshot suppressed Panda Point activity values in Live Chat.");
+        }
+    }
+
+    private static void VerifyMixedActionSpeechColors(DateTime observedAt)
+    {
+        const string text = "[17:39:53] * Bianca Yurei grabs the mop from the counter. Welp— someone's gotta do it. She starts sweeping the floor.";
+        int speechStart = text.IndexOf("Welp", StringComparison.Ordinal);
+        int secondAction = text.IndexOf("She starts", StringComparison.Ordinal);
+        var exact = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, speechStart, 0xC2, 0xA3, 0xDA),
+                new ChatColorRun(speechStart, secondAction - speechStart, 0xFF, 0xFF, 0xFF),
+                new ChatColorRun(secondAction, text.Length - secondAction, 0xC2, 0xA3, 0xDA)
+            });
+        if (!HasColorAt(exact.CapturedColorRuns, text.IndexOf("grabs", StringComparison.Ordinal), 0xC2, 0xA3, 0xDA) ||
+            !HasColorAt(exact.CapturedColorRuns, speechStart, 0xFF, 0xFF, 0xFF) ||
+            !HasColorAt(exact.CapturedColorRuns, secondAction, 0xC2, 0xA3, 0xDA))
+        {
+            throw new InvalidOperationException(
+                "A valid mixed FiveM action/speech snapshot was flattened into one color.");
+        }
+
+        const string paired = "Bianca says [low]: Hmmm. *She scans the items.* Still here. *She turns back.*";
+        EditorChatLine fallback = UnifiedChatFormatter.FormatLines(paired, showTimestamps: false).First();
+        if (!fallback.Segments.Any(segment =>
+                segment.Color == EditorChatFormatter.Purple &&
+                segment.Text.Contains("She scans", StringComparison.Ordinal)) ||
+            !fallback.Segments.Any(segment =>
+                segment.Color == EditorChatFormatter.White &&
+                segment.Text.Contains("Still here", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "Paired-star action ranges were not colored independently from speech.");
+        }
+
+        const string lowMixed = "[17:38:23] Bianca Yurei says [low]: Hmmm. She scans the items in the room.";
+        int lowAction = lowMixed.IndexOf("She scans", StringComparison.Ordinal);
+        var lowExact = new ChatEntry(
+            observedAt,
+            lowMixed,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, lowAction, 255, 255, 255),
+                new ChatColorRun(lowAction, lowMixed.Length - lowAction, 0xC2, 0xA3, 0xDA)
+            });
+        if (!HasColorAt(lowExact.CapturedColorRuns, lowMixed.IndexOf("Hmmm", StringComparison.Ordinal), 255, 255, 255) ||
+            !HasColorAt(lowExact.CapturedColorRuns, lowAction, 0xC2, 0xA3, 0xDA))
+        {
+            throw new InvalidOperationException(
+                "The [low] neutrality safeguard removed a legitimate computed action color.");
+        }
+    }
+
+    private static void VerifyEditorTextRangeColors()
+    {
+        const string text = "[17:38:23] Bianca Yurei says [low]: /quietly amused/ before replying.";
+        int start = text.IndexOf("Bianca Yurei", StringComparison.Ordinal);
+        var textColors = new[]
+        {
+            new EditorTextColorOverride(
+                0,
+                start,
+                "Bianca Yurei".Length,
+                "Bianca Yurei",
+                EditorChatFormatter.Red)
+        };
+        EditorChatLine line = UnifiedChatFormatter.FormatLines(
+            text,
+            showTimestamps: true,
+            textOverrides: textColors).First();
+        if (!line.Segments.Any(segment =>
+                segment.Color == EditorChatFormatter.Red &&
+                segment.Text.Contains("Bianca Yurei", StringComparison.Ordinal)) ||
+            !line.Segments.Any(segment =>
+                segment.IsItalic &&
+                segment.Text.Contains("/quietly amused/", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "Editor selected-text coloring did not preserve the selected range and italics.");
         }
     }
 

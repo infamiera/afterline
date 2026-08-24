@@ -39,7 +39,7 @@ internal static class ChatColorReliabilityService
         string body = text[bodyStart..];
 
         if (IsNeutralLowSpeech(body))
-            return OverrideColor(text, normalized, bodyStart, body.Length, EditorChatFormatter.White);
+            return NormalizeLowSpeechColors(text, normalized, bodyStart, body.Length);
 
         Match globalOoc = GlobalOoc.Match(body);
         if (globalOoc.Success)
@@ -78,6 +78,20 @@ internal static class ChatColorReliabilityService
                 segment.Color != EditorChatFormatter.White &&
                 !HasReliableAccent(reliable, segmentStart, length))
             {
+                // Leading-star action lines can legally mix purple action spans with
+                // white spoken text. Preserve that exact computed-style snapshot;
+                // replacing the expected full-purple fallback would destroy the
+                // speech/action boundary seen in FiveM.
+                bool preserveMixedAction = segmentStart == bodyStart &&
+                    length == body.Length &&
+                    body.TrimStart().StartsWith("*", StringComparison.Ordinal) &&
+                    HasActionPurpleAndNeutralCoverage(reliable, segmentStart, length);
+                if (preserveMixedAction)
+                {
+                    segmentStart += length;
+                    continue;
+                }
+
                 reliable = OverrideColor(
                     text,
                     reliable,
@@ -146,6 +160,36 @@ internal static class ChatColorReliabilityService
         return false;
     }
 
+    private static IReadOnlyList<ChatColorRun> NormalizeLowSpeechColors(
+        string text,
+        IReadOnlyList<ChatColorRun> runs,
+        int start,
+        int length)
+    {
+        int end = start + length;
+        IReadOnlyList<ChatColorRun> corrected = runs;
+        foreach (ChatColorRun run in runs)
+        {
+            int overlapStart = Math.Max(start, run.Start);
+            int overlapEnd = Math.Min(end, run.End);
+            if (overlapEnd <= overlapStart || IsActionPurple(run)) continue;
+            corrected = OverrideColor(
+                text,
+                corrected,
+                overlapStart,
+                overlapEnd - overlapStart,
+                EditorChatFormatter.White);
+        }
+        return corrected;
+    }
+
+    private static bool IsActionPurple(ChatColorRun run)
+        => run.Alpha >= 128 &&
+           run.Red >= 135 &&
+           run.Blue >= 145 &&
+           run.Red - run.Green >= 15 &&
+           run.Blue - run.Green >= 20;
+
     private static IReadOnlyList<EditorChatSegment> ResolveExpectedSegments(string body)
     {
         if (ChatColorRefinementsV045.TryFormat(
@@ -191,6 +235,26 @@ internal static class ChatColorReliabilityService
         int maximum = Math.Max(run.Red, Math.Max(run.Green, run.Blue));
         int minimum = Math.Min(run.Red, Math.Min(run.Green, run.Blue));
         return maximum >= 100 && maximum - minimum >= 30;
+    }
+
+    private static bool HasActionPurpleAndNeutralCoverage(
+        IReadOnlyList<ChatColorRun> runs,
+        int start,
+        int length)
+    {
+        int end = start + length;
+        bool chromatic = false;
+        bool neutral = false;
+        foreach (ChatColorRun run in runs)
+        {
+            if (run.End <= start) continue;
+            if (run.Start >= end) break;
+            if (run.Alpha < 128) continue;
+            if (IsActionPurple(run)) chromatic = true;
+            else neutral = true;
+            if (chromatic && neutral) return true;
+        }
+        return false;
     }
 
     private static IReadOnlyList<ChatColorRun> OverrideColor(

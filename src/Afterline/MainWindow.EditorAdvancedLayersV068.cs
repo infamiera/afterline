@@ -17,6 +17,18 @@ public partial class MainWindow
         Erase
     }
 
+    private enum EditorLayerResizeHandleV071
+    {
+        NorthWest,
+        North,
+        NorthEast,
+        East,
+        SouthEast,
+        South,
+        SouthWest,
+        West
+    }
+
     private sealed record EditorLayerStateV068(
         string LayerId,
         BitmapSource Bitmap,
@@ -32,7 +44,7 @@ public partial class MainWindow
     private bool _editorAdvancedLayersV068Initialized;
     private Expander? _editorFilterAdjustmentsExpanderV068;
     private Rectangle? _editorLayerSelectionOutlineV068;
-    private Thumb? _editorLayerResizeThumbV068;
+    private readonly Dictionary<EditorLayerResizeHandleV071, Thumb> _editorLayerResizeThumbsV071 = new();
     private Button? _editorLayerLockBadgeV068;
     private ComboBox? _editorLayerPaintColorV068;
     private Slider? _editorLayerBrushSizeV068;
@@ -48,8 +60,11 @@ public partial class MainWindow
 
     private double _editorLayerResizeStartWidthV068;
     private double _editorLayerResizeStartHeightV068;
+    private double _editorLayerResizeStartXV071;
+    private double _editorLayerResizeStartYV071;
     private double _editorLayerResizeDeltaXV068;
     private double _editorLayerResizeDeltaYV068;
+    private EditorLayerResizeHandleV071 _editorLayerResizeHandleV071 = EditorLayerResizeHandleV071.SouthEast;
 
     private bool _editorLayerStrokeActiveV068;
     private Point _editorLayerStrokeLastPointV068;
@@ -233,23 +248,32 @@ public partial class MainWindow
         Panel.SetZIndex(_editorLayerSelectionOutlineV068, 20);
         host.Children.Add(_editorLayerSelectionOutlineV068);
 
-        _editorLayerResizeThumbV068 = new Thumb
+        foreach (EditorLayerResizeHandleV071 handle in Enum.GetValues<EditorLayerResizeHandleV071>())
         {
-            Width = 14,
-            Height = 14,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-            Cursor = Cursors.SizeNWSE,
-            Background = (Brush)FindResource("Accent"),
-            BorderBrush = Brushes.White,
-            BorderThickness = new Thickness(1),
-            ToolTip = "Drag to resize this image layer. The right and bottom edges snap to the base image."
-        };
-        _editorLayerResizeThumbV068.DragStarted += LayerResizeStartedV068;
-        _editorLayerResizeThumbV068.DragDelta += LayerResizeDeltaV068;
-        _editorLayerResizeThumbV068.DragCompleted += LayerResizeCompletedV068;
-        Panel.SetZIndex(_editorLayerResizeThumbV068, 22);
-        host.Children.Add(_editorLayerResizeThumbV068);
+            bool horizontalEdge = handle is EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.South;
+            bool verticalEdge = handle is EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.West;
+            var thumb = new Thumb
+            {
+                Width = horizontalEdge ? 24 : verticalEdge ? 8 : 13,
+                Height = verticalEdge ? 24 : horizontalEdge ? 8 : 13,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Top,
+                Cursor = ResizeCursorV071(handle),
+                Background = horizontalEdge || verticalEdge
+                    ? Brushes.Transparent
+                    : (Brush)FindResource("Accent"),
+                BorderBrush = horizontalEdge || verticalEdge ? Brushes.Transparent : Brushes.White,
+                BorderThickness = horizontalEdge || verticalEdge ? new Thickness(0) : new Thickness(1),
+                Tag = handle,
+                ToolTip = "Drag this edge or corner to resize the selected image layer. Canvas borders snap when snapping is enabled."
+            };
+            thumb.DragStarted += LayerResizeStartedV068;
+            thumb.DragDelta += LayerResizeDeltaV068;
+            thumb.DragCompleted += LayerResizeCompletedV068;
+            Panel.SetZIndex(thumb, 22);
+            host.Children.Add(thumb);
+            _editorLayerResizeThumbsV071[handle] = thumb;
+        }
 
         _editorLayerLockBadgeV068 = new Button
         {
@@ -299,17 +323,13 @@ public partial class MainWindow
             }
         }
 
-        if (_editorLayerResizeThumbV068 is not null)
+        foreach ((EditorLayerResizeHandleV071 handle, Thumb thumb) in _editorLayerResizeThumbsV071)
         {
-            _editorLayerResizeThumbV068.Visibility = show && layer is not null && !layer.IsLocked
+            thumb.Visibility = show && layer is not null && !layer.IsLocked
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             if (show && layer is not null)
-                _editorLayerResizeThumbV068.Margin = new Thickness(
-                    Math.Max(0, layer.X + layer.Width - 7),
-                    Math.Max(0, layer.Y + layer.Height - 7),
-                    0,
-                    0);
+                PositionLayerResizeThumbV071(thumb, handle, layer);
         }
 
         if (_editorLayerLockBadgeV068 is not null)
@@ -535,6 +555,10 @@ public partial class MainWindow
         if (layer is null || layer.IsLocked)
             return;
         PushLayerEditHistoryV068(layer, "layer size");
+        if (sender is Thumb { Tag: EditorLayerResizeHandleV071 handle })
+            _editorLayerResizeHandleV071 = handle;
+        _editorLayerResizeStartXV071 = layer.X;
+        _editorLayerResizeStartYV071 = layer.Y;
         _editorLayerResizeStartWidthV068 = layer.Width;
         _editorLayerResizeStartHeightV068 = layer.Height;
         _editorLayerResizeDeltaXV068 = 0;
@@ -550,28 +574,25 @@ public partial class MainWindow
         double zoom = Math.Max(0.1, _editorZoomScale);
         _editorLayerResizeDeltaXV068 += e.HorizontalChange / zoom;
         _editorLayerResizeDeltaYV068 += e.VerticalChange / zoom;
-        double width = Math.Max(16, _editorLayerResizeStartWidthV068 + _editorLayerResizeDeltaXV068);
-        double height = Math.Max(16, _editorLayerResizeStartHeightV068 + _editorLayerResizeDeltaYV068);
-
         (double baseWidth, double baseHeight) = GetBaseImageBoundsV068();
-        double threshold = 10 / zoom;
-        double right = layer.X + width;
-        double bottom = layer.Y + height;
-        double? guideX = null;
-        double? guideY = null;
-        if (Math.Abs(right - baseWidth) <= threshold)
-        {
-            width = Math.Max(16, baseWidth - layer.X);
-            guideX = baseWidth;
-        }
-        if (Math.Abs(bottom - baseHeight) <= threshold)
-        {
-            height = Math.Max(16, baseHeight - layer.Y);
-            guideY = baseHeight;
-        }
+        (Rect bounds, double? guideX, double? guideY) = CalculateLayerResizeBoundsV071(
+            new Rect(
+                _editorLayerResizeStartXV071,
+                _editorLayerResizeStartYV071,
+                _editorLayerResizeStartWidthV068,
+                _editorLayerResizeStartHeightV068),
+            _editorLayerResizeHandleV071,
+            _editorLayerResizeDeltaXV068,
+            _editorLayerResizeDeltaYV068,
+            baseWidth,
+            baseHeight,
+            _editorSnapCheckCanary?.IsChecked == true,
+            10 / zoom);
 
-        layer.Width = width;
-        layer.Height = height;
+        layer.X = bounds.X;
+        layer.Y = bounds.Y;
+        layer.Width = bounds.Width;
+        layer.Height = bounds.Height;
         UpdateImageLayerVisualV067(layer);
         EnsureLayerCanvasExtentV067();
         RefreshSelectedLayerAdornerV068();
@@ -584,6 +605,99 @@ public partial class MainWindow
             SetEditorStatus($"Resized ‘{_editorSelectedImageLayerV067.Name}’ to {_editorSelectedImageLayerV067.Width:0} × {_editorSelectedImageLayerV067.Height:0} px.");
         _editorSnapGuideTimerCanary.Stop();
         _editorSnapGuideTimerCanary.Start();
+    }
+
+    private static Cursor ResizeCursorV071(EditorLayerResizeHandleV071 handle)
+        => handle switch
+        {
+            EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.South => Cursors.SizeNS,
+            EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.West => Cursors.SizeWE,
+            EditorLayerResizeHandleV071.NorthEast or EditorLayerResizeHandleV071.SouthWest => Cursors.SizeNESW,
+            _ => Cursors.SizeNWSE
+        };
+
+    private static void PositionLayerResizeThumbV071(
+        Thumb thumb,
+        EditorLayerResizeHandleV071 handle,
+        EditorImageLayerV067 layer)
+    {
+        bool horizontalEdge = handle is EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.South;
+        bool verticalEdge = handle is EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.West;
+        if (horizontalEdge) thumb.Width = Math.Max(16, layer.Width - 14);
+        if (verticalEdge) thumb.Height = Math.Max(16, layer.Height - 14);
+
+        double left = handle switch
+        {
+            EditorLayerResizeHandleV071.NorthWest or EditorLayerResizeHandleV071.West or EditorLayerResizeHandleV071.SouthWest
+                => layer.X - thumb.Width / 2,
+            EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.South
+                => layer.X + layer.Width / 2 - thumb.Width / 2,
+            _ => layer.X + layer.Width - thumb.Width / 2
+        };
+        double top = handle switch
+        {
+            EditorLayerResizeHandleV071.NorthWest or EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.NorthEast
+                => layer.Y - thumb.Height / 2,
+            EditorLayerResizeHandleV071.West or EditorLayerResizeHandleV071.East
+                => layer.Y + layer.Height / 2 - thumb.Height / 2,
+            _ => layer.Y + layer.Height - thumb.Height / 2
+        };
+        thumb.Margin = new Thickness(Math.Max(0, left), Math.Max(0, top), 0, 0);
+    }
+
+    private static (Rect Bounds, double? GuideX, double? GuideY) CalculateLayerResizeBoundsV071(
+        Rect start,
+        EditorLayerResizeHandleV071 handle,
+        double deltaX,
+        double deltaY,
+        double baseWidth,
+        double baseHeight,
+        bool snap,
+        double snapThreshold)
+    {
+        const double minimum = 16;
+        bool moveLeft = handle is EditorLayerResizeHandleV071.NorthWest or EditorLayerResizeHandleV071.West or EditorLayerResizeHandleV071.SouthWest;
+        bool moveRight = handle is EditorLayerResizeHandleV071.NorthEast or EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.SouthEast;
+        bool moveTop = handle is EditorLayerResizeHandleV071.NorthWest or EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.NorthEast;
+        bool moveBottom = handle is EditorLayerResizeHandleV071.SouthWest or EditorLayerResizeHandleV071.South or EditorLayerResizeHandleV071.SouthEast;
+
+        double left = start.Left;
+        double right = start.Right;
+        double top = start.Top;
+        double bottom = start.Bottom;
+        if (moveLeft) left = Math.Clamp(start.Left + deltaX, 0, start.Right - minimum);
+        if (moveRight) right = Math.Max(start.Left + minimum, start.Right + deltaX);
+        if (moveTop) top = Math.Clamp(start.Top + deltaY, 0, start.Bottom - minimum);
+        if (moveBottom) bottom = Math.Max(start.Top + minimum, start.Bottom + deltaY);
+
+        double? guideX = null;
+        double? guideY = null;
+        if (snap)
+        {
+            if (moveLeft && Math.Abs(left) <= snapThreshold)
+            {
+                left = 0;
+                guideX = 0;
+            }
+            else if (moveRight && Math.Abs(right - baseWidth) <= snapThreshold)
+            {
+                right = Math.Max(left + minimum, baseWidth);
+                guideX = baseWidth;
+            }
+
+            if (moveTop && Math.Abs(top) <= snapThreshold)
+            {
+                top = 0;
+                guideY = 0;
+            }
+            else if (moveBottom && Math.Abs(bottom - baseHeight) <= snapThreshold)
+            {
+                bottom = Math.Max(top + minimum, baseHeight);
+                guideY = baseHeight;
+            }
+        }
+
+        return (new Rect(left, top, Math.Max(minimum, right - left), Math.Max(minimum, bottom - top)), guideX, guideY);
     }
 
     private (double X, double Y, double? GuideX, double? GuideY) SnapImageLayerV068(
@@ -661,7 +775,10 @@ public partial class MainWindow
 
     private void SelectImageLayerV068(EditorImageLayerV067 layer)
     {
+        EditorImageLayerV067? previous = _editorSelectedImageLayerV067;
         _editorSelectedImageLayerV067 = layer;
+        if (!ReferenceEquals(previous, layer))
+            EditorFilterTargetSelectionChangedV071();
         if (_editorLayerListV067 is not null)
         {
             foreach (ListBoxItem item in _editorLayerListV067.Items.OfType<ListBoxItem>())
@@ -861,6 +978,7 @@ public partial class MainWindow
 
     private void RestoreLayerStateV068(EditorImageLayerV067 layer, EditorLayerStateV068 state)
     {
+        ResetLayerFilterTargetV071(restoreVisual: false);
         layer.Bitmap = CloneBitmapCanary(state.Bitmap);
         layer.X = state.X;
         layer.Y = state.Y;

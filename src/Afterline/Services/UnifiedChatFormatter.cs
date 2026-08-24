@@ -14,7 +14,8 @@ internal static class UnifiedChatFormatter
         string input,
         bool showTimestamps,
         IReadOnlyDictionary<int, Color>? lineOverrides = null,
-        IReadOnlyDictionary<int, ChatColorLineRecord>? exactColors = null)
+        IReadOnlyDictionary<int, ChatColorLineRecord>? exactColors = null,
+        IReadOnlyList<EditorTextColorOverride>? textOverrides = null)
     {
         IReadOnlyList<EditorChatLine> baseLines = EditorChatFormatter.FormatLines(input, showTimestamps, lineOverrides);
         if (baseLines.Count == 0) return baseLines;
@@ -89,7 +90,136 @@ internal static class UnifiedChatFormatter
                 ChatTypographyService.ApplySlashItalics(finalSegments)));
         }
 
+        if (textOverrides is null || textOverrides.Count == 0)
+            return result;
+
+        return result.Select(line => ApplyTextColorOverrides(
+            line,
+            line.SourceIndex >= 0 && line.SourceIndex < sourceLines.Length
+                ? sourceLines[line.SourceIndex]
+                : string.Empty,
+            showTimestamps,
+            textOverrides)).ToArray();
+    }
+
+    private static EditorChatLine ApplyTextColorOverrides(
+        EditorChatLine line,
+        string rawLine,
+        bool showTimestamps,
+        IReadOnlyList<EditorTextColorOverride> overrides)
+    {
+        IReadOnlyList<EditorChatSegment> segments = line.Segments;
+        bool changed = false;
+        foreach (EditorTextColorOverride value in overrides.Where(value => value.SourceIndex == line.SourceIndex))
+        {
+            if (!TryMapTextOverrideToVisibleRange(
+                    rawLine,
+                    showTimestamps,
+                    value,
+                    out int visibleStart,
+                    out int visibleLength))
+                continue;
+
+            segments = ApplyColorToSegmentRange(segments, visibleStart, visibleLength, value.Color);
+            changed = true;
+        }
+
+        return changed
+            ? line with { AutoStyle = "Manual text color", Segments = segments }
+            : line;
+    }
+
+    private static bool TryMapTextOverrideToVisibleRange(
+        string rawLine,
+        bool showTimestamps,
+        EditorTextColorOverride value,
+        out int visibleStart,
+        out int visibleLength)
+    {
+        visibleStart = 0;
+        visibleLength = 0;
+        string source = rawLine.TrimEnd();
+        if (value.Start < 0 || value.Length <= 0 || value.End > source.Length ||
+            !string.Equals(source.Substring(value.Start, value.Length), value.Text, StringComparison.Ordinal))
+            return false;
+
+        Match timestamp = TimestampPrefix.Match(source);
+        if (!timestamp.Success)
+        {
+            visibleStart = value.Start;
+            visibleLength = value.Length;
+            return true;
+        }
+
+        Group timestampGroup = timestamp.Groups["timestamp"];
+        Group bodyGroup = timestamp.Groups["body"];
+        if (value.Start >= bodyGroup.Index)
+        {
+            visibleStart = showTimestamps
+                ? timestampGroup.Length + 1 + value.Start - bodyGroup.Index
+                : value.Start - bodyGroup.Index;
+            visibleLength = value.Length;
+            return true;
+        }
+
+        if (showTimestamps && value.Start >= timestampGroup.Index && value.End <= timestampGroup.Index + timestampGroup.Length)
+        {
+            visibleStart = value.Start - timestampGroup.Index;
+            visibleLength = value.Length;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<EditorChatSegment> ApplyColorToSegmentRange(
+        IReadOnlyList<EditorChatSegment> source,
+        int start,
+        int length,
+        Color color)
+    {
+        int end = start + length;
+        int cursor = 0;
+        var result = new List<EditorChatSegment>(source.Count + 4);
+        foreach (EditorChatSegment segment in source)
+        {
+            int segmentStart = cursor;
+            int segmentEnd = cursor + segment.Text.Length;
+            if (segmentEnd <= start || segmentStart >= end)
+            {
+                AppendMerged(result, segment);
+                cursor = segmentEnd;
+                continue;
+            }
+
+            int localStart = Math.Max(0, start - segmentStart);
+            int localEnd = Math.Min(segment.Text.Length, end - segmentStart);
+            if (localStart > 0)
+                AppendMerged(result, segment with { Text = segment.Text[..localStart] });
+            if (localEnd > localStart)
+                AppendMerged(result, segment with
+                {
+                    Text = segment.Text.Substring(localStart, localEnd - localStart),
+                    Color = color
+                });
+            if (localEnd < segment.Text.Length)
+                AppendMerged(result, segment with { Text = segment.Text[localEnd..] });
+            cursor = segmentEnd;
+        }
         return result;
+    }
+
+    private static void AppendMerged(List<EditorChatSegment> target, EditorChatSegment segment)
+    {
+        if (segment.Text.Length == 0) return;
+        if (target.Count > 0 &&
+            target[^1].Color == segment.Color &&
+            target[^1].IsItalic == segment.IsItalic)
+        {
+            target[^1] = target[^1] with { Text = target[^1].Text + segment.Text };
+            return;
+        }
+        target.Add(segment);
     }
 
     private static bool TryFormatExactColors(

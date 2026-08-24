@@ -28,12 +28,27 @@ public partial class MainWindow
 
     private int _editorFilterPreviewVersionV070;
     private int _editorFilterPreviewRenderCountV070;
+    private string? _editorLayerFilterTargetIdV071;
+    private BitmapSource? _editorLayerFilterCommittedV071;
+    private BitmapSource? _editorLayerFilterPreviewV071;
+    private TextBlock? _editorFilterTargetLabelV071;
 
     private FrameworkElement BuildFilterToolPanelCanary()
     {
         var content = new StackPanel();
         content.Children.Add(EditorHelpText(
-            "Adjust the loaded still image non-destructively. When a selection exists, the preview and Apply Changes affect only that selected area."));
+            "Adjust the selected image layer non-destructively. With no added image layer selected, changes target the Base Image; Base Image selections still limit the affected area."));
+
+        _editorFilterTargetLabelV071 = new TextBlock
+        {
+            Text = "Target · Base Image",
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("Accent"),
+            Margin = new Thickness(0, 0, 0, 8),
+            TextWrapping = TextWrapping.Wrap
+        };
+        content.Children.Add(_editorFilterTargetLabelV071);
 
         _editorFilterPresetCanary = new ComboBox { Height = 34 };
         foreach (string preset in new[] { "None", "Warm", "Cool", "Black & White", "Faded", "Cinematic", "High Contrast" })
@@ -78,8 +93,8 @@ public partial class MainWindow
         content.Children.Add(blur.Panel);
 
         var actions = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
-        var apply = CreateSmallEditorButton("Apply Changes", (_, _) => CommitCanaryFilterPreview());
-        apply.ToolTip = "Commit the current preview. If a selection is active, only that selected area is changed.";
+        var apply = CreateSmallEditorButton("Apply Changes", (_, _) => ApplyFilterWithHistoryCanaryV2());
+        apply.ToolTip = "Commit the current preview to the named target. Base Image selections limit the affected area; added image layers are adjusted independently.";
         var revert = CreateSmallEditorButton("Revert Preview", (_, _) => RevertCanaryFilterPreview());
         revert.ToolTip = "Discard the current filter preview and return to the last applied image.";
         actions.Children.Add(apply);
@@ -103,7 +118,7 @@ public partial class MainWindow
         content.Children.Add(transforms);
 
         content.Children.Add(EditorSubtleNote(
-            "Advanced selected-area filters currently target still screenshots. Animated GIFs keep their existing crop, chat and export workflow."));
+            "Added image layers receive their own preview, commit and Layer Undo history. Selected-area filters remain specific to the Base Image; animated GIFs keep their existing crop, chat and export workflow."));
         return WrapEditorToolPanel(content);
     }
 
@@ -191,6 +206,7 @@ public partial class MainWindow
     {
         _editorFilterPreviewVersionV070++;
         _editorFilterTimerCanary?.Stop();
+        ResetLayerFilterTargetV071(restoreVisual: true);
         _editorFilterPreviewCanary = null;
         _editorFilterCommittedCanary = null;
         _editorFilterTrackedMediaCanary = _editorLoadedMediaPath;
@@ -202,6 +218,38 @@ public partial class MainWindow
 
     private bool EnsureCanaryFilterSource()
     {
+        EditorImageLayerV067? selectedLayer = _editorSelectedImageLayerV067;
+        if (selectedLayer is not null)
+        {
+            if (selectedLayer.IsLocked)
+            {
+                SetEditorStatus("Unlock the selected image layer before applying Filters & Adjustments.");
+                return false;
+            }
+
+            bool targetChanged = !string.Equals(
+                _editorLayerFilterTargetIdV071,
+                selectedLayer.Id,
+                StringComparison.Ordinal);
+            bool sourceChanged = _editorLayerFilterCommittedV071 is null ||
+                (!ReferenceEquals(selectedLayer.Bitmap, _editorLayerFilterCommittedV071) &&
+                 !ReferenceEquals(selectedLayer.Bitmap, _editorLayerFilterPreviewV071));
+            if (targetChanged || sourceChanged)
+            {
+                ResetLayerFilterTargetV071(restoreVisual: true);
+                _editorLayerFilterTargetIdV071 = selectedLayer.Id;
+                _editorLayerFilterCommittedV071 = selectedLayer.Bitmap;
+                _editorLayerFilterPreviewV071 = null;
+            }
+
+            UpdateFilterTargetLabelV071();
+            return true;
+        }
+
+        if (_editorLayerFilterTargetIdV071 is not null)
+            ResetLayerFilterTargetV071(restoreVisual: true);
+        UpdateFilterTargetLabelV071();
+
         if (_editorBaseOriginal is null)
         {
             SetEditorStatus("Load a still screenshot before using Filters & Adjustments.");
@@ -232,18 +280,21 @@ public partial class MainWindow
 
     private void ApplyCanaryFilterPreview()
     {
-        if (!EnsureCanaryFilterSource() || _editorFilterCommittedCanary is null)
+        if (!EnsureCanaryFilterSource())
             return;
+
+        EditorImageLayerV067? layer = GetLayerFilterTargetV071();
+        BitmapSource? committed = layer is null
+            ? _editorFilterCommittedCanary
+            : _editorLayerFilterCommittedV071;
+        if (committed is null) return;
 
         try
         {
             BitmapSource preview = BuildFilteredBitmapCanary(
-                _editorFilterCommittedCanary,
+                committed,
                 CaptureCanaryFilterRenderSettingsV070());
-            _editorFilterPreviewCanary = preview;
-            _editorBaseOriginal = preview;
-            ApplyEditorImageAdjustments();
-            UpdateEditorCanvasSize();
+            ApplyFilterPreviewToTargetV071(layer, preview);
         }
         catch (Exception ex)
         {
@@ -254,10 +305,17 @@ public partial class MainWindow
 
     private async Task ApplyCanaryFilterPreviewBackgroundV070()
     {
-        if (!EnsureCanaryFilterSource() || _editorFilterCommittedCanary is null)
+        if (!EnsureCanaryFilterSource())
             return;
 
-        BitmapSource source = _editorFilterCommittedCanary;
+        EditorImageLayerV067? layer = GetLayerFilterTargetV071();
+        BitmapSource? committed = layer is null
+            ? _editorFilterCommittedCanary
+            : _editorLayerFilterCommittedV071;
+        if (committed is null) return;
+
+        BitmapSource source = committed;
+        string? targetId = layer?.Id;
         if (!source.IsFrozen)
         {
             ApplyCanaryFilterPreview();
@@ -272,13 +330,13 @@ public partial class MainWindow
             BitmapSource preview = await Task.Run(() =>
                 BuildFilteredBitmapCanary(source, settings));
             if (version != _editorFilterPreviewVersionV070 ||
-                !ReferenceEquals(source, _editorFilterCommittedCanary))
+                !string.Equals(targetId, GetLayerFilterTargetV071()?.Id, StringComparison.Ordinal) ||
+                !ReferenceEquals(source, targetId is null
+                    ? _editorFilterCommittedCanary
+                    : _editorLayerFilterCommittedV071))
                 return;
 
-            _editorFilterPreviewCanary = preview;
-            _editorBaseOriginal = preview;
-            ApplyEditorImageAdjustments();
-            UpdateEditorCanvasSize();
+            ApplyFilterPreviewToTargetV071(layer, preview);
         }
         catch (Exception ex)
         {
@@ -292,7 +350,9 @@ public partial class MainWindow
     }
 
     private CanaryFilterRenderSettingsV070 CaptureCanaryFilterRenderSettingsV070()
-        => new(
+    {
+        bool targetLayer = GetLayerFilterTargetV071() is not null;
+        return new(
             _editorFilterPresetCanary?.SelectedItem?.ToString() ?? "None",
             (_editorFilterStrengthCanary?.Value ?? 100) / 100.0,
             _editorFilterBrightnessCanary?.Value ?? 0,
@@ -301,9 +361,10 @@ public partial class MainWindow
             _editorFilterTemperatureCanary?.Value ?? 0,
             _editorFilterFadeCanary?.Value ?? 0,
             _editorFilterBlurCanary?.Value ?? 0,
-            _editorSelectionMaskCanary?.ToArray(),
-            _editorSelectionWidthCanary,
-            _editorSelectionHeightCanary);
+            targetLayer ? null : _editorSelectionMaskCanary?.ToArray(),
+            targetLayer ? 0 : _editorSelectionWidthCanary,
+            targetLayer ? 0 : _editorSelectionHeightCanary);
+    }
 
     private static BitmapSource BuildFilteredBitmapCanary(
         BitmapSource source,
@@ -476,31 +537,114 @@ public partial class MainWindow
     private void CommitCanaryFilterPreview()
     {
         _editorFilterPreviewVersionV070++;
-        if (_editorFilterPreviewCanary is null || _editorFilterPreviewRenderCountV070 > 0)
+        EditorImageLayerV067? layer = GetLayerFilterTargetV071();
+        BitmapSource? preview = layer is null
+            ? _editorFilterPreviewCanary
+            : _editorLayerFilterPreviewV071;
+        if (preview is null || _editorFilterPreviewRenderCountV070 > 0)
         {
             ApplyCanaryFilterPreview();
-            if (_editorFilterPreviewCanary is null) return;
+            layer = GetLayerFilterTargetV071();
+            preview = layer is null
+                ? _editorFilterPreviewCanary
+                : _editorLayerFilterPreviewV071;
+            if (preview is null) return;
         }
 
-        _editorFilterCommittedCanary = CloneBitmapCanary(_editorFilterPreviewCanary);
-        _editorBaseOriginal = _editorFilterCommittedCanary;
-        _editorFilterPreviewCanary = null;
+        if (layer is not null)
+        {
+            BitmapSource committed = CloneBitmapCanary(preview);
+            layer.Bitmap = committed;
+            _editorLayerFilterCommittedV071 = committed;
+            _editorLayerFilterPreviewV071 = null;
+            UpdateImageLayerVisualV067(layer);
+            RefreshLayerListV067(layer);
+            RefreshFilterPresetGalleryV067();
+        }
+        else
+        {
+            _editorFilterCommittedCanary = CloneBitmapCanary(preview);
+            _editorBaseOriginal = _editorFilterCommittedCanary;
+            _editorFilterPreviewCanary = null;
+            ApplyEditorImageAdjustments();
+        }
         ResetCanaryFilterControls();
-        ApplyEditorImageAdjustments();
-        SetEditorStatus(_editorSelectionMaskCanary is null
-            ? "Image adjustments applied."
-            : "Image adjustments applied to the selected area.");
+        SetEditorStatus(layer is not null
+            ? $"Image adjustments applied to layer ‘{layer.Name}’."
+            : _editorSelectionMaskCanary is null
+                ? "Image adjustments applied to the Base Image."
+                : "Image adjustments applied to the selected Base Image area.");
     }
 
     private void RevertCanaryFilterPreview()
     {
         _editorFilterPreviewVersionV070++;
+        EditorImageLayerV067? layer = GetLayerFilterTargetV071();
+        if (layer is not null && _editorLayerFilterCommittedV071 is not null)
+        {
+            layer.Image.Source = _editorLayerFilterCommittedV071;
+            _editorLayerFilterPreviewV071 = null;
+            ResetCanaryFilterControls();
+            SetEditorStatus($"Filter preview reverted for layer ‘{layer.Name}’.");
+            return;
+        }
         if (_editorFilterCommittedCanary is null) return;
         _editorBaseOriginal = _editorFilterCommittedCanary;
         _editorFilterPreviewCanary = null;
         ResetCanaryFilterControls();
         ApplyEditorImageAdjustments();
         SetEditorStatus("Filter preview reverted.");
+    }
+
+    private EditorImageLayerV067? GetLayerFilterTargetV071()
+        => string.IsNullOrWhiteSpace(_editorLayerFilterTargetIdV071)
+            ? null
+            : _editorImageLayersV067.FirstOrDefault(layer =>
+                string.Equals(layer.Id, _editorLayerFilterTargetIdV071, StringComparison.Ordinal));
+
+    private void ApplyFilterPreviewToTargetV071(EditorImageLayerV067? layer, BitmapSource preview)
+    {
+        if (layer is not null)
+        {
+            _editorLayerFilterPreviewV071 = preview;
+            layer.Image.Source = preview;
+            SetEditorStatus($"Previewing Filters & Adjustments on layer ‘{layer.Name}’.");
+            return;
+        }
+
+        _editorFilterPreviewCanary = preview;
+        _editorBaseOriginal = preview;
+        ApplyEditorImageAdjustments();
+        UpdateEditorCanvasSize();
+    }
+
+    private void ResetLayerFilterTargetV071(bool restoreVisual)
+    {
+        EditorImageLayerV067? previous = GetLayerFilterTargetV071();
+        if (restoreVisual && previous is not null)
+            UpdateImageLayerVisualV067(previous);
+        _editorLayerFilterTargetIdV071 = null;
+        _editorLayerFilterCommittedV071 = null;
+        _editorLayerFilterPreviewV071 = null;
+        UpdateFilterTargetLabelV071();
+    }
+
+    private void EditorFilterTargetSelectionChangedV071()
+    {
+        _editorFilterPreviewVersionV070++;
+        _editorFilterTimerCanary?.Stop();
+        ResetLayerFilterTargetV071(restoreVisual: true);
+        ResetCanaryFilterControls();
+        UpdateFilterTargetLabelV071();
+        RefreshFilterPresetGalleryV067();
+    }
+
+    private void UpdateFilterTargetLabelV071()
+    {
+        if (_editorFilterTargetLabelV071 is null) return;
+        _editorFilterTargetLabelV071.Text = _editorSelectedImageLayerV067 is EditorImageLayerV067 layer
+            ? $"Target · {layer.Name}"
+            : "Target · Base Image";
     }
 
     private void ResetCanaryFilterControls()
@@ -519,6 +663,11 @@ public partial class MainWindow
 
     private void TransformStillImageCanary(string transform)
     {
+        if (_editorSelectedImageLayerV067 is not null)
+        {
+            SetEditorStatus("Rotate and Flip currently target the Base Image. Select Base Image in Layers first.");
+            return;
+        }
         if (!EnsureCanaryFilterSource() || _editorFilterCommittedCanary is null)
             return;
 

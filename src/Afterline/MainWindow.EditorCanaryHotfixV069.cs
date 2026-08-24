@@ -161,6 +161,61 @@ public partial class MainWindow
 
                 if (!string.IsNullOrWhiteSpace(projectPath))
                 {
+                    string[] requiredFonts =
+                    {
+                        "Arial, Helvetica, sans-serif",
+                        "Georgia, serif",
+                        "\"Palatino Linotype\", \"Book Antiqua\", Palatino, serif",
+                        "\"Roboto\", sans-serif",
+                        "\"Open Sans\", sans-serif",
+                        "\"Inter\", sans-serif"
+                    };
+                    if (_editorFontBox is null || requiredFonts.Any(required =>
+                            !_editorFontBox.Items.Cast<object>().Any(item =>
+                                string.Equals(item?.ToString(), required, StringComparison.Ordinal))))
+                    {
+                        throw new InvalidOperationException("The expanded Editor font catalog was not initialized.");
+                    }
+
+                    var (resized, _, _) = CalculateLayerResizeBoundsV071(
+                        new Rect(20, 20, 40, 40),
+                        EditorLayerResizeHandleV071.NorthWest,
+                        -20,
+                        -20,
+                        64,
+                        64,
+                        snap: true,
+                        snapThreshold: 10);
+                    if (resized.X != 0 || resized.Y != 0 || resized.Width != 60 || resized.Height != 60)
+                        throw new InvalidOperationException("Eight-direction image-layer resize geometry failed its edge/corner check.");
+
+                    BitmapSource smokeSource = _editorBaseOriginal
+                        ?? throw new InvalidOperationException("The Editor smoke-test Base Image was lost.");
+                    EditorImageLayerV067 filteredLayer = AddImageLayerFromBitmapV067(
+                        smokeSource,
+                        "Filtered smoke layer");
+                    SelectImageLayerV068(filteredLayer);
+                    if (_editorFilterBrightnessCanary is not null)
+                        _editorFilterBrightnessCanary.Value = 25;
+                    _editorFilterTimerCanary?.Stop();
+                    ApplyCanaryFilterPreview();
+                    CommitCanaryFilterPreview();
+                    byte[] filteredPixel = new byte[4];
+                    filteredLayer.Bitmap.CopyPixels(new Int32Rect(0, 0, 1, 1), filteredPixel, 4, 0);
+                    if (filteredPixel[1] == 0)
+                        throw new InvalidOperationException("Filters & Adjustments did not commit to the selected image layer.");
+
+                    const string selectedText = "[17:38:23] Bianca Yurei says [low]: /quietly amused/.";
+                    int selectedStart = selectedText.IndexOf("Bianca Yurei", StringComparison.Ordinal);
+                    if (_editorInput is not null) _editorInput.Text = selectedText;
+                    _editorTextColorOverridesV071.Add(new EditorTextColorOverride(
+                        0,
+                        selectedStart,
+                        "Bianca Yurei".Length,
+                        "Bianca Yurei",
+                        EditorChatFormatter.Red));
+                    RenderEditorChatOverlay();
+
                     SaveEditorProjectToPathV067(projectPath);
                     if (!File.Exists(projectPath) || new FileInfo(projectPath).Length == 0)
                         throw new InvalidOperationException("The Editor project was not written.");
@@ -171,6 +226,13 @@ public partial class MainWindow
                     _editorComposition.UpdateLayout();
                     if (_editorBaseOriginal is null || _editorBaseImage.Source is null)
                         throw new InvalidOperationException("The saved Editor project did not restore its Base Image.");
+                    if (_editorImageLayersV067.Count != 1 ||
+                        !_editorTextColorOverridesV071.Any(value =>
+                            value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
+                    {
+                        throw new InvalidOperationException(
+                            "The saved Editor project did not restore its filtered image layer and selected-text color.");
+                    }
                 }
 
                 Afterline.Services.DiagnosticLogger.Info(

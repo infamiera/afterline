@@ -41,6 +41,7 @@ public partial class MainWindow
     private readonly Dictionary<string, Border> _editorPresetCardsV067 = new(StringComparer.OrdinalIgnoreCase);
     private EditorImageLayerV067? _editorSelectedImageLayerV067;
     private bool _editorLayerUiUpdatingV067;
+    private bool _editorLayerListRefreshingV071;
     private bool _editorLayerCanvasAdjustingV067;
     private string? _editorProjectPathV067;
 
@@ -208,12 +209,14 @@ public partial class MainWindow
 
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (_editorBaseOriginal is null || EditorHasAnimatedGifV060)
+            if (_editorSelectedImageLayerV067 is null &&
+                (_editorBaseOriginal is null || EditorHasAnimatedGifV060))
                 return;
 
             EnsureCanaryFilterSource();
 
             if (mask is not null &&
+                _editorBaseOriginal is not null &&
                 _editorBaseOriginal.PixelWidth == width &&
                 _editorBaseOriginal.PixelHeight == height &&
                 mask.Length == width * height)
@@ -394,8 +397,12 @@ public partial class MainWindow
         };
         _editorLayerListV067.SelectionChanged += (_, _) =>
         {
+            if (_editorLayerListRefreshingV071) return;
+            EditorImageLayerV067? previous = _editorSelectedImageLayerV067;
             _editorSelectedImageLayerV067 =
                 (_editorLayerListV067.SelectedItem as ListBoxItem)?.Tag as EditorImageLayerV067;
+            if (!ReferenceEquals(previous, _editorSelectedImageLayerV067))
+                EditorFilterTargetSelectionChangedV071();
             if (_editorSelectedImageLayerV067 is not null)
                 DeactivateSelectionInteractionCanary();
             SyncLayerControlsV067();
@@ -431,7 +438,7 @@ public partial class MainWindow
         controls.Children.Add(opacity.Panel);
 
         controls.Children.Add(EditorSubtleNote(
-            "Drag the selected image on the canvas. Use its corner handle or right-click it to set an exact pixel size, lock it, or reset its dimensions."));
+            "Drag the selected image on the canvas. Drag any edge or corner to resize it, or right-click to set an exact pixel size, lock it, or reset its dimensions."));
         root.Children.Add(controls);
 
         border.Child = root;
@@ -575,7 +582,9 @@ public partial class MainWindow
 
     private BitmapSource CreatePresetPreviewSourceV067()
     {
-        BitmapSource? source = _editorFilterCommittedCanary ?? _editorBaseOriginal;
+        BitmapSource? source = _editorSelectedImageLayerV067 is EditorImageLayerV067 layer
+            ? _editorLayerFilterPreviewV071 ?? layer.Bitmap
+            : _editorFilterCommittedCanary ?? _editorBaseOriginal;
         return source is null ? CreateStockPresetPreviewV067() : RenderPresetThumbnailV067(source);
     }
 
@@ -931,7 +940,9 @@ public partial class MainWindow
         if (_editorLayerListV067 is null)
             return;
 
+        EditorImageLayerV067? previousSelection = _editorSelectedImageLayerV067;
         EditorImageLayerV067? keep = select ?? _editorSelectedImageLayerV067;
+        _editorLayerListRefreshingV071 = true;
         _editorLayerListV067.Items.Clear();
 
         for (int i = _editorImageLayersV067.Count - 1; i >= 0; i--)
@@ -1073,6 +1084,12 @@ public partial class MainWindow
         if (_editorLayerListV067.SelectedItem is null && _editorLayerListV067.Items.Count > 0)
             _editorLayerListV067.SelectedIndex = 0;
 
+        _editorSelectedImageLayerV067 =
+            (_editorLayerListV067.SelectedItem as ListBoxItem)?.Tag as EditorImageLayerV067;
+        _editorLayerListRefreshingV071 = false;
+        if (!ReferenceEquals(previousSelection, _editorSelectedImageLayerV067))
+            EditorFilterTargetSelectionChangedV071();
+
         SyncLayerControlsV067();
     }
 
@@ -1122,9 +1139,11 @@ public partial class MainWindow
         if (layer is null || _editorComposition is null)
             return;
 
+        ResetLayerFilterTargetV071(restoreVisual: false);
         _editorComposition.Children.Remove(layer.Image);
         _editorImageLayersV067.Remove(layer);
         _editorSelectedImageLayerV067 = null;
+        UpdateFilterTargetLabelV071();
         RefreshSelectedLayerAdornerV068();
         UpdateEditorCanvasSize();
         EnsureLayerCanvasExtentV067();
@@ -1152,12 +1171,14 @@ public partial class MainWindow
 
     private void ClearImageLayersV067()
     {
+        ResetLayerFilterTargetV071(restoreVisual: false);
         if (_editorComposition is not null)
             foreach (EditorImageLayerV067 layer in _editorImageLayersV067)
                 _editorComposition.Children.Remove(layer.Image);
 
         _editorImageLayersV067.Clear();
         _editorSelectedImageLayerV067 = null;
+        UpdateFilterTargetLabelV071();
         ClearLayerEditHistoryV068();
         RefreshSelectedLayerAdornerV068();
         RefreshLayerListV067();

@@ -11,7 +11,7 @@ public partial class MainWindow
     private FrameworkElement BuildEditorV041ColorsPanel()
     {
         var content = new StackPanel();
-        content.Children.Add(EditorHelpText("Automatic is recommended. Select a line only when you want to override its entire color manually."));
+        content.Children.Add(EditorHelpText("Select text in Chat & Font to color only those characters, or select a line below to override the entire line. Presets and custom colors use the same saved project data."));
 
         _editorLineColorList = new ListBox
         {
@@ -41,14 +41,15 @@ public partial class MainWindow
             _editorLineColorPresetBox.Items.Add(new EditorPresetChoice(preset.Key, preset.Name, preset.Color));
         _editorLineColorPresetBox.SelectedIndex = 0;
         _editorLineColorPresetBox.SelectionChanged += EditorLineColorPreset_SelectionChanged;
-        content.Children.Add(CreateEditorField("Selected line color", _editorLineColorPresetBox));
+        content.Children.Add(CreateEditorField("Selected text or line color", _editorLineColorPresetBox));
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 7, 0, 0) };
         buttons.Children.Add(CreateSmallEditorButton("Use Auto", EditorUseAutoLineColor_Click));
+        buttons.Children.Add(CreateSmallEditorButton("Custom Color…", EditorChooseCustomTextColorV071));
         buttons.Children.Add(CreateSmallEditorButton("Reset All", EditorResetAllLineColors_Click));
         content.Children.Add(buttons);
 
-        content.Children.Add(EditorSubtleNote("Mixed automatic lines can contain several colors at once (for example an info tag, money amount and command). A manual override intentionally makes the whole selected line one color."));
+        content.Children.Add(EditorSubtleNote("Text-range colors take priority over captured and automatic colors while preserving italics. Use Auto on a selection to remove only its manual range color."));
         return WrapEditorToolPanel(content);
     }
 

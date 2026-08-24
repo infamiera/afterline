@@ -618,7 +618,14 @@ public partial class MainWindow
         bool shift = (modifiers & ModifierKeys.Shift) != 0;
         if (!ctrl || e.Key != Key.Z) return;
 
-        if (shift)
+        bool useLayerHistory = _editorSelectedImageLayerV067 is not null &&
+            (shift ? _editorLayerRedoV068.Count > 0 : _editorLayerUndoV068.Count > 0);
+        if (useLayerHistory)
+        {
+            if (shift) RedoLayerEditV068();
+            else UndoLayerEditV068();
+        }
+        else if (shift)
             RedoEditorHistoryCanaryV2();
         else
             UndoEditorHistoryCanaryV2();
@@ -724,7 +731,11 @@ public partial class MainWindow
 
     private void ApplyFilterWithHistoryCanaryV2()
     {
-        PushEditorHistoryCanaryV2("filter changes");
+        if (!EnsureCanaryFilterSource()) return;
+        if (_editorSelectedImageLayerV067 is EditorImageLayerV067 layer)
+            PushLayerEditHistoryV068(layer, "layer filter changes");
+        else
+            PushEditorHistoryCanaryV2("filter changes");
         CommitCanaryFilterPreview();
         ResetPixelationAfterCommittedActionCanaryV2();
     }

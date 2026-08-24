@@ -677,7 +677,9 @@ public partial class MainWindow
 
         try
         {
-            if (!EnsureCanaryFilterSource() || _editorFilterCommittedCanary is null) return;
+            if (_editorSelectedImageLayerV067 is not null ||
+                !EnsureCanaryFilterSource() ||
+                _editorFilterCommittedCanary is null) return;
             // Do not perform an eager full-resolution pixel pass on the UI thread.
             // The source clone above is sufficient preparation; actual filtering is
             // debounced until the user stops moving a control.

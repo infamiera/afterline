@@ -13,6 +13,16 @@ internal sealed record EditorChatLine(
 
 internal sealed record EditorColorPreset(string Key, string Name, Color Color);
 
+internal sealed record EditorTextColorOverride(
+    int SourceIndex,
+    int Start,
+    int Length,
+    string Text,
+    Color Color)
+{
+    internal int End => Start + Length;
+}
+
 internal static class EditorChatFormatter
 {
     private static readonly Regex TimestampPrefix = new(
@@ -151,6 +161,9 @@ internal static class EditorChatFormatter
 
         if (IsSessionBoundaryMarker(trimmed))
             return Single(body, Blue);
+
+        if (TryFormatDelimitedActions(body, out IReadOnlyList<EditorChatSegment> inlineActions))
+            return inlineActions;
 
         if (ChatColorReliabilityService.IsNeutralLowSpeech(body) ||
             ChatColorReliabilityService.IsGlobalOoc(body))
@@ -419,6 +432,29 @@ internal static class EditorChatFormatter
         var result = new List<EditorChatSegment>();
         AppendCommandAwareSegments(result, body, White);
         return result;
+    }
+
+    private static bool TryFormatDelimitedActions(
+        string body,
+        out IReadOnlyList<EditorChatSegment> segments)
+    {
+        segments = Array.Empty<EditorChatSegment>();
+        MatchCollection matches = Regex.Matches(body, @"\*[^*\r\n]+\*");
+        if (matches.Count == 0) return false;
+
+        var result = new List<EditorChatSegment>(matches.Count * 2 + 1);
+        int cursor = 0;
+        foreach (Match match in matches)
+        {
+            if (match.Index > cursor)
+                result.Add(new EditorChatSegment(body[cursor..match.Index], White));
+            result.Add(new EditorChatSegment(match.Value, Purple));
+            cursor = match.Index + match.Length;
+        }
+        if (cursor < body.Length)
+            result.Add(new EditorChatSegment(body[cursor..], White));
+        segments = result;
+        return true;
     }
 
     private static IReadOnlyList<EditorChatSegment> FormatMoneyLine(string body, Color baseColor, Color moneyColor)

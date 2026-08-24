@@ -27,6 +27,7 @@ public partial class MainWindow
     private readonly Dictionary<string, Button> _editorToolButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, FrameworkElement> _editorToolPanels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, Color> _editorLineColorOverrides = new();
+    private readonly List<EditorTextColorOverride> _editorTextColorOverridesV071 = new();
     private ColumnDefinition? _editorToolPanelColumn;
     private ColumnDefinition? _editorToolGapColumn;
     private Border? _editorToolPanelHost;
@@ -252,6 +253,7 @@ public partial class MainWindow
             PruneEditorLineColorOverrides();
             ScheduleEditorChatRender();
         };
+        _editorInput.SelectionChanged += (_, _) => UpdateEditorLineColorControls();
         content.Children.Add(_editorInput);
 
         var inputButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 2) };
@@ -262,11 +264,12 @@ public partial class MainWindow
         content.Children.Add(CreateEditorDivider());
 
         _editorFontBox = new ComboBox { Height = 34 };
-        foreach (string font in new[] { "Arial Bold", "Arial", "Segoe UI Semibold", "Tahoma", "Verdana" })
-            _editorFontBox.Items.Add(font);
+        PopulateEditorFontBoxV071(_editorFontBox);
         _editorFontBox.SelectedIndex = 0;
         _editorFontBox.SelectionChanged += (_, _) => ScheduleEditorChatRender();
         content.Children.Add(CreateEditorField("Font", _editorFontBox));
+        content.Children.Add(EditorSubtleNote(
+            "Font stacks use the first installed Windows font and fall back safely. Server webfonts such as Raleway or Mukta render exactly when that font is installed locally."));
 
         var fontSize = CreateEditorV041Slider("Font size", 12, 32, 18);
         _editorFontSizeSlider = fontSize.Slider;

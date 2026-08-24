@@ -38,7 +38,8 @@ public partial class MainWindow
                 input,
                 showTimestamps,
                 _editorLineColorOverrides,
-                _editorExactChatColorsV068);
+                _editorExactChatColorsV068,
+                _editorTextColorOverridesV071);
             RefreshEditorLineColorList(lines);
 
             var stack = new StackPanel
@@ -123,14 +124,8 @@ public partial class MainWindow
     private (FontFamily Family, FontWeight Weight) ResolveEditorFont()
     {
         string selected = _editorFontBox?.SelectedItem?.ToString() ?? "Arial Bold";
-        return selected switch
-        {
-            "Arial" => (new FontFamily("Arial"), FontWeights.Normal),
-            "Segoe UI Semibold" => (new FontFamily("Segoe UI"), FontWeights.SemiBold),
-            "Tahoma" => (new FontFamily("Tahoma"), FontWeights.Normal),
-            "Verdana" => (new FontFamily("Verdana"), FontWeights.Normal),
-            _ => (new FontFamily("Arial"), FontWeights.Bold)
-        };
+        EditorFontChoiceV071 choice = ResolveEditorFontChoiceV071(selected);
+        return (new FontFamily(choice.FamilyStack), choice.Weight);
     }
 
     private void EditorLoadImage_Click(object sender, RoutedEventArgs e)

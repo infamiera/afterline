@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Afterline.Models;
+using Afterline.Services;
 
 namespace Afterline;
 
@@ -44,6 +45,23 @@ public partial class MainWindow
         string Text,
         IReadOnlyList<ChatColorRun> ColorRuns);
 
+    private sealed record EditorProjectLineColorV071(
+        int SourceIndex,
+        byte Alpha,
+        byte Red,
+        byte Green,
+        byte Blue);
+
+    private sealed record EditorProjectTextColorV071(
+        int SourceIndex,
+        int Start,
+        int Length,
+        string Text,
+        byte Alpha,
+        byte Red,
+        byte Green,
+        byte Blue);
+
     private sealed record EditorProjectManifestV067(
         int FormatVersion,
         string? ChatText,
@@ -62,7 +80,9 @@ public partial class MainWindow
         int SelectionHeight,
         IReadOnlyList<EditorProjectImageLayerDataV067> ImageLayers,
         IReadOnlyList<EditorProjectChatLayerDataV067> ExtraChats,
-        IReadOnlyList<EditorProjectExactChatLineV068>? ExactChatColors = null);
+        IReadOnlyList<EditorProjectExactChatLineV068>? ExactChatColors = null,
+        IReadOnlyList<EditorProjectLineColorV071>? LineColors = null,
+        IReadOnlyList<EditorProjectTextColorV071>? TextColors = null);
 
     private enum NewProjectChoiceV067
     {
@@ -234,7 +254,24 @@ public partial class MainWindow
                 new EditorProjectExactChatLineV068(
                     pair.Key,
                     pair.Value.Text,
-                    pair.Value.ColorRuns)).ToArray());
+                    pair.Value.ColorRuns)).ToArray(),
+            _editorLineColorOverrides.Select(pair =>
+                new EditorProjectLineColorV071(
+                    pair.Key,
+                    pair.Value.A,
+                    pair.Value.R,
+                    pair.Value.G,
+                    pair.Value.B)).ToArray(),
+            _editorTextColorOverridesV071.Select(value =>
+                new EditorProjectTextColorV071(
+                    value.SourceIndex,
+                    value.Start,
+                    value.Length,
+                    value.Text,
+                    value.Color.A,
+                    value.Color.R,
+                    value.Color.G,
+                    value.Color.B)).ToArray());
 
         try
         {
@@ -349,6 +386,29 @@ public partial class MainWindow
                 });
         if (_editorInput is not null)
             _editorInput.Text = manifest.ChatText ?? string.Empty;
+        _editorLineColorOverrides.Clear();
+        foreach (EditorProjectLineColorV071 value in manifest.LineColors ?? Array.Empty<EditorProjectLineColorV071>())
+        {
+            if (value.SourceIndex < 0) continue;
+            _editorLineColorOverrides[value.SourceIndex] = Color.FromArgb(
+                value.Alpha,
+                value.Red,
+                value.Green,
+                value.Blue);
+        }
+        _editorTextColorOverridesV071.Clear();
+        foreach (EditorProjectTextColorV071 value in manifest.TextColors ?? Array.Empty<EditorProjectTextColorV071>())
+        {
+            if (value.SourceIndex < 0 || value.Start < 0 || value.Length <= 0 || string.IsNullOrEmpty(value.Text))
+                continue;
+            _editorTextColorOverridesV071.Add(new EditorTextColorOverride(
+                value.SourceIndex,
+                value.Start,
+                value.Length,
+                value.Text,
+                Color.FromArgb(value.Alpha, value.Red, value.Green, value.Blue)));
+        }
+        PruneEditorLineColorOverrides();
         if (_editorChatXSlider is not null)
             _editorChatXSlider.Value = Math.Max(_editorChatXSlider.Minimum, Math.Min(_editorChatXSlider.Maximum, manifest.ChatX));
         if (_editorChatYSlider is not null)
@@ -477,6 +537,8 @@ public partial class MainWindow
         RefreshSelectionHighlightV067();
 
         _editorExactChatColorsV068 = new Dictionary<int, ChatColorLineRecord>();
+        _editorLineColorOverrides.Clear();
+        _editorTextColorOverridesV071.Clear();
         if (_editorInput is not null)
             _editorInput.Text = string.Empty;
         if (_editorChatXSlider is not null)
