@@ -8,7 +8,8 @@ public sealed record ChatColorRun(
     byte Red,
     byte Green,
     byte Blue,
-    byte Alpha = 255)
+    byte Alpha = 255,
+    bool Italic = false)
 {
     [JsonIgnore]
     public int End => Start + Length;
@@ -134,5 +135,6 @@ public static class ChatColorData
         => left.Red == right.Red &&
            left.Green == right.Green &&
            left.Blue == right.Blue &&
-           left.Alpha == right.Alpha;
+           left.Alpha == right.Alpha &&
+           left.Italic == right.Italic;
 }

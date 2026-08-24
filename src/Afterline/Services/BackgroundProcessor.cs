@@ -25,7 +25,15 @@ public sealed class BackgroundProcessor : IAsyncDisposable
 
     public async Task ProcessNowAsync(CancellationToken cancellationToken = default)
     {
-        await _archive.RebuildIndexAsync(_settings().ArchiveRoot, cancellationToken);
+        // Routine processing only needs to discover today's and yesterday's
+        // sessions. Older files are indexed on demand when their Archive filter
+        // makes them visible, preventing large libraries from being rescanned
+        // every minute.
+        await _archive.RebuildIndexAsync(
+            _settings().ArchiveRoot,
+            cancellationToken,
+            DateTime.Today.AddDays(-1),
+            DateTime.Today);
         LastProcessedAt = DateTime.Now;
         Processed?.Invoke(this, EventArgs.Empty);
     }

@@ -1,60 +1,36 @@
-using System.Diagnostics;
-using Forms = System.Windows.Forms;
-
 namespace Afterline;
 
 public partial class MainWindow
 {
-    private bool _sessionTrayNotificationInitialized;
-    private string? _lastTraySavedPath;
+    private bool _sessionArchiveNotificationInitialized;
+    private string? _pendingArchiveNotificationPath;
 
-    private void EnsureSessionTrayNotification()
+    private void EnsureSessionArchiveNotification()
     {
-        if (_sessionTrayNotificationInitialized) return;
-        _sessionTrayNotificationInitialized = true;
-
-        _capture.SessionFinalized += Capture_SessionFinalizedTrayNotification;
-        if (_trayIcon is not null)
-            _trayIcon.BalloonTipClicked += TrayIcon_BalloonTipClicked;
+        if (_sessionArchiveNotificationInitialized) return;
+        _sessionArchiveNotificationInitialized = true;
+        EnsureNotificationAndUpdateUi();
     }
 
-    private void Capture_SessionFinalizedTrayNotification(object? sender, string path)
+    private void ShowSessionArchivedNotification(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
 
-        Dispatcher.BeginInvoke(new Action(() =>
+        if (!IsVisible || WindowState == System.Windows.WindowState.Minimized)
         {
-            _lastTraySavedPath = Path.GetFullPath(path);
-            if (_trayIcon is null) return;
+            _pendingArchiveNotificationPath = Path.GetFullPath(path);
+            return;
+        }
 
-            string fileName = Path.GetFileName(path);
-            string message = $"{fileName}\nChatlog saved successfully. Click to open its folder.";
-            if (message.Length > 240) message = message[..240];
-
-            _trayIcon.ShowBalloonTip(
-                8000,
-                "Afterline — Chatlog saved",
-                message,
-                Forms.ToolTipIcon.Info);
-        }));
+        _pendingArchiveNotificationPath = null;
+        ShowArchiveSuccessNotification(path);
     }
 
-    private void TrayIcon_BalloonTipClicked(object? sender, EventArgs e)
+    private void ShowPendingArchiveNotification()
     {
-        if (string.IsNullOrWhiteSpace(_lastTraySavedPath) || !File.Exists(_lastTraySavedPath)) return;
-
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = $"/select,\"{_lastTraySavedPath}\"",
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            Services.DiagnosticLogger.Error("Unable to open the saved chatlog from the tray notification.", ex);
-        }
+        string? path = _pendingArchiveNotificationPath;
+        if (string.IsNullOrWhiteSpace(path)) return;
+        _pendingArchiveNotificationPath = null;
+        if (File.Exists(path)) ShowArchiveSuccessNotification(path);
     }
 }

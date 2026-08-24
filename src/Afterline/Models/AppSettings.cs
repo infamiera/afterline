@@ -20,6 +20,13 @@ public sealed class AppSettings
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;
 
+    // Keep the archive cheap to open on large installations. Users can opt into
+    // an explicit range or the complete archive from the Archive page.
+    public string ArchiveFilterMode { get; set; } = "LastDays";
+    public int ArchiveLastDays { get; set; } = 30;
+    public DateTime? ArchiveFromDate { get; set; }
+    public DateTime? ArchiveToDate { get; set; }
+
     public string UpdateChannel { get; set; } = "Stable";
     public string? InstalledCanaryBuild { get; set; }
 

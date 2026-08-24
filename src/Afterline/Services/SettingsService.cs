@@ -28,6 +28,13 @@ public sealed class SettingsService
             settings.Theme ??= ThemeService.CreateDefault();
             settings.RecentLogPaths ??= new List<string>();
             settings.PinnedLogPaths ??= new List<string>();
+            settings.ArchiveFilterMode = settings.ArchiveFilterMode switch
+            {
+                "All" => "All",
+                "Between" => "Between",
+                _ => "LastDays"
+            };
+            settings.ArchiveLastDays = Math.Clamp(settings.ArchiveLastDays, 1, 3650);
             settings.Editor.ExportKeybind ??= "Ctrl+S";
             settings.Editor.UndoKeybind ??= "Ctrl+Z";
             settings.Editor.RedoKeybind ??= "Ctrl+Shift+Z";

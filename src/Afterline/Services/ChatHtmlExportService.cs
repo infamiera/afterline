@@ -151,12 +151,16 @@ internal static class ChatHtmlExportService
         }
         else
         {
-            IReadOnlyList<EditorChatSegment> segments = ResolveSegments(item.Entry, text, useAutomaticColors);
+            IReadOnlyList<EditorChatSegment> segments = ChatTypographyService.ApplySlashItalics(
+                ResolveSegments(item.Entry, text, useAutomaticColors));
             foreach (EditorChatSegment segment in segments)
             {
                 if (segment.Text.Length == 0) continue;
                 html.Append("<span style=\"color:")
-                    .Append(ToCssColor(segment.Color))
+                    .Append(ToCssColor(segment.Color));
+                if (segment.IsItalic)
+                    html.Append(";font-style:italic");
+                html
                     .Append("\">")
                     .Append(WebUtility.HtmlEncode(segment.Text))
                     .Append("</span>");
@@ -188,7 +192,8 @@ internal static class ChatHtmlExportService
         {
             return exactRuns.Select(run => new EditorChatSegment(
                     text.Substring(run.Start, run.Length),
-                    Color.FromArgb(run.Alpha, run.Red, run.Green, run.Blue)))
+                    Color.FromArgb(run.Alpha, run.Red, run.Green, run.Blue),
+                    run.Italic))
                 .ToArray();
         }
 

@@ -18,21 +18,25 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
           function readColor(node){
             try {
               var element=node.nodeType===1?node:node.parentElement;
-              var value=window.getComputedStyle(element).color||'';
+              var computed=window.getComputedStyle(element);
+              var value=computed.color||'';
               var values=value.match(/[\d.]+/g)||[];
-              if(values.length<3) return {Red:255,Green:255,Blue:255,Alpha:255};
+              var italic=computed.fontStyle==='italic'||computed.fontStyle==='oblique';
+              if(values.length<3) return {Red:255,Green:255,Blue:255,Alpha:255,Italic:italic};
               return {
                 Red:Math.max(0,Math.min(255,Math.round(Number(values[0])))),
                 Green:Math.max(0,Math.min(255,Math.round(Number(values[1])))),
                 Blue:Math.max(0,Math.min(255,Math.round(Number(values[2])))),
-                Alpha:values.length>3?Math.max(0,Math.min(255,Math.round(Number(values[3])*255))):255
+                Alpha:values.length>3?Math.max(0,Math.min(255,Math.round(Number(values[3])*255))):255,
+                Italic:italic
               };
             } catch (_) {
-              return {Red:255,Green:255,Blue:255,Alpha:255};
+              return {Red:255,Green:255,Blue:255,Alpha:255,Italic:false};
             }
           }
           function sameColor(left,right){
-            return left.Red===right.Red&&left.Green===right.Green&&left.Blue===right.Blue&&left.Alpha===right.Alpha;
+            return left.Red===right.Red&&left.Green===right.Green&&left.Blue===right.Blue&&
+              left.Alpha===right.Alpha&&left.Italic===right.Italic;
           }
           function readRow(row){
             var chunks=[];
@@ -63,7 +67,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
               if(previous&&previous.Start+previous.Length===start&&sameColor(previous,color)){
                 previous.Length+=value.length;
               } else {
-                runs.push({Start:start,Length:value.length,Red:color.Red,Green:color.Green,Blue:color.Blue,Alpha:color.Alpha});
+                runs.push({Start:start,Length:value.length,Red:color.Red,Green:color.Green,Blue:color.Blue,Alpha:color.Alpha,Italic:color.Italic});
               }
             }
             chunks.forEach(function(chunk){

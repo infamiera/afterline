@@ -24,7 +24,7 @@ public partial class MainWindow
         EnsureQolSearchRecoveryStats();
         EnsureRawCaptureRecoveryV054();
         EnsureDarkSearchCalendarPopups();
-        EnsureSessionTrayNotification();
+        EnsureSessionArchiveNotification();
         EnsureEditor();
         EnsureEditorV041();
         EnsureEditorMediaV060();
@@ -37,6 +37,7 @@ public partial class MainWindow
         EnsureEditorCanaryWorkspace();
         EnsureCanaryMiscPolish();
         EnsureQolV050();
+        EnsureArchiveFilteringV071();
         EnsureLiveFindLayoutV062();
         EnsureChangelogUi();
         EnsureUpdatePanelV061();

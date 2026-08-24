@@ -3,7 +3,7 @@ using System.Windows.Media;
 
 namespace Afterline.Services;
 
-internal sealed record EditorChatSegment(string Text, Color Color);
+internal sealed record EditorChatSegment(string Text, Color Color, bool IsItalic = false);
 
 internal sealed record EditorChatLine(
     int SourceIndex,
@@ -121,6 +121,8 @@ internal static class EditorChatFormatter
                 bodySegments = withTimestamp;
             }
 
+            bodySegments = ChatTypographyService.ApplySlashItalics(bodySegments);
+
             result.Add(new EditorChatLine(sourceIndex, body, autoStyle, bodySegments));
         }
 
@@ -149,6 +151,10 @@ internal static class EditorChatFormatter
 
         if (IsSessionBoundaryMarker(trimmed))
             return Single(body, Blue);
+
+        if (ChatColorReliabilityService.IsNeutralLowSpeech(body) ||
+            ChatColorReliabilityService.IsGlobalOoc(body))
+            return Single(body, White);
 
         Match motdMatch = MotdLine.Match(body);
         if (motdMatch.Success)

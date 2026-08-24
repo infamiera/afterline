@@ -29,8 +29,11 @@ public partial class MainWindow : Window
 
     public ObservableCollection<ChatEntry> LiveMessages { get; } = new();
     public ObservableCollection<SearchHit> SearchResults { get; } = new();
-    public ObservableCollection<SessionIndexEntry> ArchiveSessions { get; } = new();
-    public ObservableCollection<SessionIndexEntry> RecentlyParsedLogs { get; } = new();
+    public BulkObservableCollection<SessionIndexEntry> ArchiveSessions { get; } = new();
+    public BulkObservableCollection<SessionIndexEntry> RecentlyParsedLogs { get; } = new();
+
+    private CancellationTokenSource? _archiveRefreshCts;
+    private int _archiveRefreshVersion;
 
     public MainWindow()
     {
@@ -122,6 +125,7 @@ public partial class MainWindow : Window
         _uiTimer.Start();
         UiTimer_Tick(this, EventArgs.Empty);
         Activate();
+        ShowPendingArchiveNotification();
     }
 
     private void ScrollLiveTop_Click(object sender, RoutedEventArgs e)
@@ -155,6 +159,9 @@ public partial class MainWindow : Window
         }
 
         _uiTimer.Stop();
+        _archiveRefreshCts?.Cancel();
+        _archiveRefreshCts?.Dispose();
+        _archiveRefreshCts = null;
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
@@ -203,6 +210,7 @@ public partial class MainWindow : Window
         {
             await _processor.ProcessNowAsync();
             await Dispatcher.InvokeAsync(() => RefreshArchiveAsync()).Task.Unwrap();
+            await Dispatcher.InvokeAsync(() => ShowSessionArchivedNotification(path));
         }
         catch (Exception ex)
         {
@@ -284,27 +292,48 @@ public partial class MainWindow : Window
 
     private async Task RefreshArchiveAsync()
     {
+        int refreshVersion = Interlocked.Increment(ref _archiveRefreshVersion);
+        _archiveRefreshCts?.Cancel();
+        _archiveRefreshCts?.Dispose();
+        _archiveRefreshCts = new CancellationTokenSource();
+        CancellationToken cancellationToken = _archiveRefreshCts.Token;
+        (DateTime? fromDate, DateTime? toDate) = GetArchiveFilterRangeV071();
+
         IReadOnlyList<SessionIndexEntry> entries;
         try
         {
-            entries = await _archiveService.RebuildIndexAsync(_settings.ArchiveRoot, CancellationToken.None);
+            // The filesystem walk and any first-time line counts must never run on
+            // WPF's dispatcher. This keeps navigation and the new filters responsive
+            // even when the archive contains thousands of text files.
+            entries = await Task.Run(
+                () => _archiveService.RebuildIndexAsync(
+                    _settings.ArchiveRoot,
+                    cancellationToken,
+                    fromDate,
+                    toDate),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
         catch
         {
-            entries = _archiveService.LoadCachedIndex();
+            entries = FilterCachedArchiveEntriesV071(_archiveService.LoadCachedIndex(), fromDate, toDate);
         }
 
-        ArchiveSessions.Clear();
-        foreach (var entry in entries) ArchiveSessions.Add(entry);
+        if (refreshVersion != _archiveRefreshVersion || cancellationToken.IsCancellationRequested)
+            return;
 
-        RecentlyParsedLogs.Clear();
-        foreach (var entry in entries.Take(14)) RecentlyParsedLogs.Add(entry);
+        ArchiveSessions.ReplaceAll(entries);
+        RecentlyParsedLogs.ReplaceAll(entries.Take(14));
 
         RecentSessionsList.Items.Clear();
         foreach (var entry in entries.Take(8))
             RecentSessionsList.Items.Add($"{entry.LastWriteUtc.ToLocalTime():dd MMM yyyy · HH:mm}     {entry.LineCount:N0} lines     {entry.FileName}");
 
         ArchiveRootText.Text = _settings.ArchiveRoot;
+        UpdateArchiveFilterStatusV071(entries.Count);
     }
 
     private void PopulateSettingsUi()

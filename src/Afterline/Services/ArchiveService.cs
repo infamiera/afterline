@@ -1,10 +1,16 @@
 using System.Text.Json;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Afterline.Models;
 
 namespace Afterline.Services;
 
 public sealed class ArchiveService
 {
+    private static readonly Regex ArchiveName = new(
+        @"^Chatlog \[.+\] \[(?<date>\d{2}-[A-Za-z]+-\d{4})\](?: \(\d+\))?\.txt$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly JsonSerializerOptions IndexJsonOptions = new()
     {
         WriteIndented = true
@@ -14,17 +20,25 @@ public sealed class ArchiveService
 
     public async Task<IReadOnlyList<SessionIndexEntry>> RebuildIndexAsync(
         string root,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DateTime? fromDate = null,
+        DateTime? toDate = null)
     {
-        await _rebuildGate.WaitAsync(cancellationToken);
+        await _rebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            IReadOnlyList<SessionIndexEntry> cached = LoadCachedIndex();
+            DateTime? normalizedFrom = fromDate?.Date;
+            DateTime? normalizedTo = toDate?.Date;
+            bool filtered = normalizedFrom.HasValue || normalizedTo.HasValue;
+
+            IReadOnlyList<SessionIndexEntry> cached = LoadCachedIndex()
+                .Where(entry => IsInsideRoot(entry.FilePath, root))
+                .ToArray();
             var cachedByPath = cached
                 .GroupBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
-            var entries = new List<SessionIndexEntry>();
+            var refreshedEntries = new List<SessionIndexEntry>();
             if (Directory.Exists(root))
             {
                 foreach (string file in Directory.EnumerateFiles(root, "*.txt", SearchOption.AllDirectories))
@@ -36,6 +50,10 @@ public sealed class ArchiveService
                         continue;
 
                     var info = new FileInfo(file);
+                    DateTime archiveDate = ResolveArchiveDate(file, info.LastWriteTime);
+                    if (!MatchesDateRange(archiveDate, normalizedFrom, normalizedTo))
+                        continue;
+
                     int lineCount;
                     if (cachedByPath.TryGetValue(file, out SessionIndexEntry? previous) &&
                         previous.LastWriteUtc == info.LastWriteTimeUtc &&
@@ -47,11 +65,11 @@ public sealed class ArchiveService
                     {
                         lineCount = 0;
                         using var reader = new StreamReader(file);
-                        while (await reader.ReadLineAsync(cancellationToken) is not null)
+                        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is not null)
                             lineCount++;
                     }
 
-                    entries.Add(new SessionIndexEntry
+                    refreshedEntries.Add(new SessionIndexEntry
                     {
                         FilePath = file,
                         LastWriteUtc = info.LastWriteTimeUtc,
@@ -61,10 +79,25 @@ public sealed class ArchiveService
                 }
             }
 
-            entries.Sort((left, right) => right.LastWriteUtc.CompareTo(left.LastWriteUtc));
+            refreshedEntries.Sort((left, right) => right.LastWriteUtc.CompareTo(left.LastWriteUtc));
 
-            if (File.Exists(AppPaths.ArchiveIndexFile) && IndexesMatch(cached, entries))
-                return entries;
+            // A filtered refresh deliberately avoids touching old files. Preserve
+            // their cached metadata so changing the filter does not force those
+            // files to be read again unless they actually enter the visible range.
+            List<SessionIndexEntry> completeIndex = filtered
+                ? cached.Where(entry => !MatchesDateRange(
+                        ResolveArchiveDate(entry.FilePath, entry.LastWriteUtc.ToLocalTime()),
+                        normalizedFrom,
+                        normalizedTo))
+                    .Concat(refreshedEntries)
+                    .GroupBy(entry => entry.FilePath, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.OrderByDescending(entry => entry.LastWriteUtc).First())
+                    .ToList()
+                : refreshedEntries.ToList();
+            completeIndex.Sort((left, right) => right.LastWriteUtc.CompareTo(left.LastWriteUtc));
+
+            if (File.Exists(AppPaths.ArchiveIndexFile) && IndexesMatch(cached, completeIndex))
+                return refreshedEntries;
 
             AppPaths.EnsureLocalDirectories();
             string temp = AppPaths.ArchiveIndexFile + ".tmp";
@@ -78,18 +111,61 @@ public sealed class ArchiveService
             {
                 await JsonSerializer.SerializeAsync(
                     stream,
-                    entries,
+                    completeIndex,
                     IndexJsonOptions,
-                    cancellationToken);
-                await stream.FlushAsync(cancellationToken);
+                    cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
             File.Move(temp, AppPaths.ArchiveIndexFile, true);
-            return entries;
+            return refreshedEntries;
         }
         finally
         {
             _rebuildGate.Release();
+        }
+    }
+
+    private static bool MatchesDateRange(
+        DateTime date,
+        DateTime? fromDate,
+        DateTime? toDate)
+    {
+        DateTime value = date.Date;
+        if (fromDate is DateTime from && value < from) return false;
+        if (toDate is DateTime to && value > to) return false;
+        return true;
+    }
+
+    private static DateTime ResolveArchiveDate(string filePath, DateTime fallback)
+    {
+        Match match = ArchiveName.Match(Path.GetFileName(filePath));
+        if (match.Success && DateTime.TryParseExact(
+                match.Groups["date"].Value,
+                "dd-MMMM-yyyy",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateTime parsed))
+        {
+            return parsed.Date;
+        }
+
+        return fallback.ToLocalTime().Date;
+    }
+
+    private static bool IsInsideRoot(string filePath, string root)
+    {
+        try
+        {
+            string normalizedRoot = Path.GetFullPath(root)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+            string normalizedFile = Path.GetFullPath(filePath);
+            return normalizedFile.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
         }
     }
 

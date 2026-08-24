@@ -7,11 +7,20 @@ namespace Afterline.Services;
 internal static class ChatColorReliabilityService
 {
     // FiveM can expose a newly inserted row before all nested CSS spans have their
-    // final colors. Repair only expected accent ranges that are still neutral;
-    // chromatic colors captured from the game always remain authoritative.
+    // final colors. Most genuine chromatic spans remain authoritative, while a
+    // small set of structurally unambiguous lines receives stricter validation to
+    // prevent a previous row's color from leaking into the new message.
     private static readonly Regex TimestampPrefix = new(
         @"^\s*\[\d{1,2}:\d{2}:\d{2}\]\s*",
         RegexOptions.Compiled);
+
+    private static readonly Regex NeutralLowSpeech = new(
+        @"^\s*.+?\s+says\s+\[(?:low|lower)\]:",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex GlobalOoc = new(
+        @"^\s*\(\(\s*Global\s+OOC:\s*\(\d+\)\s*(?<name>[^:]+?)(?<colon>:\s*)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static IReadOnlyList<ChatColorRun> EnsureExpectedAccents(
         string text,
@@ -28,6 +37,28 @@ internal static class ChatColorReliabilityService
         Match timestamp = TimestampPrefix.Match(text);
         int bodyStart = timestamp.Success ? timestamp.Length : 0;
         string body = text[bodyStart..];
+
+        if (IsNeutralLowSpeech(body))
+            return OverrideColor(text, normalized, bodyStart, body.Length, EditorChatFormatter.White);
+
+        Match globalOoc = GlobalOoc.Match(body);
+        if (globalOoc.Success)
+        {
+            int nameStart = bodyStart + globalOoc.Groups["name"].Index;
+            int nameLength = globalOoc.Groups["name"].Length;
+            Color? roleColor = ResolveGlobalOocRoleColor(normalized, nameStart, nameLength);
+
+            IReadOnlyList<ChatColorRun> corrected = OverrideColor(
+                text,
+                normalized,
+                bodyStart,
+                body.Length,
+                EditorChatFormatter.White);
+            if (roleColor is Color color)
+                corrected = OverrideColor(text, corrected, nameStart, nameLength, color);
+            return corrected;
+        }
+
         IReadOnlyList<EditorChatSegment> expectedSegments = ResolveExpectedSegments(body);
         if (expectedSegments.Count == 0 ||
             !string.Equals(
@@ -59,6 +90,60 @@ internal static class ChatColorReliabilityService
         }
 
         return reliable;
+    }
+
+    internal static bool IsNeutralLowSpeech(string body)
+        => !string.IsNullOrWhiteSpace(body) && NeutralLowSpeech.IsMatch(body);
+
+    internal static bool IsGlobalOoc(string body)
+        => !string.IsNullOrWhiteSpace(body) && GlobalOoc.IsMatch(body);
+
+    private static Color? ResolveGlobalOocRoleColor(
+        IReadOnlyList<ChatColorRun> runs,
+        int nameStart,
+        int nameLength)
+    {
+        int nameEnd = nameStart + nameLength;
+        (Color Color, int Coverage)? best = null;
+        foreach (ChatColorRun run in runs)
+        {
+            int overlap = Math.Min(nameEnd, run.End) - Math.Max(nameStart, run.Start);
+            if (overlap <= 0 || !TryClassifyGlobalOocRole(run, out Color roleColor))
+                continue;
+
+            if (best is null || overlap > best.Value.Coverage)
+                best = (roleColor, overlap);
+        }
+
+        return best?.Color;
+    }
+
+    private static bool TryClassifyGlobalOocRole(ChatColorRun run, out Color color)
+    {
+        color = default;
+        if (run.Alpha < 128) return false;
+
+        // Management orange is checked first because it is red-dominant too.
+        if (run.Red >= 160 && run.Green >= 90 && run.Green <= 220 &&
+            run.Red - run.Green >= 20 && run.Blue < 140)
+        {
+            color = EditorChatFormatter.Orange;
+            return true;
+        }
+
+        if (run.Red >= 150 && run.Red >= run.Green + 55 && run.Red >= run.Blue + 55)
+        {
+            color = EditorChatFormatter.Red;
+            return true;
+        }
+
+        if (run.Blue >= 140 && run.Blue >= run.Red + 45 && run.Blue >= run.Green + 30)
+        {
+            color = EditorChatFormatter.Blue;
+            return true;
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<EditorChatSegment> ResolveExpectedSegments(string body)
@@ -118,7 +203,7 @@ internal static class ChatColorReliabilityService
         int end = Math.Min(text.Length, start + length);
         if (start < 0 || start >= end) return runs;
 
-        var updated = new List<ChatColorRun>(runs.Count + 2);
+        var updated = new List<ChatColorRun>(runs.Count + 4);
         foreach (ChatColorRun run in runs)
         {
             if (run.End <= start || run.Start >= end)
@@ -129,17 +214,24 @@ internal static class ChatColorReliabilityService
 
             if (run.Start < start)
                 updated.Add(run with { Length = start - run.Start });
+
+            int overlapStart = Math.Max(start, run.Start);
+            int overlapEnd = Math.Min(end, run.End);
+            if (overlapEnd > overlapStart)
+            {
+                updated.Add(new ChatColorRun(
+                    overlapStart,
+                    overlapEnd - overlapStart,
+                    color.R,
+                    color.G,
+                    color.B,
+                    color.A,
+                    run.Italic));
+            }
+
             if (run.End > end)
                 updated.Add(run with { Start = end, Length = run.End - end });
         }
-
-        updated.Add(new ChatColorRun(
-            start,
-            end - start,
-            color.R,
-            color.G,
-            color.B,
-            color.A));
         return ChatColorData.NormalizeRuns(text, updated);
     }
 }

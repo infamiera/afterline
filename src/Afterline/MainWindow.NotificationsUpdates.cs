@@ -13,6 +13,7 @@ public partial class MainWindow
     private readonly UpdateService _updateService = new();
     private bool _notificationAndUpdateUiInitialized;
     private Border? _exportToast;
+    private TextBlock? _exportToastTitleText;
     private TextBlock? _exportToastFileText;
     private CancellationTokenSource? _exportToastCts;
     private string? _lastExportPath;
@@ -57,14 +58,14 @@ public partial class MainWindow
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var title = new TextBlock
+        _exportToastTitleText = new TextBlock
         {
             Text = "Chatlog saved",
             FontSize = 15,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         };
-        content.Children.Add(title);
+        content.Children.Add(_exportToastTitleText);
 
         var close = new Button
         {
@@ -134,14 +135,32 @@ public partial class MainWindow
             Opacity = 0
         };
 
-        Grid.SetRowSpan(_exportToast, 3);
+        Grid.SetRowSpan(_exportToast, 5);
         Panel.SetZIndex(_exportToast, 100);
-        LivePage.Children.Add(_exportToast);
+        if (LivePage.Parent is Panel mainContent)
+            mainContent.Children.Add(_exportToast);
     }
 
     private void ShowExportSuccessNotification(string path)
     {
-        if (_exportToast is null || _exportToastFileText is null) return;
+        ShowInAppFileNotification(
+            "Chatlog saved",
+            $"{Path.GetFileName(path)} was saved to {Path.GetDirectoryName(path)}.",
+            path);
+    }
+
+    private void ShowArchiveSuccessNotification(string path)
+    {
+        ShowInAppFileNotification(
+            "Chatlog safely archived",
+            $"{Path.GetFileName(path)} was safely parsed and archived.",
+            path);
+    }
+
+    private void ShowInAppFileNotification(string title, string message, string path)
+    {
+        if (_exportToast is null || _exportToastTitleText is null || _exportToastFileText is null)
+            return;
 
         _lastExportPath = path;
         _exportToastCts?.Cancel();
@@ -149,7 +168,8 @@ public partial class MainWindow
         _exportToastCts = new CancellationTokenSource();
 
         _exportToast.BeginAnimation(OpacityProperty, null);
-        _exportToastFileText.Text = $"{Path.GetFileName(path)} was saved to {Path.GetDirectoryName(path)}.";
+        _exportToastTitleText.Text = title;
+        _exportToastFileText.Text = message;
         _exportToast.Visibility = Visibility.Visible;
         _exportToast.Opacity = 1;
 

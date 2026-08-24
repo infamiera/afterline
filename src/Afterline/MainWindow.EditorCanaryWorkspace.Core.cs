@@ -618,7 +618,9 @@ public partial class MainWindow
                 {
                     var brush = new SolidColorBrush(segment.Color);
                     if (brush.CanFreeze) brush.Freeze();
-                    text.Inlines.Add(new Run(segment.Text) { Foreground = brush });
+                    var run = new Run(segment.Text) { Foreground = brush };
+                    if (segment.IsItalic) run.FontStyle = FontStyles.Italic;
+                    text.Inlines.Add(run);
                 }
             }
             stack.Children.Add(text);

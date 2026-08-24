@@ -82,7 +82,11 @@ internal static class UnifiedChatFormatter
             string style = finalSegments.Select(segment => segment.Color).Distinct().Skip(1).Any()
                 ? "Mixed"
                 : "Automatic";
-            result.Add(new EditorChatLine(line.SourceIndex, line.PlainText, style, finalSegments));
+            result.Add(new EditorChatLine(
+                line.SourceIndex,
+                line.PlainText,
+                style,
+                ChatTypographyService.ApplySlashItalics(finalSegments)));
         }
 
         return result;
@@ -131,14 +135,15 @@ internal static class UnifiedChatFormatter
 
             formatted.Add(new EditorChatSegment(
                 visibleText.Substring(run.Start, run.Length),
-                Color.FromArgb(run.Alpha, run.Red, run.Green, run.Blue)));
+                Color.FromArgb(run.Alpha, run.Red, run.Green, run.Blue),
+                run.Italic));
             cursor = run.End;
         }
 
         if (cursor < visibleText.Length)
             formatted.Add(new EditorChatSegment(visibleText[cursor..], EditorChatFormatter.White));
 
-        segments = formatted;
+        segments = ChatTypographyService.ApplySlashItalics(formatted);
         return formatted.Count > 0;
     }
 }

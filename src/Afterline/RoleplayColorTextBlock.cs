@@ -100,7 +100,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
 
         if (!UseAutomaticColors || IsSystemMessage)
         {
-            Inlines.Add(new Run(text) { Foreground = fallback });
+            AddPlainTypographyRuns(text, fallback);
             return;
         }
 
@@ -120,10 +120,7 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         }
 
         foreach (EditorChatSegment segment in line.Segments)
-        {
-            SolidColorBrush brush = GetFrozenBrush(segment.Color);
-            Inlines.Add(new Run(segment.Text) { Foreground = brush });
-        }
+            AddSegment(segment);
     }
 
     private void AddExactColorRuns(
@@ -131,23 +128,65 @@ internal sealed class RoleplayColorTextBlock : TextBlock
         IReadOnlyList<ChatColorRun> colorRuns,
         Brush fallback)
     {
+        var segments = new List<EditorChatSegment>(colorRuns.Count + 2);
         int cursor = 0;
         foreach (ChatColorRun colorRun in colorRuns)
         {
             if (colorRun.Start > cursor)
-                Inlines.Add(new Run(text[cursor..colorRun.Start]) { Foreground = fallback });
+            {
+                Color gapColor = fallback is SolidColorBrush gapBrush
+                    ? gapBrush.Color
+                    : EditorChatFormatter.White;
+                segments.Add(new EditorChatSegment(text[cursor..colorRun.Start], gapColor));
+            }
 
-            SolidColorBrush brush = GetFrozenBrush(Color.FromArgb(
-                colorRun.Alpha,
-                colorRun.Red,
-                colorRun.Green,
-                colorRun.Blue));
-            Inlines.Add(new Run(text.Substring(colorRun.Start, colorRun.Length)) { Foreground = brush });
+            segments.Add(new EditorChatSegment(
+                text.Substring(colorRun.Start, colorRun.Length),
+                Color.FromArgb(colorRun.Alpha, colorRun.Red, colorRun.Green, colorRun.Blue),
+                colorRun.Italic));
             cursor = colorRun.End;
         }
 
         if (cursor < text.Length)
-            Inlines.Add(new Run(text[cursor..]) { Foreground = fallback });
+        {
+            Color gapColor = fallback is SolidColorBrush gapBrush
+                ? gapBrush.Color
+                : EditorChatFormatter.White;
+            segments.Add(new EditorChatSegment(text[cursor..], gapColor));
+        }
+
+        foreach (EditorChatSegment segment in ChatTypographyService.ApplySlashItalics(segments))
+            AddSegment(segment);
+    }
+
+    private void AddPlainTypographyRuns(string text, Brush fallback)
+    {
+        IReadOnlyList<ChatColorRun> exact = ChatColorData.NormalizeRuns(text, ExactColorRuns);
+        IReadOnlyList<EditorChatSegment> segments =
+            exact.Count > 0 && ChatColorData.HasCompleteCoverage(text, exact)
+                ? exact.Select(run => new EditorChatSegment(
+                        text.Substring(run.Start, run.Length),
+                        EditorChatFormatter.White,
+                        run.Italic))
+                    .ToArray()
+                : new[] { new EditorChatSegment(text, EditorChatFormatter.White) };
+
+        foreach (EditorChatSegment segment in ChatTypographyService.ApplySlashItalics(segments))
+        {
+            var run = new Run(segment.Text) { Foreground = fallback };
+            if (segment.IsItalic) run.FontStyle = FontStyles.Italic;
+            Inlines.Add(run);
+        }
+    }
+
+    private void AddSegment(EditorChatSegment segment)
+    {
+        var run = new Run(segment.Text)
+        {
+            Foreground = GetFrozenBrush(segment.Color)
+        };
+        if (segment.IsItalic) run.FontStyle = FontStyles.Italic;
+        Inlines.Add(run);
     }
 
     private static SolidColorBrush GetFrozenBrush(Color color)

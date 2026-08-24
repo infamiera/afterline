@@ -272,7 +272,7 @@
                                 </StackPanel>
                             </Grid>
                         </Border>
-                        <ListBox x:Name="ArchiveSessionsList" Grid.Row="1" ItemsSource="{Binding ArchiveSessions}" DisplayMemberPath="FileName" BorderThickness="0" Padding="10" MouseDoubleClick="ArchiveSessionsList_MouseDoubleClick"/>
+                        <ListBox x:Name="ArchiveSessionsList" Grid.Row="1" ItemsSource="{Binding ArchiveSessions}" DisplayMemberPath="FileName" BorderThickness="0" Padding="10" MouseDoubleClick="ArchiveSessionsList_MouseDoubleClick" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"/>
                     </Grid>
                 </Border>
             </Grid>

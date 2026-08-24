@@ -83,6 +83,41 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException("Restarting the journal created a false session boundary or lost its continuation.");
 
         await resumed.FinalizeAsync(archiveRoot, CancellationToken.None);
+        await VerifyArchiveDateFilteringAsync(archiveRoot);
+    }
+
+    private static async Task VerifyArchiveDateFilteringAsync(string archiveRoot)
+    {
+        string filterRoot = Path.Combine(archiveRoot, "archive-filter-smoke");
+        Directory.CreateDirectory(filterRoot);
+        string oldPath = Path.Combine(filterRoot, "Chatlog [Archive Smoke] [01-January-2020].txt");
+        string today = DateTime.Today.ToString(
+            "dd-MMMM-yyyy",
+            System.Globalization.CultureInfo.InvariantCulture);
+        string todayPath = Path.Combine(
+            filterRoot,
+            $"Chatlog [Archive Smoke] [{today}].txt");
+        await File.WriteAllTextAsync(oldPath, "old archive line");
+        await File.WriteAllTextAsync(todayPath, "current archive line");
+
+        // Lock the old file. A correctly prefiltered refresh never attempts to
+        // open it and therefore still succeeds on Windows.
+        await using var lockedOldFile = new FileStream(
+            oldPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.None);
+        IReadOnlyList<SessionIndexEntry> visible = await new ArchiveService().RebuildIndexAsync(
+            filterRoot,
+            CancellationToken.None,
+            DateTime.Today,
+            DateTime.Today);
+        if (visible.Count != 1 ||
+            !string.Equals(visible[0].FilePath, todayPath, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Archive date filtering read or returned files outside the requested range.");
+        }
     }
 
     private static void VerifyHtmlChatExport(ChatEntry exactColorEntry, DateTime exportedAt)
@@ -100,6 +135,9 @@ internal static class SessionRecoverySmokeTest
         VerifyRecoveredCommandAccents(initiallyWhiteInstruction, attachmentInstruction);
         VerifyCapturedAccentPrecedence(exportedAt, attachmentInstruction);
         VerifyActivityPandaPointAccents(exportedAt);
+        VerifyLowSpeechNeutrality(exportedAt);
+        VerifyGlobalOocRoles(exportedAt);
+        VerifyItalicTypography(exportedAt);
 
         string html = ChatHtmlExportService.BuildDocument(
             "Afterline <Export>",
@@ -109,7 +147,11 @@ internal static class SessionRecoverySmokeTest
                 new ChatHtmlExportItem(exactColorEntry, exactColorEntry.Text, 1),
                 new ChatHtmlExportItem(new ChatEntry(exportedAt, tattoo), tattoo, 2),
                 new ChatHtmlExportItem(initiallyWhiteInstruction, attachmentInstruction, 3),
-                new ChatHtmlExportItem(new ChatEntry(exportedAt, unsafeText), unsafeText, 4)
+                new ChatHtmlExportItem(new ChatEntry(exportedAt, unsafeText), unsafeText, 4),
+                new ChatHtmlExportItem(
+                    new ChatEntry(exportedAt, "[06:00:00] Samayo says [low]: /quietly amused/"),
+                    "[06:00:00] Samayo says [low]: /quietly amused/",
+                    5)
             },
             useAutomaticColors: true,
             exportedAt: exportedAt);
@@ -118,6 +160,7 @@ internal static class SessionRecoverySmokeTest
             !html.Contains("color:#FBF724", StringComparison.Ordinal) ||
             !html.Contains("color:#56D64B", StringComparison.Ordinal) ||
             !html.Contains("color:#EDA841", StringComparison.Ordinal) ||
+            !html.Contains("font-style:italic", StringComparison.Ordinal) ||
             !html.Contains("&lt;script&gt;", StringComparison.Ordinal) ||
             !html.Contains("&lt;/script&gt;", StringComparison.Ordinal) ||
             html.Contains("<script>alert", StringComparison.Ordinal))
@@ -125,6 +168,101 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException(
                 "The HTML export did not preserve exact/manual colors or safely encode chat text.");
         }
+    }
+
+    private static void VerifyLowSpeechNeutrality(DateTime observedAt)
+    {
+        const string text = "[12:41:07] Alexandra Krasnova says [low]: Feels wrong doin' it to her—as... wrong as it sounds, my other one's used to it, likes it even.";
+        var entry = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, text.Length, 0x56, 0xD6, 0x4B)
+            });
+
+        int body = text.IndexOf("Alexandra", StringComparison.Ordinal);
+        if (!HasColorAt(entry.CapturedColorRuns, body, 0xFF, 0xFF, 0xFF))
+            throw new InvalidOperationException("A [low] speech line retained a leaked green row color.");
+    }
+
+    private static void VerifyGlobalOocRoles(DateTime observedAt)
+    {
+        VerifyGlobalOocRole(observedAt, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00);
+        VerifyGlobalOocRole(observedAt, 0xED, 0xA8, 0x41, 0xED, 0xA8, 0x41);
+        VerifyGlobalOocRole(observedAt, 0x38, 0x96, 0xF3, 0x38, 0x96, 0xF3);
+    }
+
+    private static void VerifyGlobalOocRole(
+        DateTime observedAt,
+        byte capturedRed,
+        byte capturedGreen,
+        byte capturedBlue,
+        byte expectedRed,
+        byte expectedGreen,
+        byte expectedBlue)
+    {
+        const string text = "[11:02:42] (( Global OOC: (64) Loke: If anyone died due to the explosions, please PM me ))";
+        int name = text.IndexOf("Loke", StringComparison.Ordinal);
+        int nameEnd = name + "Loke".Length;
+        var entry = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, name, 0xFB, 0xF7, 0x24),
+                new ChatColorRun(name, nameEnd - name, capturedRed, capturedGreen, capturedBlue),
+                new ChatColorRun(nameEnd, text.Length - nameEnd, 0xFB, 0xF7, 0x24)
+            });
+
+        int message = text.IndexOf("If anyone", StringComparison.Ordinal);
+        int globalLabel = text.IndexOf("Global OOC", StringComparison.Ordinal);
+        if (!HasColorAt(entry.CapturedColorRuns, globalLabel, 0xFF, 0xFF, 0xFF) ||
+            !HasColorAt(entry.CapturedColorRuns, message, 0xFF, 0xFF, 0xFF) ||
+            !HasColorAt(entry.CapturedColorRuns, name, expectedRed, expectedGreen, expectedBlue))
+        {
+            throw new InvalidOperationException(
+                "Global OOC did not keep its message white and its sender role-colored.");
+        }
+    }
+
+    private static void VerifyItalicTypography(DateTime observedAt)
+    {
+        const string text = "[06:00:00] Samayo says [low]: /quietly amused/ before replying.";
+        EditorChatLine line = UnifiedChatFormatter
+            .FormatLines(text, showTimestamps: true)
+            .First();
+        if (!line.Segments.Any(segment =>
+                segment.IsItalic && segment.Text.Contains("/quietly amused/", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("Slash-delimited roleplay emphasis was not italicized.");
+        }
+
+        const string commandText = "Use /detach weaponIndex or /detach weaponIndex attachmentIndex.";
+        if (UnifiedChatFormatter.FormatLines(commandText, showTimestamps: false)
+            .SelectMany(value => value.Segments)
+            .Any(segment => segment.IsItalic))
+        {
+            throw new InvalidOperationException("Slash commands were mistaken for italic roleplay text.");
+        }
+
+        int italicStart = text.IndexOf("/quietly amused/", StringComparison.Ordinal);
+        var exact = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, italicStart, 255, 255, 255),
+                new ChatColorRun(italicStart, "/quietly amused/".Length, 255, 255, 255, 255, true),
+                new ChatColorRun(
+                    italicStart + "/quietly amused/".Length,
+                    text.Length - italicStart - "/quietly amused/".Length,
+                    255,
+                    255,
+                    255)
+            });
+        if (!exact.CapturedColorRuns.Any(run => run.Italic && run.Start == italicStart))
+            throw new InvalidOperationException("Computed FiveM italics were not retained in captured metadata.");
     }
 
     private static void VerifyActivityPandaPointAccents(DateTime observedAt)
