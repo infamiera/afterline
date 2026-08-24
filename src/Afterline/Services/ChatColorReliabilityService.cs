@@ -69,6 +69,27 @@ internal static class ChatColorReliabilityService
             return normalized;
         }
 
+        Color[] expectedColors = expectedSegments
+            .Where(segment => segment.Text.Length > 0)
+            .Select(segment => segment.Color)
+            .Distinct()
+            .ToArray();
+        if (expectedColors.Length == 1 &&
+            expectedColors[0] != EditorChatFormatter.White &&
+            !body.TrimStart().StartsWith("*", StringComparison.Ordinal))
+        {
+            // Whole-line formats such as (phone), microphone, whisper, radio,
+            // success and inventory rows must stay one color. A temporarily
+            // neutral FiveM body must not override the recognized line color
+            // merely because its timestamp already received the correct style.
+            return OverrideColor(
+                text,
+                normalized,
+                bodyStart,
+                body.Length,
+                expectedColors[0]);
+        }
+
         IReadOnlyList<ChatColorRun> reliable = normalized;
         int segmentStart = bodyStart;
         foreach (EditorChatSegment segment in expectedSegments)

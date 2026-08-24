@@ -139,6 +139,7 @@ internal static class SessionRecoverySmokeTest
         VerifyGlobalOocRoles(exportedAt);
         VerifyItalicTypography(exportedAt);
         VerifyMixedActionSpeechColors(exportedAt);
+        VerifyUniformLineColorPropagation(exportedAt);
         VerifyEditorTextRangeColors();
 
         string html = ChatHtmlExportService.BuildDocument(
@@ -186,6 +187,52 @@ internal static class SessionRecoverySmokeTest
         int body = text.IndexOf("Alexandra", StringComparison.Ordinal);
         if (!HasColorAt(entry.CapturedColorRuns, body, 0xFF, 0xFF, 0xFF))
             throw new InvalidOperationException("A [low] speech line retained a leaked green row color.");
+    }
+
+    private static void VerifyUniformLineColorPropagation(DateTime observedAt)
+    {
+        const string text = "[10:03:54] Alexandra Krasnova says (phone): Tryna' do some shoppin'— my wardrobe is outdated.";
+        int bodyStart = text.IndexOf("Alexandra", StringComparison.Ordinal);
+        var entry = new ChatEntry(
+            observedAt,
+            text,
+            capturedColorRuns: new[]
+            {
+                new ChatColorRun(0, bodyStart, 0xFB, 0xF7, 0x24),
+                new ChatColorRun(bodyStart, text.Length - bodyStart, 0xFF, 0xFF, 0xFF)
+            });
+
+        int speaker = text.IndexOf("Alexandra", StringComparison.Ordinal);
+        int message = text.IndexOf("Tryna'", StringComparison.Ordinal);
+        if (!HasColorAt(entry.CapturedColorRuns, speaker, 0xFB, 0xF7, 0x24) ||
+            !HasColorAt(entry.CapturedColorRuns, message, 0xFB, 0xF7, 0x24))
+        {
+            throw new InvalidOperationException(
+                "A recognized whole-line phone color was applied only to its timestamp.");
+        }
+
+        var exact = new Dictionary<int, ChatColorLineRecord>
+        {
+            [0] = new ChatColorLineRecord
+            {
+                Text = text,
+                ColorRuns = new List<ChatColorRun>
+                {
+                    new(0, bodyStart, 0xFB, 0xF7, 0x24),
+                    new(bodyStart, text.Length - bodyStart, 0xFF, 0xFF, 0xFF)
+                }
+            }
+        };
+        EditorChatLine displayed = UnifiedChatFormatter
+            .FormatLines(text, showTimestamps: true, exactColors: exact)
+            .First();
+        if (!displayed.Segments.Any(segment =>
+                segment.Color == EditorChatFormatter.Yellow &&
+                segment.Text.Contains("Tryna'", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                "The shared Live Chat/Log Reader formatter retained a neutral phone body.");
+        }
     }
 
     private static void VerifyGlobalOocRoles(DateTime observedAt)

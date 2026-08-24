@@ -39,6 +39,14 @@ public partial class MainWindow
     private void EditorLineColorList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_editorUpdatingLineColorUi) return;
+        if (_editorLineColorList?.SelectedItem is EditorLineChoice &&
+            _editorInput is { SelectionLength: > 0 })
+        {
+            // Choosing a row means the next preset/custom color targets that
+            // entire row, not a text selection left behind in the input box.
+            int caret = _editorInput.SelectionStart + _editorInput.SelectionLength;
+            _editorInput.Select(Math.Min(caret, _editorInput.Text.Length), 0);
+        }
         UpdateEditorLineColorControls();
     }
 

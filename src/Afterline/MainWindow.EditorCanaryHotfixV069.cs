@@ -241,6 +241,16 @@ public partial class MainWindow
                         "Bianca Yurei",
                         EditorChatFormatter.Red));
                     RenderEditorChatOverlay();
+                    if (_editorLineColorList is null || _editorLineColorList.Items.Count == 0)
+                        throw new InvalidOperationException("The merged Line Colors list was not populated.");
+                    _editorLineColorList.SelectedIndex = -1;
+                    _editorInput.Select(0, Math.Min(6, _editorInput.Text.Length));
+                    _editorLineColorList.SelectedIndex = 0;
+                    if (_editorInput.SelectionLength != 0)
+                    {
+                        throw new InvalidOperationException(
+                            "Selecting a whole line retained a stale text-range color target.");
+                    }
 
                     SaveEditorProjectToPathV067(projectPath);
                     if (!File.Exists(projectPath) || new FileInfo(projectPath).Length == 0)

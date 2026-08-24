@@ -209,12 +209,16 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         if (visibleTextChanged)
         {
-            // FiveM can insert a complete text row one or two frames before the
+            // FiveM can insert a complete text row several frames before the
             // nested action/speech spans receive their final computed colors.
-            // Stabilize only changed chat, so idle capture remains unaffected.
-            for (int attempt = 0; attempt < 2; attempt++)
+            // Give every changed row four style passes; a still-flat leading
+            // action receives one final guarded pass. Idle capture is untouched.
+            for (int attempt = 0; attempt < 5; attempt++)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(65), cancellationToken);
+                if (attempt == 4 && !ContainsFlattenedLeadingAction(current))
+                    break;
+
+                await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
                 string? retryJson = await EvaluateChatExpressionAsync(
                     ReadChatExpression,
                     cancellationToken);
@@ -226,7 +230,6 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
                 current = retry;
                 text = current.Select(line => line.Text ?? string.Empty).ToArray();
-                if (!ContainsFlattenedLeadingAction(current)) break;
             }
         }
 
