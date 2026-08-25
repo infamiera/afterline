@@ -17,6 +17,14 @@ public sealed class AppSettings
     public bool ShowLiveTimestamps { get; set; } = true;
     public bool AutoScrollLiveChat { get; set; } = true;
     public bool UseWindowsArchiveNotifications { get; set; }
+    // Screenshot capture is opt-in at the application level: it only registers a
+    // global hotkey while enabled, and never polls or captures outside FiveM/GTA.
+    public bool EnableFiveMScreenshotCapture { get; set; } = true;
+    public string ScreenshotFolder { get; set; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "Afterline",
+        "Screenshots");
+    public string ScreenshotHotkey { get; set; } = "Ctrl+Shift+F12";
     public int MaxLiveMessages { get; set; } = 2000;
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;

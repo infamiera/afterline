@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "25/AUG/2026", new[]
         {
+            "FiveM screenshots — Added an on-demand, source-resolution PNG capture hotkey restricted to the foreground FiveM game subprocess, GTA5.exe, or GTAVLauncher.exe.",
+            "Screenshot gallery — Added a theme-aware Gallery with a 20-thumbnail limit, a background-only folder scan, configurable storage, and one-click Open in Editor handoff.",
+            "Capture controls — Added a master setting that unregisters the hotkey, hides the Gallery, clears previews, and performs no screenshot work while disabled.",
+            "Live Chat — Expanded OOC filtering with additional gameplay notices and partial Server Staff coverage, including toggleable admin messages."
+        }, ChangelogChannel.Canary, 163),
+        new("0.7.0", "25/AUG/2026", new[]
+        {
             "Live Chat filtering — Expanded Show OOC chat to hide ANTI-FALL notices, login and weather summaries, faction rosters, friend-login alerts, payphone instructions, property/stat readouts, and action cooldown warnings.",
             "Capture safety — These additions affect only Live Chat and filtered exports; complete captured and archived logs remain unchanged.",
             "Changelog — Vertically aligned the Stable and Canary channel badges with their release titles."

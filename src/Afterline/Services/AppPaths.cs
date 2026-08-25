@@ -16,6 +16,7 @@ public static class AppPaths
     public static string CaptureRunStateFile => Path.Combine(LocalDataRoot, "Cache", "capture-run.json");
     public static string NotesBookmarksFile => Path.Combine(LocalDataRoot, "Cache", "notes-bookmarks.json");
     public static string SearchHistoryFile => Path.Combine(LocalDataRoot, "Cache", "search-history.json");
+    public static string ScreenshotGalleryIndexFile => Path.Combine(LocalDataRoot, "Cache", "screenshot-gallery.json");
     public static string ActiveSessionsDirectory => Path.Combine(LocalDataRoot, "Active Sessions");
     public static string RecoveryBackupsDirectory => Path.Combine(LocalDataRoot, "Recovery Backups");
     public static string ProfileDirectory => Path.Combine(LocalDataRoot, "Profile");

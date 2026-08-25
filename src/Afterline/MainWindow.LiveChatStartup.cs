@@ -30,6 +30,7 @@ public partial class MainWindow
         EnsureEditorMediaV060();
         EnsureEditorPositioningV061();
         EnsureEditorAlignmentV062();
+        EnsureFiveMScreenshotCaptureV074();
         EnsureSettingsButtonPlacement();
         EnsureThemeAndAbout();
         EnsureUnifiedChatPresentation();

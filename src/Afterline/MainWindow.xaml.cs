@@ -185,6 +185,7 @@ public partial class MainWindow : Window
         // save cannot damage the previous autosave or named project.
         _editorAutosaveTimerV073.Stop();
         TryAutosaveEditorProjectV073(showToast: false);
+        ReleaseFiveMScreenshotHotkeyV074();
 
         _uiTimer.Stop();
         _archiveRefreshCts?.Cancel();
@@ -403,6 +404,9 @@ public partial class MainWindow : Window
         SettingsShowLiveCheck.IsChecked = _settings.ShowLiveChat;
         AutoScrollCheck.IsChecked = _settings.AutoScrollLiveChat;
         WindowsArchiveNotificationCheck.IsChecked = _settings.UseWindowsArchiveNotifications;
+        ScreenshotCaptureEnabledCheck.IsChecked = _settings.EnableFiveMScreenshotCapture;
+        ScreenshotFolderBox.Text = _settings.ScreenshotFolder;
+        ScreenshotHotkeyBox.Text = _settings.ScreenshotHotkey;
         ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
         ArchiveRootBox.Text = _settings.ArchiveRoot;
         SearchRootBox.Text = _settings.ArchiveRoot;
@@ -436,6 +440,8 @@ public partial class MainWindow : Window
         SearchPage.Visibility = Visibility.Collapsed;
         ArchivePage.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
+        if (_fiveMScreenshotGalleryPageV074 is not null)
+            _fiveMScreenshotGalleryPageV074.Visibility = Visibility.Collapsed;
         page.Visibility = Visibility.Visible;
         PageTitle.Text = title;
         PageSubtitle.Text = subtitle;
@@ -564,6 +570,19 @@ public partial class MainWindow : Window
         {
             string oldRoot = _settings.ArchiveRoot;
             string oldSearchRoot = SearchRootBox.Text;
+            string screenshotHotkey = string.IsNullOrWhiteSpace(ScreenshotHotkeyBox.Text)
+                ? "Ctrl+Shift+F12"
+                : ScreenshotHotkeyBox.Text.Trim();
+            if (!TryParseFiveMScreenshotHotkeyV074(screenshotHotkey, out _, out _))
+            {
+                System.Windows.MessageBox.Show(
+                    this,
+                    "Use a hotkey such as Ctrl+Shift+F12, Ctrl+Alt+S, or F10.",
+                    "Invalid screenshot hotkey",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
 
             _settings.StartWithWindows = StartWithWindowsCheck.IsChecked == true;
             _settings.StartMinimized = StartMinimizedCheck.IsChecked == true;
@@ -573,6 +592,13 @@ public partial class MainWindow : Window
             _settings.ShowLiveChat = SettingsShowLiveCheck.IsChecked == true;
             _settings.AutoScrollLiveChat = AutoScrollCheck.IsChecked == true;
             _settings.UseWindowsArchiveNotifications = WindowsArchiveNotificationCheck.IsChecked == true;
+            _settings.EnableFiveMScreenshotCapture = ScreenshotCaptureEnabledCheck.IsChecked == true;
+            _settings.ScreenshotFolder = string.IsNullOrWhiteSpace(ScreenshotFolderBox.Text)
+                ? _settings.ScreenshotFolder
+                : ScreenshotFolderBox.Text.Trim();
+            _settings.ScreenshotHotkey = string.IsNullOrWhiteSpace(ScreenshotHotkeyBox.Text)
+                ? "Ctrl+Shift+F12"
+                : screenshotHotkey;
             _settings.ReconnectGraceMinutes = ComboInt(ReconnectBox, 5);
             _settings.ProcessingIntervalMinutes = ComboInt(ProcessingBox, 1);
             _settings.MaxLiveMessages = ComboInt(MaxMessagesBox, 2000);
@@ -581,6 +607,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(_settings.ArchiveRoot);
             StartupService.SetEnabled(_settings.StartWithWindows);
             _settingsService.Save(_settings);
+            ApplyFiveMScreenshotCaptureSettingsV074();
 
             if (string.IsNullOrWhiteSpace(oldSearchRoot) || string.Equals(oldSearchRoot, oldRoot, StringComparison.OrdinalIgnoreCase))
                 SearchRootBox.Text = _settings.ArchiveRoot;

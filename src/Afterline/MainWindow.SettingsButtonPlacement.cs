@@ -39,6 +39,9 @@ public partial class MainWindow
         Button? editor = _editorNavButton ?? navigationPanel.Children
             .OfType<Button>()
             .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Editor", StringComparison.Ordinal));
+        Button? screenshots = _fiveMScreenshotNavButtonV074 ?? navigationPanel.Children
+            .OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Screenshots", StringComparison.Ordinal));
 
         if (notes is not null)
         {
@@ -59,8 +62,8 @@ public partial class MainWindow
         if (notes is not null) libraryButtons.Add(notes);
         AddSidebarSection(navigationPanel, "LIBRARY", libraryButtons);
 
-        if (editor is not null)
-            AddSidebarSection(navigationPanel, "IMAGE EDITOR", new[] { editor });
+        if (editor is not null || screenshots is not null)
+            AddSidebarSection(navigationPanel, "IMAGE EDITOR", new[] { editor, screenshots }.OfType<Button>());
 
         PlaceSettingsInMainFooter();
 

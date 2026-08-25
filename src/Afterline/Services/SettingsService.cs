@@ -41,6 +41,16 @@ public sealed class SettingsService
                 .ToList();
             settings.RecentLogPaths ??= new List<string>();
             settings.PinnedLogPaths ??= new List<string>();
+            if (string.IsNullOrWhiteSpace(settings.ScreenshotFolder))
+            {
+                settings.ScreenshotFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "Afterline",
+                    "Screenshots");
+            }
+            settings.ScreenshotHotkey = string.IsNullOrWhiteSpace(settings.ScreenshotHotkey)
+                ? "Ctrl+Shift+F12"
+                : settings.ScreenshotHotkey.Trim();
             settings.ArchiveFilterMode = settings.ArchiveFilterMode switch
             {
                 "All" => "All",
