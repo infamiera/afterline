@@ -10,7 +10,7 @@ internal static class CanaryChangelogData
         {
             "Capture shortcut activation — Confirm now saves and activates a recognized keyboard or Mouse 4/5 shortcut immediately, without requiring the separate Settings save action.",
             "Capture shortcut feedback — Added a persistent active or rejected status and diagnostic entries for both registration and shortcut detection."
-        }, ChangelogChannel.Canary, 179),
+        }, ChangelogChannel.Canary, 181),
         new("0.7.0", "26/AUG/2026", new[]
         {
             "Editor rulers — Anchored both zero points to the Base Image, added adaptive zoom-aware ticks through 5,000 pixels, and repaired Fit alignment.",
