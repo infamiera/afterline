@@ -203,6 +203,10 @@ public partial class MainWindow
             foreach (UIElement child in _sidebarGrid.Children)
                 child.Visibility = Visibility.Visible;
 
+            // Expanding the sidebar must not revive optional features that are
+            // disabled in Settings.
+            UpdateFiveMScreenshotUiAvailabilityV074(_settings.EnableFiveMScreenshotCapture);
+
             _sidebarToggleButton.Content = "\uE76B";
             _sidebarToggleButton.HorizontalAlignment = HorizontalAlignment.Right;
             _sidebarToggleButton.ToolTip = "Hide sidebar";
