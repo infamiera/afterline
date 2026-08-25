@@ -13,6 +13,7 @@ public sealed class AppSettings
     public bool AutoCapture { get; set; } = true;
     public bool ShowLiveChat { get; set; } = true;
     public bool ShowOocChat { get; set; } = true;
+    public bool ShowIcChat { get; set; } = true;
     public bool ColorizeRoleplayLines { get; set; } = true;
     public bool ShowLiveTimestamps { get; set; } = true;
     public bool AutoScrollLiveChat { get; set; } = true;
@@ -26,6 +27,7 @@ public sealed class AppSettings
         "Afterline",
         "Screenshots");
     public string ScreenshotHotkey { get; set; } = "Ctrl+Shift+F12";
+    public bool ScreenshotCaptureNotificationEnabled { get; set; }
     public string ScreenshotCaptureSound { get; set; } = "Shutter";
     public int ScreenshotCaptureSoundVolume { get; set; } = 60;
     public int MaxLiveMessages { get; set; } = 2000;

@@ -407,6 +407,9 @@ public partial class MainWindow : Window
         ScreenshotCaptureEnabledCheck.IsChecked = _settings.EnableFiveMScreenshotCapture;
         ScreenshotFolderBox.Text = _settings.ScreenshotFolder;
         ScreenshotHotkeyBox.Text = _settings.ScreenshotHotkey;
+        _screenshotHotkeyConfirmedV076 = true;
+        ScreenshotHotkeyConfirmationPanelV076.Visibility = Visibility.Collapsed;
+        ScreenshotCaptureNotificationCheckV076.IsChecked = _settings.ScreenshotCaptureNotificationEnabled;
         SelectComboItem(ScreenshotCaptureSoundBox, _settings.ScreenshotCaptureSound);
         ScreenshotCaptureSoundVolumeSlider.Value = Math.Clamp(_settings.ScreenshotCaptureSoundVolume, 0, 100);
         ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(ScreenshotCaptureSoundVolumeSlider.Value):0}%";
@@ -479,7 +482,11 @@ public partial class MainWindow : Window
     }
 
     private void DashboardNav_Click(object sender, RoutedEventArgs e) => ShowPage(DashboardPage, "Dashboard", "FiveM capture and session overview");
-    private void LiveNav_Click(object sender, RoutedEventArgs e) => ShowPage(LivePage, "Live Chat", "Optional real-time view of everything FiveM displays in chat");
+    private void LiveNav_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfirmStreamerSensitiveViewV076("Live Chat")) return;
+        ShowPage(LivePage, "Live Chat", "Optional real-time view of everything FiveM displays in chat");
+    }
 
     private async void SearchNav_Click(object sender, RoutedEventArgs e)
     {
@@ -612,6 +619,16 @@ public partial class MainWindow : Window
             string screenshotHotkey = string.IsNullOrWhiteSpace(ScreenshotHotkeyBox.Text)
                 ? "Ctrl+Shift+F12"
                 : ScreenshotHotkeyBox.Text.Trim();
+            if (!_screenshotHotkeyConfirmedV076)
+            {
+                System.Windows.MessageBox.Show(
+                    this,
+                    "Confirm the recognized capture shortcut before saving settings.",
+                    "Confirm capture hotkey",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
             if (!TryParseFiveMScreenshotHotkeyV074(screenshotHotkey, out _, out _))
             {
                 System.Windows.MessageBox.Show(
@@ -638,6 +655,7 @@ public partial class MainWindow : Window
             _settings.ScreenshotHotkey = string.IsNullOrWhiteSpace(ScreenshotHotkeyBox.Text)
                 ? "Ctrl+Shift+F12"
                 : screenshotHotkey;
+            _settings.ScreenshotCaptureNotificationEnabled = ScreenshotCaptureNotificationCheckV076.IsChecked == true;
             _settings.ScreenshotCaptureSound = (ScreenshotCaptureSoundBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "Shutter";
             _settings.ScreenshotCaptureSoundVolume = Math.Clamp((int)Math.Round(ScreenshotCaptureSoundVolumeSlider.Value), 0, 100);
             _settings.StreamerModeEnabled = StreamerModeCheck.IsChecked == true;

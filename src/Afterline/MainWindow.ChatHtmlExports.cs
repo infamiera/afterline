@@ -15,7 +15,7 @@ public partial class MainWindow
         try
         {
             ChatEntry[] visibleEntries = LiveMessages
-                .Where(entry => _settings.ShowOocChat || !entry.IsOocLine)
+                .Where(ShouldShowLiveChatEntryV076)
                 .ToArray();
             if (visibleEntries.Length == 0)
                 throw new InvalidOperationException("There are no visible Live Chat lines to export yet.");
@@ -31,7 +31,7 @@ public partial class MainWindow
             await ChatHtmlExportService.ExportAsync(
                 destination,
                 $"Afterline Live Chat — {serverName}",
-                "Current visible view · OOC/gameplay-status and timestamp settings applied",
+                "Current visible view · IC/OOC and timestamp settings applied",
                 lines,
                 _settings.ColorizeRoleplayLines,
                 now,

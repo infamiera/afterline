@@ -107,6 +107,12 @@ public partial class MainWindow
         _editorSavedWindowStateCanary = WindowState;
         _editorSavedResizeModeCanary = ResizeMode;
 
+        // WPF can ignore a chrome/state transition when a maximized window changes
+        // directly to borderless. Normalize first, then enter maximized borderless
+        // mode so the toolbar button works from both normal and maximized layouts.
+        if (WindowState == WindowState.Maximized)
+            WindowState = WindowState.Normal;
+
         if (_editorRootLayoutCanary?.ColumnDefinitions.Count > 0)
             _editorRootLayoutCanary.ColumnDefinitions[0].Width = new GridLength(0);
         if (_editorMainLayoutCanary is not null)

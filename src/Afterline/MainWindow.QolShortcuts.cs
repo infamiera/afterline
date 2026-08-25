@@ -36,10 +36,9 @@ public partial class MainWindow
         {
             _dashboardOpenCurrentLogButton = new Button
             {
-                Content = "Open current log",
-                Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(0, 0, 10, 6),
-                ToolTip = "Open the currently active chatlog directly in Log Reader."
+                Content = "Open Today's Log",
+                Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = "Open today's active chatlog directly in Log Reader."
             };
             _dashboardOpenCurrentLogButton.Click += async (_, _) => await OpenCurrentLogInReaderV050Async();
             dashboardActions.Children.Insert(0, _dashboardOpenCurrentLogButton);
@@ -49,10 +48,10 @@ public partial class MainWindow
         {
             _liveOpenCurrentLogButton = new Button
             {
-                Content = "Open current log",
+                Content = "Open Today's Log",
                 Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(0, 0, 8, 0),
-                ToolTip = "Open the currently active chatlog directly in Log Reader."
+                Margin = new Thickness(0, 0, 10, 6),
+                ToolTip = "Open today's active chatlog directly in Log Reader."
             };
             _liveOpenCurrentLogButton.Click += async (_, _) => await OpenCurrentLogInReaderV050Async();
             int index = liveActions.Children.IndexOf(_liveActionStatus);

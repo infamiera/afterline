@@ -52,7 +52,7 @@ public partial class MainWindow
         zoom.Children.Add(_editorZoomText);
         zoom.Children.Add(CreateEditorPreviewButton("+", "Zoom in", (_, _) => ChangeEditorZoom(0.1)));
         zoom.Children.Add(CreateEditorPreviewButton("Fit", "Fit the complete image in the preview", (_, _) => FitEditorPreviewToWindow()));
-        zoom.Children.Add(CreateEditorPreviewButton("\uE740", "Full screen preview", EditorFullscreenPreview_Click, useIconFont: true));
+        zoom.Children.Add(CreateEditorPreviewButton("\uE740", "Enter or leave the full screen Editor", (_, _) => ToggleEditorFullscreenCanary(), useIconFont: true));
         Grid.SetColumn(zoom, 1);
         previewBar.Children.Add(zoom);
         root.Children.Add(previewBar);
@@ -276,7 +276,14 @@ public partial class MainWindow
     {
         _editorZoomScale = Math.Clamp(scale, 0.10, 4.0);
         if (_editorZoomHost is not null)
+        {
             _editorZoomHost.LayoutTransform = new ScaleTransform(_editorZoomScale, _editorZoomScale);
+            if (!_editorFitZoom)
+            {
+                _editorZoomHost.HorizontalAlignment = HorizontalAlignment.Left;
+                _editorZoomHost.VerticalAlignment = VerticalAlignment.Top;
+            }
+        }
         if (_editorZoomText is not null)
             _editorZoomText.Text = $"{Math.Round(_editorZoomScale * 100):0}%";
         RefreshEditorRulersV068();

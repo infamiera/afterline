@@ -21,6 +21,8 @@ public partial class MainWindow
     private const uint ModShiftV074 = 0x0004;
     private const uint ModWinV074 = 0x0008;
     private const uint ModNoRepeatV074 = 0x4000;
+    private const int WhMouseLlV076 = 14;
+    private const int WmXButtonDownV076 = 0x020B;
 
     public sealed class FiveMScreenshotGalleryItemV074
     {
@@ -41,6 +43,11 @@ public partial class MainWindow
     private bool _fiveMScreenshotHotkeyRegisteredV074;
     private bool _fiveMScreenshotCaptureInProgressV074;
     private int _fiveMScreenshotRefreshVersionV074;
+    private bool _screenshotHotkeyConfirmedV076 = true;
+    private IntPtr _screenshotMouseHookV076;
+    private LowLevelMouseProcV076? _screenshotMouseHookProcV076;
+    private int _screenshotMouseButtonV076;
+    private uint _screenshotMouseModifiersV076;
 
     private void EnsureFiveMScreenshotCaptureV074()
     {
@@ -276,6 +283,8 @@ public partial class MainWindow
             ScreenshotGalleryIndexService.Record(result.FilePath);
             CaptureFeedbackSoundService.Play(_settings.ScreenshotCaptureSound, _settings.ScreenshotCaptureSoundVolume);
             SetFiveMScreenshotStatusV074($"Saved {Path.GetFileName(result.FilePath)} · {result.PixelWidth:N0} × {result.PixelHeight:N0}px");
+            if (_settings.ScreenshotCaptureNotificationEnabled)
+                ShowScreenshotSavedNotificationV076(result.FilePath);
             await RefreshFiveMScreenshotGalleryV074Async();
         }
         catch (Exception ex)
@@ -440,6 +449,32 @@ public partial class MainWindow
             DiagnosticLogger.Info("Invalid FiveM screenshot hotkey was reset to Ctrl+Shift+F12.");
         }
 
+        if (TryGetScreenshotMouseButtonV076(_settings.ScreenshotHotkey, out int mouseButton))
+        {
+            _screenshotMouseButtonV076 = mouseButton;
+            _screenshotMouseModifiersV076 = modifiers;
+            _screenshotMouseHookProcV076 = ScreenshotMouseHookV076;
+            _screenshotMouseHookV076 = SetWindowsHookExV076(
+                WhMouseLlV076,
+                _screenshotMouseHookProcV076,
+                GetModuleHandleV076(null),
+                0);
+            if (_screenshotMouseHookV076 == IntPtr.Zero)
+            {
+                DiagnosticLogger.Error($"Unable to register screenshot shortcut '{_settings.ScreenshotHotkey}'.");
+                if (showFailure)
+                {
+                    System.Windows.MessageBox.Show(
+                        this,
+                        "Windows could not activate that mouse shortcut. Choose a different shortcut and try again.",
+                        "Capture hotkey unavailable",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
+            return;
+        }
+
         IntPtr handle = new WindowInteropHelper(this).Handle;
         _fiveMScreenshotHotkeySourceV074 = HwndSource.FromHwnd(handle);
         if (_fiveMScreenshotHotkeySourceV074 is null)
@@ -475,6 +510,15 @@ public partial class MainWindow
 
     private void ReleaseFiveMScreenshotHotkeyV074()
     {
+        if (_screenshotMouseHookV076 != IntPtr.Zero)
+        {
+            try { UnhookWindowsHookExV076(_screenshotMouseHookV076); }
+            catch { }
+            _screenshotMouseHookV076 = IntPtr.Zero;
+            _screenshotMouseHookProcV076 = null;
+            _screenshotMouseButtonV076 = 0;
+            _screenshotMouseModifiersV076 = 0;
+        }
         if (_fiveMScreenshotHotkeyRegisteredV074)
         {
             try { UnregisterHotKey(new WindowInteropHelper(this).Handle, ScreenshotHotkeyIdV074); }
@@ -507,6 +551,7 @@ public partial class MainWindow
         if (segments.Length == 0) return false;
 
         Key? key = null;
+        int mouseButton = 0;
         foreach (string segment in segments)
         {
             if (segment.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || segment.Equals("Control", StringComparison.OrdinalIgnoreCase))
@@ -517,14 +562,21 @@ public partial class MainWindow
                 modifiers |= ModShiftV074;
             else if (segment.Equals("Win", StringComparison.OrdinalIgnoreCase) || segment.Equals("Windows", StringComparison.OrdinalIgnoreCase))
                 modifiers |= ModWinV074;
-            else if (Enum.TryParse(segment, ignoreCase: true, out Key parsed) && parsed is not Key.None and not Key.LeftCtrl and not Key.RightCtrl and not Key.LeftShift and not Key.RightShift and not Key.LeftAlt and not Key.RightAlt and not Key.LWin and not Key.RWin)
+            else if (TryParseScreenshotMouseButtonSegmentV076(segment, out int parsedMouse))
             {
-                if (key is not null) return false;
+                if (key is not null || mouseButton != 0) return false;
+                mouseButton = parsedMouse;
+            }
+            else if (TryParseScreenshotKeyV076(segment, out Key parsed) && parsed is not Key.None and not Key.LeftCtrl and not Key.RightCtrl and not Key.LeftShift and not Key.RightShift and not Key.LeftAlt and not Key.RightAlt and not Key.LWin and not Key.RWin and not Key.Escape and not Key.Return and not Key.Back)
+            {
+                if (key is not null || mouseButton != 0) return false;
                 key = parsed;
             }
             else
                 return false;
         }
+        if (mouseButton != 0)
+            return true;
         if (key is not Key selected) return false;
         int valueCode = KeyInterop.VirtualKeyFromKey(selected);
         if (valueCode <= 0) return false;
@@ -542,18 +594,193 @@ public partial class MainWindow
         Key key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
             Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.None)
+        {
+            e.Handled = true;
             return;
+        }
 
-        ModifierKeys modifiers = Keyboard.Modifiers;
+        if (key is Key.Escape or Key.Return or Key.Back)
+        {
+            ShowScreenshotHotkeyRecognitionV076("Esc, Enter, and Backspace cannot be used as capture keys.", valid: false);
+            e.Handled = true;
+            return;
+        }
+
+        ScreenshotHotkeyBox.Text = BuildScreenshotShortcutTextV076(Keyboard.Modifiers, FriendlyScreenshotKeyNameV076(key));
+        ScreenshotHotkeyBox.CaretIndex = ScreenshotHotkeyBox.Text.Length;
+        ShowScreenshotHotkeyRecognitionV076($"Recognized {ScreenshotHotkeyBox.Text}. Confirm it or choose Re-do.", valid: true);
+        e.Handled = true;
+    }
+
+    private void ScreenshotHotkeyBox_PreviewMouseDownV076(object sender, MouseButtonEventArgs e)
+    {
+        string? mouseName = e.ChangedButton switch
+        {
+            MouseButton.XButton1 => "Mouse 4",
+            MouseButton.XButton2 => "Mouse 5",
+            _ => null
+        };
+        if (mouseName is null) return;
+
+        ScreenshotHotkeyBox.Text = BuildScreenshotShortcutTextV076(Keyboard.Modifiers, mouseName);
+        ShowScreenshotHotkeyRecognitionV076($"Recognized {ScreenshotHotkeyBox.Text}. Confirm it or choose Re-do.", valid: true);
+        e.Handled = true;
+    }
+
+    private static string BuildScreenshotShortcutTextV076(ModifierKeys modifiers, string keyName)
+    {
         var parts = new List<string>(5);
         if (modifiers.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
-        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
         if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
+        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
         if (modifiers.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
-        parts.Add(key.ToString());
-        ScreenshotHotkeyBox.Text = string.Join("+", parts);
-        ScreenshotHotkeyBox.CaretIndex = ScreenshotHotkeyBox.Text.Length;
-        e.Handled = true;
+        parts.Add(keyName);
+        return string.Join("+", parts);
+    }
+
+    private static string FriendlyScreenshotKeyNameV076(Key key)
+    {
+        int keyValue = (int)key;
+        if (keyValue >= (int)Key.D0 && keyValue <= (int)Key.D9)
+            return (keyValue - (int)Key.D0).ToString();
+        if (keyValue >= (int)Key.NumPad0 && keyValue <= (int)Key.NumPad9)
+            return "Numpad " + (keyValue - (int)Key.NumPad0);
+
+        return key switch
+        {
+            Key.Space => "Space",
+            Key.Capital => "Caps Lock",
+            Key.Prior => "Page Up",
+            Key.Next => "Page Down",
+            Key.Snapshot => "Print Screen",
+            Key.OemPlus => "Plus",
+            Key.OemMinus => "Minus",
+            Key.OemComma => "Comma",
+            Key.OemPeriod => "Period",
+            Key.OemQuestion => "Slash",
+            Key.OemSemicolon => "Semicolon",
+            Key.OemQuotes => "Quote",
+            Key.OemOpenBrackets => "Left Bracket",
+            Key.OemCloseBrackets => "Right Bracket",
+            Key.OemPipe => "Backslash",
+            Key.OemTilde => "Tilde",
+            _ => key.ToString()
+        };
+    }
+
+    private static bool TryParseScreenshotKeyV076(string value, out Key key)
+    {
+        string normalized = value.Trim();
+        if (normalized.Length == 1 && char.IsDigit(normalized[0]))
+        {
+            key = (Key)((int)Key.D0 + (normalized[0] - '0'));
+            return true;
+        }
+        if (normalized.StartsWith("Numpad ", StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(normalized[7..], out int number) && number is >= 0 and <= 9)
+        {
+            key = (Key)((int)Key.NumPad0 + number);
+            return true;
+        }
+
+        key = normalized.ToLowerInvariant() switch
+        {
+            "caps lock" => Key.Capital,
+            "page up" => Key.Prior,
+            "page down" => Key.Next,
+            "print screen" => Key.Snapshot,
+            "plus" => Key.OemPlus,
+            "minus" => Key.OemMinus,
+            "comma" => Key.OemComma,
+            "period" => Key.OemPeriod,
+            "slash" => Key.OemQuestion,
+            "semicolon" => Key.OemSemicolon,
+            "quote" => Key.OemQuotes,
+            "left bracket" => Key.OemOpenBrackets,
+            "right bracket" => Key.OemCloseBrackets,
+            "backslash" => Key.OemPipe,
+            "tilde" => Key.OemTilde,
+            _ => Key.None
+        };
+        return key != Key.None || Enum.TryParse(normalized, ignoreCase: true, out key);
+    }
+
+    private static bool TryParseScreenshotMouseButtonSegmentV076(string value, out int mouseButton)
+    {
+        if (value.Equals("Mouse 4", StringComparison.OrdinalIgnoreCase) || value.Equals("Mouse4", StringComparison.OrdinalIgnoreCase))
+        {
+            mouseButton = 4;
+            return true;
+        }
+        if (value.Equals("Mouse 5", StringComparison.OrdinalIgnoreCase) || value.Equals("Mouse5", StringComparison.OrdinalIgnoreCase))
+        {
+            mouseButton = 5;
+            return true;
+        }
+        mouseButton = 0;
+        return false;
+    }
+
+    private static bool TryGetScreenshotMouseButtonV076(string? shortcut, out int mouseButton)
+    {
+        mouseButton = 0;
+        if (string.IsNullOrWhiteSpace(shortcut)) return false;
+        foreach (string segment in shortcut.Split('+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (TryParseScreenshotMouseButtonSegmentV076(segment, out mouseButton))
+                return true;
+        }
+        return false;
+    }
+
+    private void ShowScreenshotHotkeyRecognitionV076(string message, bool valid)
+    {
+        _screenshotHotkeyConfirmedV076 = false;
+        ScreenshotHotkeyConfirmationTextV076.Text = message;
+        ScreenshotHotkeyConfirmationTextV076.Foreground = (Brush)FindResource(valid ? "MutedText" : "Warning");
+        ScreenshotHotkeyConfirmationPanelV076.Visibility = Visibility.Visible;
+    }
+
+    private void ConfirmScreenshotHotkeyV076_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryParseFiveMScreenshotHotkeyV074(ScreenshotHotkeyBox.Text, out _, out _))
+        {
+            ShowScreenshotHotkeyRecognitionV076("That shortcut is not valid. Choose Re-do and try another key or combination.", valid: false);
+            return;
+        }
+        _screenshotHotkeyConfirmedV076 = true;
+        ScreenshotHotkeyConfirmationPanelV076.Visibility = Visibility.Collapsed;
+    }
+
+    private void RedoScreenshotHotkeyV076_Click(object sender, RoutedEventArgs e)
+    {
+        ScreenshotHotkeyBox.Text = string.Empty;
+        _screenshotHotkeyConfirmedV076 = false;
+        ScreenshotHotkeyConfirmationTextV076.Text = "Press a keyboard combination or Mouse 4/5 in the shortcut field.";
+        ScreenshotHotkeyConfirmationTextV076.Foreground = (Brush)FindResource("MutedText");
+        ScreenshotHotkeyBox.Focus();
+    }
+
+    private IntPtr ScreenshotMouseHookV076(int code, IntPtr wParam, IntPtr lParam)
+    {
+        if (code >= 0 && wParam.ToInt32() == WmXButtonDownV076)
+        {
+            MouseHookDataV076 data = Marshal.PtrToStructure<MouseHookDataV076>(lParam);
+            int button = ((data.MouseData >> 16) & 0xFFFF) switch { 1 => 4, 2 => 5, _ => 0 };
+            if (button == _screenshotMouseButtonV076 && ActiveScreenshotModifiersV076() == _screenshotMouseModifiersV076)
+                _ = Dispatcher.BeginInvoke(new Action(() => _ = CaptureFiveMScreenshotV074Async()));
+        }
+        return CallNextHookExV076(_screenshotMouseHookV076, code, wParam, lParam);
+    }
+
+    private static uint ActiveScreenshotModifiersV076()
+    {
+        uint modifiers = 0;
+        if ((GetAsyncKeyStateV076(0x11) & 0x8000) != 0) modifiers |= ModControlV074;
+        if ((GetAsyncKeyStateV076(0x10) & 0x8000) != 0) modifiers |= ModShiftV074;
+        if ((GetAsyncKeyStateV076(0x12) & 0x8000) != 0) modifiers |= ModAltV074;
+        if ((GetAsyncKeyStateV076(0x5B) & 0x8000) != 0 || (GetAsyncKeyStateV076(0x5C) & 0x8000) != 0) modifiers |= ModWinV074;
+        return modifiers;
     }
 
     private void ApplyFiveMScreenshotCaptureSettingsV074()
@@ -595,6 +822,21 @@ public partial class MainWindow
             _fiveMScreenshotGalleryStatusV074.Text = message;
     }
 
+    private void ShowScreenshotSavedNotificationV076(string path)
+    {
+        if (_trayIcon is null)
+        {
+            ShowInAppFileNotification("Screenshot saved", $"{Path.GetFileName(path)} was saved locally.", path);
+            return;
+        }
+
+        _lastExportPath = Path.GetFullPath(path);
+        _trayIcon.BalloonTipTitle = "Screenshot saved";
+        _trayIcon.BalloonTipText = $"{Path.GetFileName(path)} was saved locally. Click to open its location.";
+        _trayIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
+        _trayIcon.ShowBalloonTip(8_000);
+    }
+
     private void BrowseScreenshotFolder_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new Forms.FolderBrowserDialog
@@ -612,6 +854,20 @@ public partial class MainWindow
     private void ResetScreenshotHotkey_Click(object sender, RoutedEventArgs e)
     {
         ScreenshotHotkeyBox.Text = "Ctrl+Shift+F12";
+        ShowScreenshotHotkeyRecognitionV076("Default shortcut restored. Confirm it to keep the change.", valid: true);
+    }
+
+    private delegate IntPtr LowLevelMouseProcV076(int code, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseHookDataV076
+    {
+        public int X;
+        public int Y;
+        public uint MouseData;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
     }
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -621,4 +877,20 @@ public partial class MainWindow
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    private static extern IntPtr SetWindowsHookExV076(int hookId, LowLevelMouseProcV076 callback, IntPtr module, uint threadId);
+
+    [DllImport("user32.dll", EntryPoint = "UnhookWindowsHookEx", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWindowsHookExV076(IntPtr hook);
+
+    [DllImport("user32.dll", EntryPoint = "CallNextHookEx")]
+    private static extern IntPtr CallNextHookExV076(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", EntryPoint = "GetAsyncKeyState")]
+    private static extern short GetAsyncKeyStateV076(int virtualKey);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleW", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandleV076(string? moduleName);
 }

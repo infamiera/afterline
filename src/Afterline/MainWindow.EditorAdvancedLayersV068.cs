@@ -1071,6 +1071,8 @@ public partial class MainWindow
         Grid.SetColumn(_editorPreviewScroll, 1);
         _editorPreviewScroll.Content = _editorZoomHost;
         _editorPreviewScroll.ScrollChanged += (_, _) => RefreshEditorRulersV068();
+        _editorZoomHost.SizeChanged += (_, _) =>
+            Dispatcher.BeginInvoke(new Action(RefreshEditorRulersV068));
         grid.Children.Add(_editorPreviewScroll);
         previewRoot.Children.Add(grid);
         RefreshEditorRulersV068();
@@ -1097,11 +1099,7 @@ public partial class MainWindow
         if (_editorComposition is null || _editorHorizontalRulerV068 is null || _editorVerticalRulerV068 is null)
             return;
 
-        double width = Math.Max(1, _editorComposition.Width);
-        double height = Math.Max(1, _editorComposition.Height);
         double scale = Math.Max(0.01, _editorZoomScale);
-        double horizontalOffset = _editorPreviewScroll?.HorizontalOffset ?? 0;
-        double verticalOffset = _editorPreviewScroll?.VerticalOffset ?? 0;
         double visibleWidth = Math.Max(
             1,
             _editorHorizontalRulerV068.ActualWidth > 0
@@ -1116,36 +1114,56 @@ public partial class MainWindow
         _editorVerticalRulerV068.Children.Clear();
 
         Brush lineBrush = (Brush)FindResource("MutedText");
-        double major = Math.Max(width, height) switch
-        {
-            > 8000 => 1000,
-            > 4000 => 500,
-            > 2000 => 250,
-            _ => 100
-        };
+        Brush zeroBrush = TryFindResource("Accent") as Brush ?? lineBrush;
+        double[] majorCandidates = { 10, 25, 50, 100, 250, 500, 1000, 2500, 5000 };
+        double major = majorCandidates.FirstOrDefault(candidate => candidate * scale >= 68);
+        if (major <= 0)
+            major = 5000;
         double minor = major / 5;
 
-        for (double x = 0; x <= width + 0.1; x += minor)
+        // Translate the actual composition rather than deriving an origin from the
+        // scroll offsets. Fit mode centers the image in the viewport, while manual
+        // zoom and scrolling move it; TranslatePoint accounts for all three. This
+        // keeps (0, 0) attached to the base image's top-left corner at every zoom.
+        Point horizontalOrigin;
+        Point verticalOrigin;
+        try
         {
-            double screenX = x * scale - horizontalOffset;
+            _editorComposition.UpdateLayout();
+            horizontalOrigin = _editorComposition.TranslatePoint(new Point(0, 0), _editorHorizontalRulerV068);
+            verticalOrigin = _editorComposition.TranslatePoint(new Point(0, 0), _editorVerticalRulerV068);
+        }
+        catch (InvalidOperationException)
+        {
+            horizontalOrigin = new Point(-(_editorPreviewScroll?.HorizontalOffset ?? 0), 0);
+            verticalOrigin = new Point(0, -(_editorPreviewScroll?.VerticalOffset ?? 0));
+        }
+
+        const double rulerLimit = 5000;
+        double firstX = Math.Max(-rulerLimit, Math.Floor((-horizontalOrigin.X) / scale / minor) * minor);
+        double lastX = Math.Min(rulerLimit, Math.Ceiling((visibleWidth - horizontalOrigin.X) / scale / minor) * minor);
+        for (double x = firstX; x <= lastX + 0.01; x += minor)
+        {
+            double screenX = horizontalOrigin.X + x * scale;
             if (screenX < -1 || screenX > visibleWidth + 1) continue;
-            bool isMajor = Math.Abs(x % major) < 0.01;
+            bool isMajor = IsEditorRulerMajorTickV076(x, major);
+            bool isZero = Math.Abs(x) < 0.01;
             _editorHorizontalRulerV068.Children.Add(new Line
             {
                 X1 = screenX,
                 X2 = screenX,
                 Y1 = isMajor ? 8 : 15,
                 Y2 = 24,
-                Stroke = lineBrush,
-                StrokeThickness = 1,
+                Stroke = isZero ? zeroBrush : lineBrush,
+                StrokeThickness = isZero ? 1.5 : 1,
                 Opacity = isMajor ? 0.9 : 0.55
             });
             if (!isMajor) continue;
             var label = new TextBlock
             {
-                Text = x.ToString("0"),
+                Text = Math.Abs(x) < 0.01 ? "0" : x.ToString("0"),
                 FontSize = 8,
-                Foreground = lineBrush,
+                Foreground = isZero ? zeroBrush : lineBrush,
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(label, screenX + 2);
@@ -1153,33 +1171,42 @@ public partial class MainWindow
             _editorHorizontalRulerV068.Children.Add(label);
         }
 
-        for (double y = 0; y <= height + 0.1; y += minor)
+        double firstY = Math.Max(-rulerLimit, Math.Floor((-verticalOrigin.Y) / scale / minor) * minor);
+        double lastY = Math.Min(rulerLimit, Math.Ceiling((visibleHeight - verticalOrigin.Y) / scale / minor) * minor);
+        for (double y = firstY; y <= lastY + 0.01; y += minor)
         {
-            double screenY = y * scale - verticalOffset;
+            double screenY = verticalOrigin.Y + y * scale;
             if (screenY < -1 || screenY > visibleHeight + 1) continue;
-            bool isMajor = Math.Abs(y % major) < 0.01;
+            bool isMajor = IsEditorRulerMajorTickV076(y, major);
+            bool isZero = Math.Abs(y) < 0.01;
             _editorVerticalRulerV068.Children.Add(new Line
             {
                 X1 = isMajor ? 20 : 29,
                 X2 = 38,
                 Y1 = screenY,
                 Y2 = screenY,
-                Stroke = lineBrush,
-                StrokeThickness = 1,
+                Stroke = isZero ? zeroBrush : lineBrush,
+                StrokeThickness = isZero ? 1.5 : 1,
                 Opacity = isMajor ? 0.9 : 0.55
             });
             if (!isMajor) continue;
             var label = new TextBlock
             {
-                Text = y.ToString("0"),
+                Text = Math.Abs(y) < 0.01 ? "0" : y.ToString("0"),
                 FontSize = 8,
-                Foreground = lineBrush,
+                Foreground = isZero ? zeroBrush : lineBrush,
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(label, 1);
             Canvas.SetTop(label, screenY + 2);
             _editorVerticalRulerV068.Children.Add(label);
         }
+    }
+
+    private static bool IsEditorRulerMajorTickV076(double value, double major)
+    {
+        double remainder = Math.Abs(value % major);
+        return remainder < 0.01 || Math.Abs(remainder - major) < 0.01;
     }
 
     private void ApplyAutomaticEditorSidebarV068(bool editorVisible)

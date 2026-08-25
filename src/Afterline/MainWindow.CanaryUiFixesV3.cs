@@ -617,7 +617,14 @@ public partial class MainWindow
     private void SetUpdateActionStateCanaryV3(string text, bool enabled)
     {
         if (_checkUpdatesButton is null) return;
-        _checkUpdatesButton.Content = text;
+        _checkUpdatesButton.Content = "Updates";
+        _checkUpdatesButton.ToolTip = text switch
+        {
+            "Checking…" => "Checking for updates…",
+            "Update" => "A new version is available. Open update details.",
+            "Retry" or "Unavailable" => "Update information is unavailable. Click to try again.",
+            _ => "Check for updates"
+        };
         _checkUpdatesButton.IsEnabled = enabled && !_updateInstallInProgress;
         _checkUpdatesButton.Opacity = _checkUpdatesButton.IsEnabled ? 1.0 : 0.55;
     }

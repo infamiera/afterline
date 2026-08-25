@@ -11,6 +11,7 @@ public partial class MainWindow
 {
     private bool _liveChatFeaturesInitialized;
     private CheckBox? _showOocChatCheck;
+    private CheckBox? _showIcChatCheckV076;
     private CheckBox? _roleplayColorsCheck;
     private CheckBox? _showLiveTimestampsCheck;
     private TextBlock? _liveActionStatus;
@@ -53,7 +54,7 @@ public partial class MainWindow
     private void ConfigureLiveChatFiltering()
     {
         LiveChatList.Items.Filter = item =>
-            item is not ChatEntry entry || _settings.ShowOocChat || !entry.IsOocLine;
+            item is not ChatEntry entry || ShouldShowLiveChatEntryV076(entry);
 
         LiveMessages.CollectionChanged += (_, _) =>
             Dispatcher.BeginInvoke(
@@ -140,7 +141,7 @@ public partial class MainWindow
 
         headerGrid.Children.Remove(ShowLiveChatCheck);
 
-        var optionsPanel = new StackPanel
+        var optionsPanel = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
@@ -158,6 +159,17 @@ public partial class MainWindow
         };
         _showOocChatCheck.Checked += ShowOocChatCheck_Changed;
         _showOocChatCheck.Unchecked += ShowOocChatCheck_Changed;
+
+        _showIcChatCheckV076 = new CheckBox
+        {
+            Content = "Show IC chat",
+            IsChecked = _settings.ShowIcChat,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 18, 0),
+            ToolTip = "Show or hide in-character chat. Turn this off to focus on OOC and Server Staff messages. Capture and archived logs are never affected."
+        };
+        _showIcChatCheckV076.Checked += ShowIcChatCheckV076_Changed;
+        _showIcChatCheckV076.Unchecked += ShowIcChatCheckV076_Changed;
 
         _roleplayColorsCheck = new CheckBox
         {
@@ -183,6 +195,7 @@ public partial class MainWindow
         ShowLiveChatCheck.Margin = new Thickness(0);
 
         optionsPanel.Children.Add(_showOocChatCheck);
+        optionsPanel.Children.Add(_showIcChatCheckV076);
         optionsPanel.Children.Add(_roleplayColorsCheck);
         optionsPanel.Children.Add(_showLiveTimestampsCheck);
         optionsPanel.Children.Add(ShowLiveChatCheck);
@@ -330,6 +343,16 @@ public partial class MainWindow
         if (_showOocChatCheck is null) return;
         _settings.ShowOocChat = _showOocChatCheck.IsChecked == true;
         LiveChatList.Items.Refresh();
+        UpdateVisibleLiveCount();
+        SaveLivePresentationSettings();
+    }
+
+    private void ShowIcChatCheckV076_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_showIcChatCheckV076 is null) return;
+        _settings.ShowIcChat = _showIcChatCheckV076.IsChecked == true;
+        LiveChatList.Items.Refresh();
+        _liveChatView?.Refresh();
         UpdateVisibleLiveCount();
         SaveLivePresentationSettings();
     }

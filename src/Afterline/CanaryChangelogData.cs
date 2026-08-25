@@ -6,6 +6,18 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "26/AUG/2026", new[]
+        {
+            "Editor rulers — Anchored both zero points to the Base Image, added adaptive zoom-aware ticks through 5,000 pixels, and repaired Fit alignment.",
+            "Full Screen Editor — Restored the Preview toolbar control and hardened the borderless transition from an already-maximized window.",
+            "Live Chat filters — Added an independent Show IC chat control for OOC and Server Staff review, plus pet status coverage for Show OOC chat.",
+            "Chat actions — Renamed Open Today's Log and aligned it with neighboring Dashboard and Live Chat actions.",
+            "Capture shortcuts — Added friendly key names, modifier combinations, Mouse 4/5 support, restricted unsafe keys, and a Confirm or Re-do step before saving.",
+            "Capture notifications — Added an optional, default-off Windows notification after a screenshot is safely saved without taking focus from the game.",
+            "Streamer reminder — Added a once-per-run privacy confirmation before Live Chat or Log Reader is shown while Streamer mode is active.",
+            "Recent Editor Projects — Added theme-aware Recycle Bin deletion with confirmation and clearer double-click guidance.",
+            "Updates — Renamed the sidebar actions to Updates and Changes, with a dismissible accent highlight when a newer build is available."
+        }, ChangelogChannel.Canary, 177),
         new("0.7.0", "25/AUG/2026", new[]
         {
             "Capture hotkeys — Custom shortcuts now register reliably, support direct key recording, and clearly report Windows shortcut conflicts.",

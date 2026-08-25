@@ -331,4 +331,41 @@ public partial class MainWindow
                 "Unable to open project", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+
+    private void DeleteRecentEditorProjectV076_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string path } || !File.Exists(path))
+            return;
+
+        string fileName = Path.GetFileName(path);
+        if (System.Windows.MessageBox.Show(
+                this,
+                $"Move '{fileName}' to the Recycle Bin?\n\nThis removes it from Recent Editor Projects.",
+                "Delete Editor project",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                path,
+                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+            if (string.Equals(_editorProjectPathV067, path, StringComparison.OrdinalIgnoreCase))
+                _editorProjectPathV067 = null;
+            RefreshRecentEditorProjectsV073();
+            SetEditorStatus($"Moved {fileName} to the Recycle Bin.");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to delete a recent Editor project.", ex);
+            System.Windows.MessageBox.Show(
+                this,
+                "Afterline could not move this project to the Recycle Bin.\n\n" + ex.Message,
+                "Unable to delete project",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
 }
