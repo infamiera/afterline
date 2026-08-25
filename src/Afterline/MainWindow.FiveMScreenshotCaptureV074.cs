@@ -52,10 +52,10 @@ public partial class MainWindow
         _fiveMScreenshotFeatureInitializedV074 = true;
         _fiveMScreenshotNavButtonV074 = new Button
         {
-            Content = "Screenshots",
+            Content = "Gallery",
             HorizontalContentAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 8),
-            ToolTip = "FiveM-only screenshot gallery. Shows the 20 newest captures."
+            ToolTip = "View locally stored captures."
         };
         _fiveMScreenshotNavButtonV074.Click += (_, _) => ShowFiveMScreenshotGalleryV074();
         int settingsIndex = navigationPanel.Children.IndexOf(SettingsNav);
@@ -93,10 +93,10 @@ public partial class MainWindow
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         top.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var title = new StackPanel();
-        title.Children.Add(new TextBlock { Text = "FiveM Screenshot Gallery", FontSize = 18, FontWeight = FontWeights.SemiBold });
+        title.Children.Add(new TextBlock { Text = "Gallery", FontSize = 18, FontWeight = FontWeights.SemiBold });
         title.Children.Add(new TextBlock
         {
-            Text = "The latest 20 source-resolution captures. Capture is permitted only while FiveM, GTA5, or GTAVLauncher owns the foreground window.",
+            Text = "Files are stored locally. The latest 20 source-resolution captures are shown here; capture is permitted only while FiveM, GTA5, or GTAVLauncher owns the foreground window.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 0),
@@ -117,11 +117,11 @@ public partial class MainWindow
         {
             Content = "Capture",
             Style = (Style)FindResource("PrimaryButton"),
-            ToolTip = "Capture the foreground FiveM/GTA window now. The global hotkey does the same."
+            ToolTip = "Capture the active game window."
         };
         capture.Click += async (_, _) => await CaptureFiveMScreenshotV074Async();
         actions.Children.Add(capture);
-        var refresh = new Button { Content = "Scan folder", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Find existing PNG screenshots in the configured folder. This runs in the background and may take longer in very large folders." };
+        var refresh = new Button { Content = "Scan folder", Margin = new Thickness(8, 0, 0, 0), ToolTip = "Find local captures in the selected folder." };
         refresh.Click += async (_, _) => await RefreshFiveMScreenshotGalleryV074Async(scanFolder: true);
         actions.Children.Add(refresh);
         var open = new Button { Content = "Open folder", Margin = new Thickness(8, 0, 0, 0) };
@@ -147,7 +147,7 @@ public partial class MainWindow
         var holder = new Grid();
         _fiveMScreenshotGalleryEmptyV074 = new TextBlock
         {
-            Text = "No FiveM screenshots yet. Bring the game to the foreground and use Capture or the configured hotkey.",
+            Text = "No captures yet. Bring the game to the foreground and use Capture or the configured hotkey.",
             Foreground = (Brush)FindResource("MutedText"),
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
@@ -231,7 +231,7 @@ public partial class MainWindow
     private void ShowFiveMScreenshotGalleryV074()
     {
         if (_fiveMScreenshotGalleryPageV074 is null) return;
-        ShowPage(_fiveMScreenshotGalleryPageV074, "Screenshots", "FiveM-only source-resolution captures and quick Editor handoff");
+        ShowPage(_fiveMScreenshotGalleryPageV074, "Gallery", "Locally stored source-resolution captures and quick Editor handoff");
         _ = RefreshFiveMScreenshotGalleryV074Async();
     }
 
@@ -245,6 +245,7 @@ public partial class MainWindow
             FiveMScreenshotCaptureService.CaptureResult result = await Task.Run(
                 () => FiveMScreenshotCaptureService.CaptureForegroundWindow(_settings.ScreenshotFolder));
             ScreenshotGalleryIndexService.Record(result.FilePath);
+            CaptureFeedbackSoundService.Play(_settings.ScreenshotCaptureSound, _settings.ScreenshotCaptureSoundVolume);
             SetFiveMScreenshotStatusV074($"Saved {Path.GetFileName(result.FilePath)} · {result.PixelWidth:N0} × {result.PixelHeight:N0}px");
             await RefreshFiveMScreenshotGalleryV074Async();
         }
@@ -479,6 +480,11 @@ public partial class MainWindow
         };
         if (dialog.ShowDialog() == Forms.DialogResult.OK)
             ScreenshotFolderBox.Text = dialog.SelectedPath;
+    }
+
+    private void ResetScreenshotHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        ScreenshotHotkeyBox.Text = "Ctrl+Shift+F12";
     }
 
     [DllImport("user32.dll", SetLastError = true)]

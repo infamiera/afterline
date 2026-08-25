@@ -407,6 +407,9 @@ public partial class MainWindow : Window
         ScreenshotCaptureEnabledCheck.IsChecked = _settings.EnableFiveMScreenshotCapture;
         ScreenshotFolderBox.Text = _settings.ScreenshotFolder;
         ScreenshotHotkeyBox.Text = _settings.ScreenshotHotkey;
+        SelectComboItem(ScreenshotCaptureSoundBox, _settings.ScreenshotCaptureSound);
+        ScreenshotCaptureSoundVolumeSlider.Value = Math.Clamp(_settings.ScreenshotCaptureSoundVolume, 0, 100);
+        ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(ScreenshotCaptureSoundVolumeSlider.Value):0}%";
         ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
         ArchiveRootBox.Text = _settings.ArchiveRoot;
         SearchRootBox.Text = _settings.ArchiveRoot;
@@ -428,6 +431,25 @@ public partial class MainWindow : Window
             }
         }
         box.SelectedIndex = 0;
+    }
+
+    private static void SelectComboItem(System.Windows.Controls.ComboBox box, string value)
+    {
+        foreach (var item in box.Items.OfType<System.Windows.Controls.ComboBoxItem>())
+        {
+            if (string.Equals(item.Content?.ToString(), value, StringComparison.OrdinalIgnoreCase))
+            {
+                box.SelectedItem = item;
+                return;
+            }
+        }
+        box.SelectedIndex = 0;
+    }
+
+    private void ScreenshotCaptureSoundVolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (ScreenshotCaptureSoundVolumeText is not null)
+            ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(e.NewValue):0}%";
     }
 
     private static int ComboInt(System.Windows.Controls.ComboBox box, int fallback)
@@ -599,6 +621,8 @@ public partial class MainWindow : Window
             _settings.ScreenshotHotkey = string.IsNullOrWhiteSpace(ScreenshotHotkeyBox.Text)
                 ? "Ctrl+Shift+F12"
                 : screenshotHotkey;
+            _settings.ScreenshotCaptureSound = (ScreenshotCaptureSoundBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "Shutter";
+            _settings.ScreenshotCaptureSoundVolume = Math.Clamp((int)Math.Round(ScreenshotCaptureSoundVolumeSlider.Value), 0, 100);
             _settings.ReconnectGraceMinutes = ComboInt(ReconnectBox, 5);
             _settings.ProcessingIntervalMinutes = ComboInt(ProcessingBox, 1);
             _settings.MaxLiveMessages = ComboInt(MaxMessagesBox, 2000);
