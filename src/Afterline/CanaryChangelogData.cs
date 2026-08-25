@@ -8,6 +8,11 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "26/AUG/2026", new[]
         {
+            "Capture shortcut activation — Confirm now saves and activates a recognized keyboard or Mouse 4/5 shortcut immediately, without requiring the separate Settings save action.",
+            "Capture shortcut feedback — Added a persistent active or rejected status and diagnostic entries for both registration and shortcut detection."
+        }, ChangelogChannel.Canary, 179),
+        new("0.7.0", "26/AUG/2026", new[]
+        {
             "Editor rulers — Anchored both zero points to the Base Image, added adaptive zoom-aware ticks through 5,000 pixels, and repaired Fit alignment.",
             "Full Screen Editor — Restored the Preview toolbar control and hardened the borderless transition from an already-maximized window.",
             "Live Chat filters — Added an independent Show IC chat control for OOC and Server Staff review, plus pet status coverage for Show OOC chat.",
