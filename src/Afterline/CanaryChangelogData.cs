@@ -16,7 +16,7 @@ internal static class CanaryChangelogData
             "Live Chat — Expanded Show OOC chat coverage to include vehicle-location teleport notices alongside the existing gameplay and partial Server Staff filters.",
             "Update display — Reworked the sidebar build card into a compact status with side-by-side actions.",
             "Changelog — Canary builds now see Canary and Stable notes, while Stable builds are strictly limited to Stable notes; changes use separate headings and brief descriptions."
-        }, ChangelogChannel.Canary, 174),
+        }, ChangelogChannel.Canary, 175),
         new("0.7.0", "25/AUG/2026", new[]
         {
             "Screen capture — Renamed Screenshots to Gallery, clarified that captures are stored locally, and moved all capture controls into their own Screen capture Settings section.",

@@ -33,7 +33,7 @@ public static class FiveMScreenshotCaptureService
 
         long largestArea = 0;
         IntPtr selectedWindow = IntPtr.Zero;
-        _ = EnumWindows((window, _) =>
+        _ = EnumWindows((window, parameter) =>
         {
             if (!IsWindowVisible(window) || IsIconic(window)) return true;
             _ = GetWindowThreadProcessId(window, out uint processId);
