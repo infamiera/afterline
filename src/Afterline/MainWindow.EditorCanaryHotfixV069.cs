@@ -185,7 +185,9 @@ public partial class MainWindow
                     _editorPreviewScroll is null ||
                     _editorZoomHost is null ||
                     !ReferenceEquals(_editorPreviewScroll.Parent, _editorRulerGridV068) ||
-                    !ReferenceEquals(_editorZoomHost.Child, _editorComposition) ||
+                    !ReferenceEquals(_editorPreviewScroll.Content, _editorZoomHost) ||
+                    _editorZoomHost.Child is null ||
+                    ReferenceEquals(_editorZoomHost.Child, _editorRulerGridV068) ||
                     _editorPreviewScroll.Padding != new Thickness(0))
                 {
                     throw new InvalidOperationException(
