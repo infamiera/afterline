@@ -340,6 +340,9 @@ public partial class MainWindow
             "Defaults to Documents\\Afterline Projects. You can still choose a different location in the Save dialog."));
 
         content.Children.Add(CreateEditorDivider());
+        content.Children.Add(BuildEditorAutosaveSettingsV159());
+
+        content.Children.Add(CreateEditorDivider());
 
         var save = new Button
         {

@@ -35,43 +35,33 @@ public partial class MainWindow
 
     private void EnsureEditorProjectAutosaveUiV073()
     {
-        if (_editorAutosaveUiInitializedV073 || SettingsPage.Content is not StackPanel settingsStack)
-            return;
+        if (_editorAutosaveUiInitializedV073) return;
 
         _editorAutosaveUiInitializedV073 = true;
         _editorAutosaveTimerV073.Tick += (_, _) => TryAutosaveEditorProjectV073(showToast: true);
+        ConfigureEditorAutosaveTimerV073();
+        RefreshRecentEditorProjectsV073();
+    }
 
-        var card = new Border
-        {
-            Style = (Style)FindResource("CardStyle"),
-            Margin = new Thickness(0, 0, 0, 14)
-        };
+    private FrameworkElement BuildEditorAutosaveSettingsV159()
+    {
         var content = new StackPanel();
         content.Children.Add(new TextBlock
         {
-            Text = "Editor project autosave",
-            FontSize = 18,
-            FontWeight = FontWeights.SemiBold
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = "Periodically protects the current Editor project against app errors, power loss, or a system shutdown.",
+            Text = "PROJECT AUTOSAVE",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
             Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 5, 0, 12)
+            Margin = new Thickness(0, 0, 0, 6)
         });
+        content.Children.Add(EditorHelpText(
+            "Periodically protects the current project against application errors, power loss, or a system shutdown."));
 
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(250) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.Children.Add(new TextBlock
+        _editorAutosaveIntervalV073 = new ComboBox
         {
-            Text = "Save interval",
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        _editorAutosaveIntervalV073 = new ComboBox { MinHeight = 34 };
+            MinHeight = 34,
+            ToolTip = "Choose how often the current Editor project is protected. Select Off to disable project autosave."
+        };
         foreach ((string label, int minutes) in new[]
                  {
                      ("Off", 0), ("1 minute", 1), ("5 minutes", 5),
@@ -84,24 +74,9 @@ public partial class MainWindow
             .OfType<ComboBoxItem>()
             .First(item => Equals(item.Tag, _settings.Editor.ProjectAutosaveMinutes));
         _editorAutosaveIntervalV073.SelectionChanged += EditorAutosaveIntervalV073_Changed;
-        Grid.SetColumn(_editorAutosaveIntervalV073, 1);
-        row.Children.Add(_editorAutosaveIntervalV073);
-        var defaultNote = new TextBlock
-        {
-            Text = "Default: every 5 minutes",
-            Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 10.5,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(9, 0, 0, 0)
-        };
-        Grid.SetColumn(defaultNote, 2);
-        row.Children.Add(defaultNote);
-        content.Children.Add(row);
-        card.Child = content;
-        settingsStack.Children.Insert(Math.Max(0, settingsStack.Children.Count - 1), card);
-
-        ConfigureEditorAutosaveTimerV073();
-        RefreshRecentEditorProjectsV073();
+        content.Children.Add(CreateEditorField("Save interval", _editorAutosaveIntervalV073));
+        content.Children.Add(EditorSubtleNote("Default: every 5 minutes. Successful autosaves appear as a small Editor notification."));
+        return content;
     }
 
     private void InitializeEditorProjectAutosaveHooksV073()

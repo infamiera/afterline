@@ -12,6 +12,7 @@ public partial class MainWindow
     private bool _themeAndAboutInitialized;
     private Button? _infoFooterButton;
     private Button? _themeFooterButton;
+    private Button? _diagnosticsFooterButtonV159;
 
     private void EnsureThemeAndAbout()
     {
@@ -79,12 +80,12 @@ public partial class MainWindow
     {
         if (BottomStatusText.Parent is not Grid footerGrid) return;
 
-        while (footerGrid.ColumnDefinitions.Count < 5)
+        while (footerGrid.ColumnDefinitions.Count < 6)
             footerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         if (SettingsNav.Parent == footerGrid)
         {
-            Grid.SetColumn(SettingsNav, 4);
+            Grid.SetColumn(SettingsNav, 5);
             SettingsNav.Margin = new Thickness(6, 0, 0, 0);
         }
 
@@ -105,6 +106,34 @@ public partial class MainWindow
             Grid.SetColumn(_themeFooterButton, 3);
             footerGrid.Children.Add(_themeFooterButton);
         }
+
+        if (_diagnosticsFooterButtonV159 is null)
+        {
+            _diagnosticsFooterButtonV159 = CreateFooterIconButton("\uE7BA", "Error logs and diagnostics");
+            _diagnosticsFooterButtonV159.Margin = new Thickness(6, 0, 0, 0);
+            _diagnosticsFooterButtonV159.Click += (_, _) =>
+            {
+                new DiagnosticsWindow(this).ShowDialog();
+                UpdateDiagnosticsFooterButtonV159();
+            };
+            Grid.SetColumn(_diagnosticsFooterButtonV159, 4);
+            footerGrid.Children.Add(_diagnosticsFooterButtonV159);
+            DiagnosticLogger.ErrorWritten += (_, _) =>
+                _ = Dispatcher.BeginInvoke(new Action(UpdateDiagnosticsFooterButtonV159));
+            UpdateDiagnosticsFooterButtonV159();
+        }
+    }
+
+    private void UpdateDiagnosticsFooterButtonV159()
+    {
+        if (_diagnosticsFooterButtonV159 is null) return;
+        bool hasErrors = DiagnosticLogger.HasErrors;
+        _diagnosticsFooterButtonV159.SetResourceReference(
+            Control.ForegroundProperty,
+            hasErrors ? "Warning" : "Text");
+        _diagnosticsFooterButtonV159.ToolTip = hasErrors
+            ? "Application errors recorded — click to view and export"
+            : "Error logs and diagnostics";
     }
 
     private Button CreateFooterIconButton(string glyph, string tooltip)

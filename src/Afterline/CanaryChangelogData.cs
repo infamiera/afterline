@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "25/AUG/2026", new[]
         {
+            "Diagnostics — Added an Error Logs button beside Settings with a bounded recent-error viewer and a one-click .txt export to the Windows Downloads folder.",
+            "Support — Added visible links to the permanent Afterline Discord invite and the dedicated Afterline forum, with clear guidance to post exported logs only in that forum.",
+            "Privacy and stability — Error reports include the Canary build and Windows version, redact common user-profile paths, exclude ordinary info messages, and retain the existing 2 MB rotating log limit.",
+            "Editor recovery — Moved the project autosave interval out of General Settings and into the Editor Settings panel where it belongs."
+        }, ChangelogChannel.Canary, 159),
+        new("0.7.0", "25/AUG/2026", new[]
+        {
             "Archive — Changed the standard Archive range to seven days, migrated untouched 30-day settings, and added a clear warning before users request heavier ranges.",
             "Dashboard — Split Recent Sessions with a new Recent Editor Projects list, project thumbnails, recovery labels, and double-click project opening.",
             "Editor recovery — Added configurable project autosave with Off, 1, 5, 10, 15, and 30 minute choices; the default is five minutes and successful saves show a compact Editor notification.",
