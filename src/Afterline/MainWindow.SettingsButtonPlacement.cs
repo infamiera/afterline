@@ -41,7 +41,7 @@ public partial class MainWindow
             .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Editor", StringComparison.Ordinal));
         Button? screenshots = _fiveMScreenshotNavButtonV074 ?? navigationPanel.Children
             .OfType<Button>()
-            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Screenshots", StringComparison.Ordinal));
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Gallery", StringComparison.Ordinal));
 
         if (notes is not null)
         {
@@ -66,6 +66,7 @@ public partial class MainWindow
             AddSidebarSection(navigationPanel, "IMAGE EDITOR", new[] { editor, screenshots }.OfType<Button>());
 
         PlaceSettingsInMainFooter();
+        ApplyMainSidebarTooltips(navigationPanel);
 
         _sidebarToggleButton = new Button
         {
@@ -83,6 +84,26 @@ public partial class MainWindow
         Grid.SetRow(_sidebarToggleButton, 0);
         Panel.SetZIndex(_sidebarToggleButton, 20);
         sidebarGrid.Children.Add(_sidebarToggleButton);
+    }
+
+    private static void ApplyMainSidebarTooltips(StackPanel navigationPanel)
+    {
+        foreach (Button button in navigationPanel.Children.OfType<Button>())
+        {
+            string label = button.Content?.ToString() ?? string.Empty;
+            button.ToolTip = label switch
+            {
+                "Dashboard" => "View recent sessions and FiveM status.",
+                "Live Chat" => "View the active chat session.",
+                "Search" => "Search stored chatlogs.",
+                "Archive" => "Browse recent chatlogs.",
+                "Log Reader" => "Read a saved chatlog.",
+                "Notes & Bookmarks" => "Open saved notes and bookmarks.",
+                "Editor" => "Create and edit screenshots.",
+                "Gallery" => "View locally stored captures.",
+                _ => button.ToolTip
+            };
+        }
     }
 
     private void PlaceSettingsInMainFooter()
