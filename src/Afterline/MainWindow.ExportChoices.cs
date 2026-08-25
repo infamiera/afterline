@@ -18,7 +18,7 @@ public partial class MainWindow
         if (visibleButton?.Parent is not Panel actions) return;
 
         visibleButton.Content = "Export visible";
-        visibleButton.ToolTip = "Exports exactly what is currently visible in Live Chat, including the current OOC/INFO and timestamp settings.";
+        visibleButton.ToolTip = "Exports exactly what is currently visible in Live Chat, including the current OOC/gameplay-status and timestamp settings.";
 
         Button? completeButton = actions.Children.OfType<Button>()
             .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Export complete", StringComparison.Ordinal));
@@ -28,7 +28,7 @@ public partial class MainWindow
             {
                 Content = "Export complete",
                 Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(0, 0, 10, 0),
+                Margin = new Thickness(0, 0, 10, 6),
                 ToolTip = "Exports the complete current captured session, ignoring Live Chat display filters."
             };
             completeButton.Click += ExportCompleteLiveChat_Click;
@@ -44,7 +44,7 @@ public partial class MainWindow
         {
             Content = "Export HTML",
             Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 10, 0),
+            Margin = new Thickness(0, 0, 10, 6),
             ToolTip = "Exports the currently visible Live Chat as a self-contained HTML file with the displayed chat colors."
         };
         htmlButton.Click += ExportVisibleLiveChatHtml_Click;

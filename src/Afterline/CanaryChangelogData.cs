@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "25/AUG/2026", new[]
         {
+            "Diagnostics — Simplified Discord guidance to the #afterline forum channel, retained the linked server invite, and added bounded detection for unclean exits and 15-second UI hangs.",
+            "Live Chat — Separated the action row from header toggles, increased button spacing, and expanded Show OOC chat to cover MAPPING, SUCCESS, ERROR, PM, INFO and related mapping-status notices.",
+            "Image Editor — Widened the tool rail so its buttons render cleanly and made the return control more prominent with a longer three-second entry highlight.",
+            "Themes — Added three local named custom-theme slots with preview, apply, update and delete controls, plus named saving directly from Theme Creator."
+        }, ChangelogChannel.Canary, 161),
+        new("0.7.0", "25/AUG/2026", new[]
+        {
             "Diagnostics — Error Logs now show only errors recorded by the currently installed build; installing a new update clears diagnostics left by earlier builds.",
             "Diagnostics control — Added a confirmed Clear error logs action that wipes the current diagnostic log and its rotated backup, then immediately resets the footer warning state.",
             "Archive reliability — Added shared-read access for active chatlogs, process-wide index serialization, and unique temporary index files to avoid transient file-lock failures.",

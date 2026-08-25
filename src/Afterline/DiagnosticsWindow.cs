@@ -10,7 +10,6 @@ namespace Afterline;
 internal sealed class DiagnosticsWindow : Window
 {
     private const string DiscordInvite = "https://discord.gg/At2znTygfV";
-    private const string AfterlineForum = "https://discord.com/channels/1388519828553203818/1541203371455942748";
     private readonly TextBox _errorText;
     private readonly TextBlock _summary;
     private readonly TextBlock _exportStatus;
@@ -72,14 +71,15 @@ internal sealed class DiagnosticsWindow : Window
         };
         var supportCopy = new StackPanel();
         supportCopy.Children.Add(CreateLinkLine("Join the Afterline Discord: ", DiscordInvite, DiscordInvite));
-        supportCopy.Children.Add(CreateLinkLine(
-            "Only post exported error logs in the Afterline forum: ",
-            "Open the Afterline forum",
-            AfterlineForum,
-            new Thickness(0, 7, 0, 0)));
         supportCopy.Children.Add(new TextBlock
         {
-            Text = "Nothing is uploaded automatically. Export the report below, create a forum post, and attach the generated .txt file so the error can be diagnosed.",
+            Text = "Send error reports in the #afterline forum channel on Discord.",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 7, 0, 0)
+        });
+        supportCopy.Children.Add(new TextBlock
+        {
+            Text = "Send a message there and include the exported .txt file so it can be diagnosed. Nothing is uploaded automatically.",
             Foreground = (Brush)FindResource("MutedText"),
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,

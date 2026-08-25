@@ -38,7 +38,7 @@ public partial class MainWindow
             {
                 Content = "Open current log",
                 Padding = new Thickness(10, 6, 10, 6),
-                Margin = new Thickness(0, 0, 8, 0),
+                Margin = new Thickness(0, 0, 10, 6),
                 ToolTip = "Open the currently active chatlog directly in Log Reader."
             };
             _dashboardOpenCurrentLogButton.Click += async (_, _) => await OpenCurrentLogInReaderV050Async();

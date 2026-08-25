@@ -7,6 +7,7 @@ namespace Afterline.Services;
 
 public static class ThemeService
 {
+    public const int MaximumCustomThemes = 3;
     private static ThemePreferences _previousApplied = CreateDefault();
 
     public static ThemePreferences CreateDefault() => new();
@@ -68,6 +69,54 @@ public static class ThemeService
     }
 
     public static string ToHex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+    public static string NormalizeCustomThemeName(string? value)
+    {
+        string name = string.Join(
+            " ",
+            (value ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        if (name.Length > 40) name = name[..40].TrimEnd();
+        return string.IsNullOrWhiteSpace(name) ? "Custom Theme" : name;
+    }
+
+    public static bool TrySaveCustomTheme(
+        AppSettings settings,
+        string? name,
+        ThemePreferences theme,
+        out bool updated,
+        out string message)
+    {
+        settings.CustomThemes ??= new List<SavedThemePreset>();
+        string normalizedName = NormalizeCustomThemeName(name);
+        SavedThemePreset? existing = settings.CustomThemes.FirstOrDefault(
+            preset => string.Equals(preset.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.Name = normalizedName;
+            existing.Theme = Clone(theme);
+            existing.SavedAtUtc = DateTime.UtcNow;
+            updated = true;
+            message = $"Updated custom theme ‘{normalizedName}’.";
+            return true;
+        }
+
+        if (settings.CustomThemes.Count >= MaximumCustomThemes)
+        {
+            updated = false;
+            message = "All three custom theme slots are in use. Delete one before saving another.";
+            return false;
+        }
+
+        settings.CustomThemes.Add(new SavedThemePreset
+        {
+            Name = normalizedName,
+            Theme = Clone(theme),
+            SavedAtUtc = DateTime.UtcNow
+        });
+        updated = false;
+        message = $"Saved custom theme ‘{normalizedName}’.";
+        return true;
+    }
 
     public static void Apply(ThemePreferences? preferences)
     {

@@ -26,6 +26,19 @@ public sealed class SettingsService
             // Normalize them before any startup UI reads Editor or theme preferences.
             settings.Editor ??= new EditorPreferences();
             settings.Theme ??= ThemeService.CreateDefault();
+            settings.CustomThemes ??= new List<SavedThemePreset>();
+            settings.CustomThemes = settings.CustomThemes
+                .Where(preset => preset is not null && !string.IsNullOrWhiteSpace(preset.Name))
+                .GroupBy(preset => preset.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .Take(ThemeService.MaximumCustomThemes)
+                .Select(preset => new SavedThemePreset
+                {
+                    Name = ThemeService.NormalizeCustomThemeName(preset.Name),
+                    Theme = ThemeService.Normalize(preset.Theme),
+                    SavedAtUtc = preset.SavedAtUtc
+                })
+                .ToList();
             settings.RecentLogPaths ??= new List<string>();
             settings.PinnedLogPaths ??= new List<string>();
             settings.ArchiveFilterMode = settings.ArchiveFilterMode switch

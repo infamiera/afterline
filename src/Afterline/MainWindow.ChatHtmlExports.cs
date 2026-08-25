@@ -31,7 +31,7 @@ public partial class MainWindow
             await ChatHtmlExportService.ExportAsync(
                 destination,
                 $"Afterline Live Chat — {serverName}",
-                "Current visible view · OOC/INFO and timestamp settings applied",
+                "Current visible view · OOC/gameplay-status and timestamp settings applied",
                 lines,
                 _settings.ColorizeRoleplayLines,
                 now,

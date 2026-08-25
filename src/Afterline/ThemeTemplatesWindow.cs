@@ -74,8 +74,11 @@ internal sealed class ThemeTemplatesWindow : Window
     private readonly SettingsService _settingsService;
     private ThemePreferences _savedTheme;
     private readonly ComboBox _templateBox;
+    private readonly ComboBox _customThemeBox;
     private readonly TextBlock _descriptionText;
+    private readonly TextBlock _customThemeCountText;
     private readonly TextBlock _statusText;
+    private bool _changingSelection;
 
     public bool CustomizeRequested { get; private set; }
 
@@ -88,9 +91,9 @@ internal sealed class ThemeTemplatesWindow : Window
 
         Title = "Afterline Themes";
         Width = 640;
-        Height = 510;
+        Height = 660;
         MinWidth = 580;
-        MinHeight = 450;
+        MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
 
@@ -160,6 +163,61 @@ internal sealed class ThemeTemplatesWindow : Window
         };
         content.Children.Add(previewHint);
 
+        var customHeading = new Grid { Margin = new Thickness(0, 22, 0, 6) };
+        customHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        customHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        customHeading.Children.Add(new TextBlock
+        {
+            Text = "Saved custom themes",
+            FontWeight = FontWeights.SemiBold
+        });
+        _customThemeCountText = new TextBlock
+        {
+            Foreground = (Brush)FindResource("MutedText"),
+            FontSize = 11,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(_customThemeCountText, 1);
+        customHeading.Children.Add(_customThemeCountText);
+        content.Children.Add(customHeading);
+
+        _customThemeBox = new ComboBox
+        {
+            DisplayMemberPath = nameof(SavedThemePreset.Name),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 34,
+            ToolTip = "Select one of up to three locally saved custom themes to preview it."
+        };
+        _customThemeBox.SelectionChanged += CustomThemeBox_SelectionChanged;
+        content.Children.Add(_customThemeBox);
+
+        var customActions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var useCustom = new Button
+        {
+            Content = "Use saved theme",
+            Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(0, 0, 8, 6)
+        };
+        useCustom.Click += (_, _) => UseSelectedCustomTheme();
+        customActions.Children.Add(useCustom);
+        var saveCustom = new Button
+        {
+            Content = "Save current as…",
+            Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(0, 0, 8, 6)
+        };
+        saveCustom.Click += (_, _) => SaveCurrentCustomTheme();
+        customActions.Children.Add(saveCustom);
+        var deleteCustom = new Button
+        {
+            Content = "Delete saved",
+            Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+        deleteCustom.Click += (_, _) => DeleteSelectedCustomTheme();
+        customActions.Children.Add(deleteCustom);
+        content.Children.Add(customActions);
+
         _statusText = new TextBlock
         {
             Foreground = (Brush)FindResource("MutedText"),
@@ -225,15 +283,133 @@ internal sealed class ThemeTemplatesWindow : Window
         Content = root;
         ThemeService.ApplyWindow(this);
         Closing += ThemeTemplatesWindow_Closing;
+        RefreshCustomThemes();
         _templateBox.SelectedIndex = 0;
     }
 
     private void TemplateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_changingSelection) return;
         if (_templateBox.SelectedItem is not ThemeTemplate template) return;
+        _changingSelection = true;
+        _customThemeBox.SelectedIndex = -1;
+        _changingSelection = false;
         _descriptionText.Text = template.Description;
         ApplyPreviewTheme(template.Theme);
         SetStatus($"Previewing {template.Name}.", "MutedText");
+    }
+
+    private void CustomThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_changingSelection || _customThemeBox.SelectedItem is not SavedThemePreset preset) return;
+        _changingSelection = true;
+        _templateBox.SelectedIndex = -1;
+        _changingSelection = false;
+        _descriptionText.Text = $"Saved custom theme · {preset.Name}";
+        ApplyPreviewTheme(preset.Theme);
+        SetStatus($"Previewing {preset.Name}.", "MutedText");
+    }
+
+    private void RefreshCustomThemes(string? selectName = null)
+    {
+        _customThemeBox.ItemsSource = null;
+        _customThemeBox.ItemsSource = _settings.CustomThemes;
+        _customThemeCountText.Text = $"{_settings.CustomThemes.Count}/{ThemeService.MaximumCustomThemes} saved";
+        if (!string.IsNullOrWhiteSpace(selectName))
+        {
+            _customThemeBox.SelectedItem = _settings.CustomThemes.FirstOrDefault(
+                preset => string.Equals(preset.Name, selectName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void SaveCurrentCustomTheme()
+    {
+        var prompt = new TextPromptWindow(
+            "Save Custom Theme",
+            "Name this custom theme. You can keep up to three named themes:")
+        {
+            Owner = this
+        };
+        if (prompt.ShowDialog() != true) return;
+
+        try
+        {
+            if (!ThemeService.TrySaveCustomTheme(
+                    _settings,
+                    prompt.Value,
+                    _savedTheme,
+                    out _,
+                    out string message))
+            {
+                SetStatus(message, "Warning");
+                return;
+            }
+
+            _settingsService.Save(_settings);
+            string name = ThemeService.NormalizeCustomThemeName(prompt.Value);
+            RefreshCustomThemes(name);
+            SetStatus(message, "Success");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to save a named custom theme.", ex);
+            SetStatus("Unable to save the custom theme.", "Warning");
+        }
+    }
+
+    private void UseSelectedCustomTheme()
+    {
+        if (_customThemeBox.SelectedItem is not SavedThemePreset preset)
+        {
+            SetStatus("Select a saved custom theme first.", "Warning");
+            return;
+        }
+
+        try
+        {
+            _settings.Theme = ThemeService.Clone(preset.Theme);
+            _settingsService.Save(_settings);
+            _savedTheme = ThemeService.Clone(_settings.Theme);
+            ApplyPreviewTheme(_savedTheme);
+            SetStatus($"{preset.Name} is now the active theme.", "Success");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to apply a saved custom theme.", ex);
+            SetStatus("Unable to use the selected custom theme.", "Warning");
+        }
+    }
+
+    private void DeleteSelectedCustomTheme()
+    {
+        if (_customThemeBox.SelectedItem is not SavedThemePreset preset)
+        {
+            SetStatus("Select a saved custom theme first.", "Warning");
+            return;
+        }
+
+        MessageBoxResult choice = MessageBox.Show(
+            this,
+            $"Delete the saved custom theme ‘{preset.Name}’?",
+            "Delete Custom Theme",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (choice != MessageBoxResult.Yes) return;
+
+        try
+        {
+            _settings.CustomThemes.Remove(preset);
+            _settingsService.Save(_settings);
+            RefreshCustomThemes();
+            ApplyPreviewTheme(_savedTheme);
+            SetStatus("Custom theme deleted.", "Success");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to delete a saved custom theme.", ex);
+            SetStatus("Unable to delete the custom theme.", "Warning");
+        }
     }
 
     private void RevertPreview()
@@ -286,6 +462,9 @@ internal sealed class ThemeTemplatesWindow : Window
         // Dynamic resource references survive resource replacement and update as
         // soon as a different template is previewed.
         BindSelectorToThemeResources();
+        _customThemeBox.SetResourceReference(Control.BackgroundProperty, "Raised");
+        _customThemeBox.SetResourceReference(Control.ForegroundProperty, "Text");
+        _customThemeBox.SetResourceReference(Control.BorderBrushProperty, "Border");
         _templateBox.ApplyTemplate();
         _templateBox.InvalidateMeasure();
         _templateBox.InvalidateArrange();

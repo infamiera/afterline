@@ -18,7 +18,7 @@ public partial class MainWindow
 
         exportButton.Click -= ExportCurrentLiveLog_Click;
         exportButton.Click += ExportFilteredLiveLog_Click;
-        exportButton.ToolTip = "Exports exactly what is currently visible in Live Chat. OOC/INFO visibility and the timestamp toggle are respected.";
+        exportButton.ToolTip = "Exports exactly what is currently visible in Live Chat. OOC/gameplay-status visibility and the timestamp toggle are respected.";
         _oocExportFilteringInitialized = true;
     }
 

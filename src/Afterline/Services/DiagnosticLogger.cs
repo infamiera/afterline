@@ -135,9 +135,9 @@ public static class DiagnosticLogger
         report.AppendLine($"Windows: {Environment.OSVersion}");
         report.AppendLine($"Current-build errors included: {errors.Count} (maximum {MaximumReportErrors})");
         report.AppendLine("Discord: https://discord.gg/At2znTygfV");
-        report.AppendLine("Afterline error-log forum: https://discord.com/channels/1388519828553203818/1541203371455942748");
+        report.AppendLine("Support channel: #afterline forum channel on Discord");
         report.AppendLine();
-        report.AppendLine("Only post this report in the Afterline forum linked above.");
+        report.AppendLine("Send this report only in the #afterline forum channel on Discord.");
         report.AppendLine("Common Windows user-profile paths have been redacted automatically.");
         report.AppendLine(new string('-', 78));
         if (errors.Count == 0)

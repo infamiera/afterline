@@ -115,7 +115,7 @@ public partial class MainWindow
         Grid.SetRow(bottom, 1);
         layout.Children.Add(bottom);
 
-        rail.Padding = new Thickness(5, 7, 5, 7);
+        rail.Padding = new Thickness(6, 7, 6, 7);
         rail.Child = layout;
     }
 
@@ -127,8 +127,8 @@ public partial class MainWindow
             FontFamily = new FontFamily(font),
             FontSize = fontSize,
             FontWeight = symbol is "T" or "fx" ? FontWeights.SemiBold : FontWeights.Normal,
-            Width = 34,
-            Height = 34,
+            Width = 36,
+            Height = 36,
             Padding = new Thickness(0),
             Margin = new Thickness(0, 0, 0, 5),
             HorizontalContentAlignment = HorizontalAlignment.Center,

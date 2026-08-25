@@ -367,7 +367,7 @@ public partial class MainWindow
                         }
                         else if (_logReaderStatusText is not null)
                         {
-                            _logReaderStatusText.Text = $"Line {requested:N0} is hidden by the current OOC/INFO filter.";
+                            _logReaderStatusText.Text = $"Line {requested:N0} is hidden by the current OOC/gameplay-status filter.";
                         }
                     }));
                 }

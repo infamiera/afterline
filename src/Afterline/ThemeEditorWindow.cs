@@ -120,6 +120,16 @@ internal sealed class ThemeEditorWindow : Window
         reset.Click += (_, _) => ResetDefaults();
         buttons.Children.Add(reset);
 
+        var saveNamed = new Button
+        {
+            Content = "Save named copy",
+            Padding = new Thickness(12, 7, 12, 7),
+            Margin = new Thickness(0, 0, 8, 0),
+            ToolTip = "Store these colors in one of three named custom-theme slots."
+        };
+        saveNamed.Click += (_, _) => SaveNamedTheme();
+        buttons.Children.Add(saveNamed);
+
         var save = new Button
         {
             Content = "Save theme",
@@ -291,6 +301,42 @@ internal sealed class ThemeEditorWindow : Window
         {
             DiagnosticLogger.Error("Unable to save theme settings.", ex);
             _statusText.Text = "Unable to save theme settings.";
+            _statusText.Foreground = (Brush)FindResource("Warning");
+        }
+    }
+
+    private void SaveNamedTheme()
+    {
+        var prompt = new TextPromptWindow(
+            "Save Custom Theme",
+            "Name this custom theme. You can keep up to three named themes:")
+        {
+            Owner = this
+        };
+        if (prompt.ShowDialog() != true) return;
+
+        try
+        {
+            if (!ThemeService.TrySaveCustomTheme(
+                    _settings,
+                    prompt.Value,
+                    _working,
+                    out _,
+                    out string message))
+            {
+                _statusText.Text = message;
+                _statusText.Foreground = (Brush)FindResource("Warning");
+                return;
+            }
+
+            _settingsService.Save(_settings);
+            _statusText.Text = message;
+            _statusText.Foreground = (Brush)FindResource("Success");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to save a named custom theme.", ex);
+            _statusText.Text = "Unable to save the custom theme.";
             _statusText.Foreground = (Brush)FindResource("Warning");
         }
     }

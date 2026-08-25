@@ -45,6 +45,7 @@ public sealed class AppSettings
 
     public EditorPreferences Editor { get; set; } = new();
     public ThemePreferences Theme { get; set; } = new();
+    public List<SavedThemePreset> CustomThemes { get; set; } = new();
 }
 
 public sealed class EditorPreferences
@@ -110,4 +111,12 @@ public sealed class ThemePreferences
     public string ControlHover { get; set; } = "#293544";
     public string PrimaryText { get; set; } = "#EDF2F7";
     public string SecondaryText { get; set; } = "#AAB6C3";
+}
+
+public sealed class SavedThemePreset
+{
+    public string Name { get; set; } = "Custom Theme";
+    public ThemePreferences Theme { get; set; } = new();
+    public DateTime SavedAtUtc { get; set; } = DateTime.UtcNow;
+    public override string ToString() => Name;
 }

@@ -19,17 +19,19 @@ public partial class MainWindow
     {
         var button = new Button
         {
-            Content = "←",
-            FontFamily = new FontFamily("Segoe UI Symbol"),
+            Content = "\uE72B",
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
             FontSize = 18,
-            Width = 34,
-            Height = 34,
+            Width = 36,
+            Height = 36,
             Padding = new Thickness(0),
             Margin = new Thickness(0, 0, 0, 5),
+            BorderThickness = new Thickness(1.5),
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             ToolTip = "Close Image Editor and return to Afterline"
         };
+        ApplyEditorCloseRestingStyleV161(button);
         _editorCloseRailButtonV072 = button;
         button.Click += (_, _) => CloseEditorWorkspaceV069();
         return button;
@@ -42,16 +44,17 @@ public partial class MainWindow
 
         _editorCloseHighlightCtsV072?.Cancel();
         _editorCloseHighlightCtsV072?.Dispose();
+        ApplyEditorCloseRestingStyleV161(button);
         _editorCloseHighlightCtsV072 = new CancellationTokenSource();
         CancellationToken token = _editorCloseHighlightCtsV072.Token;
-        Brush originalBrush = button.BorderBrush;
-        Thickness originalThickness = button.BorderThickness;
 
         button.BorderBrush = (Brush)FindResource("Accent");
-        button.BorderThickness = new Thickness(2);
+        button.Background = (Brush)FindResource("Accent");
+        button.Foreground = (Brush)FindResource("Bg");
+        button.BorderThickness = new Thickness(2.5);
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(1), token);
+            await Task.Delay(TimeSpan.FromSeconds(3), token);
         }
         catch (OperationCanceledException)
         {
@@ -59,10 +62,15 @@ public partial class MainWindow
         }
 
         if (!token.IsCancellationRequested && ReferenceEquals(button, _editorCloseRailButtonV072))
-        {
-            button.BorderBrush = originalBrush;
-            button.BorderThickness = originalThickness;
-        }
+            ApplyEditorCloseRestingStyleV161(button);
+    }
+
+    private static void ApplyEditorCloseRestingStyleV161(Button button)
+    {
+        button.SetResourceReference(Control.ForegroundProperty, "Accent");
+        button.SetResourceReference(Control.BorderBrushProperty, "Accent");
+        button.SetResourceReference(Control.BackgroundProperty, "Raised");
+        button.BorderThickness = new Thickness(1.5);
     }
 
     private void CloseEditorWorkspaceV069()

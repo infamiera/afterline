@@ -130,6 +130,10 @@ public partial class MainWindow
     {
         if (ShowLiveChatCheck.Parent is not Grid headerGrid) return;
 
+        headerGrid.RowDefinitions.Clear();
+        headerGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        headerGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
         StackPanel? leftPanel = headerGrid.Children
             .OfType<StackPanel>()
             .FirstOrDefault(panel => Grid.GetColumn(panel) == 0);
@@ -150,7 +154,7 @@ public partial class MainWindow
             IsChecked = _settings.ShowOocChat,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 18, 0),
-            ToolTip = "Show or hide OOC and private-message lines in Live Chat. Capture and archived logs are never affected."
+            ToolTip = "Show or hide OOC, private-message, INFO, MAPPING, SUCCESS, ERROR and related gameplay-status lines. Capture and archived logs are never affected."
         };
         _showOocChatCheck.Checked += ShowOocChatCheck_Changed;
         _showOocChatCheck.Unchecked += ShowOocChatCheck_Changed;
@@ -189,7 +193,7 @@ public partial class MainWindow
         var actions = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 10, 0, 0),
+            Margin = new Thickness(0, 12, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -197,7 +201,7 @@ public partial class MainWindow
         {
             Content = "Parse current chat",
             Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 8, 0),
+            Margin = new Thickness(0, 0, 10, 6),
             ToolTip = "Imports messages currently retained by FiveM's chat UI. Messages no longer retained by the game cannot be recovered."
         };
         parseButton.Click += ParseCurrentChat_Click;
@@ -206,7 +210,7 @@ public partial class MainWindow
         {
             Content = "Save copy to Downloads",
             Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 10, 0),
+            Margin = new Thickness(0, 0, 10, 6),
             ToolTip = "Writes an independent copy of the current captured server session to your Downloads folder."
         };
         exportButton.Click += ExportCurrentLiveLog_Click;
@@ -216,13 +220,16 @@ public partial class MainWindow
             Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 6)
         };
 
         actions.Children.Add(parseButton);
         actions.Children.Add(exportButton);
         actions.Children.Add(_liveActionStatus);
-        leftPanel.Children.Add(actions);
+        Grid.SetRow(actions, 1);
+        Grid.SetColumnSpan(actions, 2);
+        headerGrid.Children.Add(actions);
     }
 
     private void ConfigureServerStatus()

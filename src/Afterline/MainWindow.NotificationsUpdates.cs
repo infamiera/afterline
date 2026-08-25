@@ -409,6 +409,7 @@ public partial class MainWindow
             _trayBrandIcon?.Dispose();
             _trayBrandIcon = null;
 
+            ApplicationHealthMonitor.Stop();
             Environment.Exit(0);
         }
         catch (Exception ex)

@@ -137,7 +137,7 @@ public partial class MainWindow
     private Grid BuildEditorV041Body(string existingInput)
     {
         var body = new Grid();
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(44) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(7) });
         _editorToolPanelColumn = new ColumnDefinition { Width = new GridLength(300) };
         body.ColumnDefinitions.Add(_editorToolPanelColumn);

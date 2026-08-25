@@ -17,6 +17,10 @@ public sealed class ChatEntry
         @"^/b(?:\s|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex OocStatusPrefix = new(
+        @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM)\](?:\s|$)|INFO:\s*)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
     private static readonly Brush PrivateMessageBrush = CreateFrozenBrush(0xFB, 0xF7, 0x24);
     private static readonly Brush OocBrush = CreateFrozenBrush(0xB8, 0xBE, 0xC7);
@@ -47,8 +51,16 @@ public sealed class ChatEntry
         => !IsSystemMessage && PrivateMessagePrefix.IsMatch(ContentWithoutTimestamp);
 
     public bool IsInfoLine
-        => !IsSystemMessage &&
-           ContentWithoutTimestamp.TrimStart().StartsWith("[INFO]", StringComparison.OrdinalIgnoreCase);
+    {
+        get
+        {
+            if (IsSystemMessage) return false;
+            string content = ContentWithoutTimestamp.TrimStart();
+            return OocStatusPrefix.IsMatch(content) ||
+                   content.Contains(" just toggled the mapping mode ", StringComparison.OrdinalIgnoreCase) ||
+                   content.Contains(" triggered a reload of the property", StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     public bool IsOocChatLine
     {

@@ -120,6 +120,8 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        ApplicationHealthMonitor.Start(Dispatcher);
+
         try
         {
             RetiredThemeGuard.EnsureUiFilter();
@@ -169,6 +171,12 @@ public partial class App : System.Windows.Application
         DiagnosticLogger.Error(
             "Unhandled Afterline UI exception. The previous update backup has been preserved when available.",
             e.Exception);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        ApplicationHealthMonitor.Stop();
+        base.OnExit(e);
     }
 
     protected override void OnActivated(EventArgs e)
