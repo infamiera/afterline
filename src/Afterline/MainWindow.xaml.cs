@@ -452,6 +452,13 @@ public partial class MainWindow : Window
             ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(e.NewValue):0}%";
     }
 
+    private void PlayScreenshotCaptureSound_Click(object sender, RoutedEventArgs e)
+    {
+        string sound = (ScreenshotCaptureSoundBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "Shutter";
+        int volume = Math.Clamp((int)Math.Round(ScreenshotCaptureSoundVolumeSlider.Value), 0, 100);
+        CaptureFeedbackSoundService.Play(sound, volume);
+    }
+
     private static int ComboInt(System.Windows.Controls.ComboBox box, int fallback)
         => box.SelectedItem is System.Windows.Controls.ComboBoxItem item && int.TryParse(item.Content?.ToString(), out int value) ? value : fallback;
 
