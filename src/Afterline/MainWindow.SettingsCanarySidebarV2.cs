@@ -22,6 +22,7 @@ public partial class MainWindow
         var recovery = new StackPanel();
         var failsafe = new StackPanel();
         var canary = new StackPanel();
+        var screenCapture = new StackPanel();
 
         foreach (UIElement child in original.Children.Cast<UIElement>().ToArray())
         {
@@ -34,6 +35,12 @@ public partial class MainWindow
                     recovery.Children.Add(card);
                 else if (title.Equals("Raw Capture Failsafe", StringComparison.OrdinalIgnoreCase))
                     failsafe.Children.Add(card);
+                else if (title.Equals("Screen capture", StringComparison.OrdinalIgnoreCase) ||
+                         title.Equals("FiveM Screenshot Capture", StringComparison.OrdinalIgnoreCase))
+                {
+                    RenameSettingsCardCanaryV2(card, "Screen capture");
+                    screenCapture.Children.Add(card);
+                }
                 else if (title.Equals("Update channel", StringComparison.OrdinalIgnoreCase) ||
                          title.Equals("Canary Branch", StringComparison.OrdinalIgnoreCase))
                 {
@@ -58,7 +65,10 @@ public partial class MainWindow
 
         _settingsSectionsCanaryV2["general"] = WrapSettingsSectionCanaryV2(general,
             "General",
-            "Startup & FiveM, Capture & Processing, and Chatlog Storage.");
+            "Startup, capture & processing, and chatlog storage.");
+        _settingsSectionsCanaryV2["screen-capture"] = WrapSettingsSectionCanaryV2(screenCapture,
+            "Screen capture",
+            "Local capture folder and global capture hotkey.");
         _settingsSectionsCanaryV2["recovery"] = WrapSettingsSectionCanaryV2(recovery,
             "Recovery Center",
             "Replay cached sessions and inspect recovery state.");
@@ -90,6 +100,7 @@ public partial class MainWindow
             Margin = new Thickness(7, 4, 7, 9)
         });
         nav.Children.Add(CreateSettingsNavButtonCanaryV2("general", "⚙", "General"));
+        nav.Children.Add(CreateSettingsNavButtonCanaryV2("screen-capture", "▣", "Screen capture"));
         nav.Children.Add(CreateSettingsNavButtonCanaryV2("recovery", "↺", "Recovery Center"));
         nav.Children.Add(CreateSettingsNavButtonCanaryV2("failsafe", "⛨", "Raw Capture Failsafe"));
         nav.Children.Add(CreateSettingsNavButtonCanaryV2("canary", "◈", "Canary Branch"));
@@ -210,6 +221,7 @@ public partial class MainWindow
             PageSubtitle.Text = key switch
             {
                 "general" => "Startup, capture, processing and chatlog storage preferences",
+                "screen-capture" => "Local capture folder and global capture hotkey",
                 "recovery" => "Recovery Center and cached session tools",
                 "failsafe" => "Raw Capture Failsafe status and recovery tools",
                 "canary" => "Experimental Canary Branch update controls",
