@@ -9,9 +9,10 @@ internal static class CanaryChangelogData
         new("0.7.0", "25/AUG/2026", new[]
         {
             "Screen capture — Renamed Screenshots to Gallery, clarified that captures are stored locally, and moved all capture controls into their own Screen capture Settings section.",
-            "Capture feedback — Added an optional Shutter, Chime, Soft, or Off audio confirmation with adjustable volume, plus a Reset control for the default Ctrl+Shift+F12 hotkey.",
+            "Capture feedback — Added an optional Shutter, Chime, Soft, or Off audio confirmation with adjustable volume, instant Play preview, and a Reset control for the default Ctrl+Shift+F12 hotkey.",
             "Live Chat — Extended Show OOC chat filtering for AFK checks and store prompts such as Press Y to browse ammunation, regardless of the location name.",
-            "Usability — Added concise, theme-compliant tooltips to all main sidebar navigation buttons and shortened Gallery action tooltips so they display completely."
+            "Usability — Added concise, theme-compliant tooltips to all main sidebar navigation buttons and shortened Gallery action tooltips so they display completely.",
+            "Gallery visibility — Disabling Screen capture now hides Gallery immediately and keeps it hidden after collapsing or expanding the main sidebar."
         }, ChangelogChannel.Canary, 165),
         new("0.7.0", "25/AUG/2026", new[]
         {

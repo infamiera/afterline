@@ -449,8 +449,7 @@ public partial class MainWindow
         {
             bool alreadyInitialized = _fiveMScreenshotFeatureInitializedV074;
             EnsureFiveMScreenshotCaptureV074();
-            if (_fiveMScreenshotNavButtonV074 is not null)
-                _fiveMScreenshotNavButtonV074.Visibility = Visibility.Visible;
+            UpdateFiveMScreenshotUiAvailabilityV074(true);
             if (alreadyInitialized)
                 ConfigureFiveMScreenshotHotkeyV074();
         }
@@ -458,11 +457,23 @@ public partial class MainWindow
         {
             ReleaseFiveMScreenshotHotkeyV074();
             FiveMScreenshotsV074.Clear();
-            if (_fiveMScreenshotNavButtonV074 is not null)
-                _fiveMScreenshotNavButtonV074.Visibility = Visibility.Collapsed;
-            if (_fiveMScreenshotGalleryPageV074 is not null)
-                _fiveMScreenshotGalleryPageV074.Visibility = Visibility.Collapsed;
+            UpdateFiveMScreenshotUiAvailabilityV074(false);
         }
+    }
+
+    private void ScreenshotCaptureEnabledCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        // Reflect the pending setting immediately. Registration and persistence
+        // still happen through Save settings.
+        UpdateFiveMScreenshotUiAvailabilityV074(ScreenshotCaptureEnabledCheck.IsChecked == true);
+    }
+
+    private void UpdateFiveMScreenshotUiAvailabilityV074(bool enabled)
+    {
+        if (_fiveMScreenshotNavButtonV074 is not null)
+            _fiveMScreenshotNavButtonV074.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        if (!enabled && _fiveMScreenshotGalleryPageV074 is not null)
+            _fiveMScreenshotGalleryPageV074.Visibility = Visibility.Collapsed;
     }
 
     private void SetFiveMScreenshotStatusV074(string message)
