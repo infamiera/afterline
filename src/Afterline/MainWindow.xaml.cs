@@ -14,6 +14,16 @@ namespace Afterline;
 
 public partial class MainWindow : Window
 {
+    private const int DashboardArchiveDays = 7;
+    private const int DashboardArchiveScanLimit = 250;
+    private const int ArchivePageEntryLimit = 2000;
+
+    private enum ArchiveRefreshScope
+    {
+        Dashboard,
+        ArchivePage
+    }
+
     private readonly SettingsService _settingsService = new();
     private readonly SessionJournal _journal = new();
     private readonly ArchiveService _archiveService = new();
@@ -34,6 +44,7 @@ public partial class MainWindow : Window
 
     private CancellationTokenSource? _archiveRefreshCts;
     private int _archiveRefreshVersion;
+    private IReadOnlyList<SessionIndexEntry> _dashboardRecentSessions = Array.Empty<SessionIndexEntry>();
 
     public MainWindow()
     {
@@ -75,7 +86,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(_settings.ArchiveRoot);
             await _capture.StartAsync();
             _processor.Start();
-            await RefreshArchiveAsync();
+            await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
             _uiTimer.Start();
         }
         catch (Exception ex)
@@ -224,7 +235,7 @@ public partial class MainWindow : Window
                 CancellationToken.None);
             if (!indexed)
                 throw new IOException("The finalized chatlog could not be verified in the archive index.");
-            await Dispatcher.InvokeAsync(() => RefreshArchiveAsync()).Task.Unwrap();
+            await Dispatcher.InvokeAsync(() => RefreshArchiveAsync(ArchiveRefreshScope.Dashboard)).Task.Unwrap();
             await Dispatcher.InvokeAsync(() => ShowSessionArchivedNotification(path));
         }
         catch (Exception ex)
@@ -305,14 +316,19 @@ public partial class MainWindow : Window
         BottomStatusText.Text = $"Afterline 0.2.4{processInfo}";
     }
 
-    private async Task RefreshArchiveAsync()
+    private async Task RefreshArchiveAsync(ArchiveRefreshScope scope)
     {
         int refreshVersion = Interlocked.Increment(ref _archiveRefreshVersion);
         _archiveRefreshCts?.Cancel();
         _archiveRefreshCts?.Dispose();
         _archiveRefreshCts = new CancellationTokenSource();
         CancellationToken cancellationToken = _archiveRefreshCts.Token;
-        (DateTime? fromDate, DateTime? toDate) = GetArchiveFilterRangeV071();
+        (DateTime? fromDate, DateTime? toDate) = scope == ArchiveRefreshScope.Dashboard
+            ? (DateTime.Today.AddDays(-(DashboardArchiveDays - 1)), DateTime.Today)
+            : GetArchiveFilterRangeV071();
+        int maxEntries = scope == ArchiveRefreshScope.Dashboard
+            ? DashboardArchiveScanLimit
+            : ArchivePageEntryLimit;
 
         IReadOnlyList<SessionIndexEntry> entries;
         try
@@ -325,7 +341,8 @@ public partial class MainWindow : Window
                     _settings.ArchiveRoot,
                     cancellationToken,
                     fromDate,
-                    toDate),
+                    toDate,
+                    maxEntries),
                 cancellationToken);
         }
         catch (OperationCanceledException)
@@ -334,21 +351,37 @@ public partial class MainWindow : Window
         }
         catch
         {
-            entries = FilterCachedArchiveEntriesV071(_archiveService.LoadCachedIndex(), fromDate, toDate);
+            entries = FilterCachedArchiveEntriesV071(
+                _archiveService.LoadCachedIndex(),
+                fromDate,
+                toDate,
+                maxEntries);
         }
 
         if (refreshVersion != _archiveRefreshVersion || cancellationToken.IsCancellationRequested)
             return;
 
-        ArchiveSessions.ReplaceAll(entries);
-        RecentlyParsedLogs.ReplaceAll(entries.Take(14));
+        if (scope == ArchiveRefreshScope.ArchivePage)
+        {
+            ArchiveSessions.ReplaceAll(entries);
+            UpdateArchiveFilterStatusV071(entries.Count, entries.Count >= ArchivePageEntryLimit);
+        }
+
+        IReadOnlyList<SessionIndexEntry> dashboardEntries = scope == ArchiveRefreshScope.Dashboard
+            ? entries
+            : FilterCachedArchiveEntriesV071(
+                _archiveService.LoadCachedIndex(),
+                DateTime.Today.AddDays(-(DashboardArchiveDays - 1)),
+                DateTime.Today,
+                DashboardArchiveScanLimit);
+        _dashboardRecentSessions = dashboardEntries.Take(8).ToArray();
+        RecentlyParsedLogs.ReplaceAll(dashboardEntries.Take(14));
 
         RecentSessionsList.Items.Clear();
-        foreach (var entry in entries.Take(8))
+        foreach (SessionIndexEntry entry in _dashboardRecentSessions)
             RecentSessionsList.Items.Add($"{entry.LastWriteUtc.ToLocalTime():dd MMM yyyy · HH:mm}     {entry.LineCount:N0} lines     {entry.FileName}");
 
         ArchiveRootText.Text = _settings.ArchiveRoot;
-        UpdateArchiveFilterStatusV071(entries.Count);
     }
 
     private void PopulateSettingsUi()
@@ -405,13 +438,13 @@ public partial class MainWindow : Window
     private async void SearchNav_Click(object sender, RoutedEventArgs e)
     {
         ShowPage(SearchPage, "Search", "Search one or multiple terms across your chatlog folders");
-        await RefreshArchiveAsync();
+        await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
     }
 
     private async void ArchiveNav_Click(object sender, RoutedEventArgs e)
     {
         ShowPage(ArchivePage, "Archive", "Browse plain-text sessions organized by year and month");
-        await RefreshArchiveAsync();
+        await RefreshArchiveAsync(ArchiveRefreshScope.ArchivePage);
     }
 
     private void SettingsNav_Click(object sender, RoutedEventArgs e) => ShowPage(SettingsPage, "Settings", "Capture, startup, processing and chatlog storage preferences");
@@ -419,16 +452,20 @@ public partial class MainWindow : Window
     private async void FinishSession_Click(object sender, RoutedEventArgs e)
     {
         await _capture.FinishSessionAsync();
-        await RefreshArchiveAsync();
+        await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
     }
 
-    private async void RefreshArchive_Click(object sender, RoutedEventArgs e) => await RefreshArchiveAsync();
+    private async void RefreshArchive_Click(object sender, RoutedEventArgs e)
+        => await RefreshArchiveAsync(
+            ArchivePage.Visibility == Visibility.Visible
+                ? ArchiveRefreshScope.ArchivePage
+                : ArchiveRefreshScope.Dashboard);
 
     private async void RefreshSearch_Click(object sender, RoutedEventArgs e)
     {
         SearchSummaryText.Text = "Refreshing parsed logs…";
         await _processor.ProcessNowAsync();
-        await RefreshArchiveAsync();
+        await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
         SearchSummaryText.Text = "Parsed log list refreshed.";
     }
 
@@ -542,7 +579,7 @@ public partial class MainWindow : Window
             ArchiveRootText.Text = _settings.ArchiveRoot;
             ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
             LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
-            await RefreshArchiveAsync();
+            await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
 
             SettingsSavedText.Text = "Saved";
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -579,7 +616,8 @@ public partial class MainWindow : Window
     private void RecentSessionsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         int index = RecentSessionsList.SelectedIndex;
-        if (index >= 0 && index < ArchiveSessions.Count) OpenPath(ArchiveSessions[index].FilePath);
+        if (index >= 0 && index < _dashboardRecentSessions.Count)
+            OpenPath(_dashboardRecentSessions[index].FilePath);
     }
 
     private static void OpenPath(string path)

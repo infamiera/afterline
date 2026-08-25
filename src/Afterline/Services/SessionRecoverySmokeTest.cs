@@ -148,6 +148,41 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException(
                 "Archive date filtering read or returned files outside the requested range.");
         }
+
+        var boundedPaths = new List<string>();
+        DateTime newestWrite = DateTime.UtcNow.AddMinutes(-1);
+        for (int index = 0; index < 24; index++)
+        {
+            string path = Path.Combine(
+                filterRoot,
+                $"Chatlog [Archive Load {index:D2}] [{today}].txt");
+            await File.WriteAllTextAsync(path, $"bounded archive line {index}");
+            File.SetLastWriteTimeUtc(path, newestWrite.AddMinutes(-index));
+            boundedPaths.Add(path);
+        }
+
+        // The oldest eligible file is deliberately unreadable. A bounded load
+        // must choose its newest candidates before opening any chatlog contents.
+        await using var lockedEligibleFile = new FileStream(
+            boundedPaths[^1],
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.None);
+        IReadOnlyList<SessionIndexEntry> bounded = await new ArchiveService().RebuildIndexAsync(
+            filterRoot,
+            CancellationToken.None,
+            DateTime.Today,
+            DateTime.Today,
+            maxEntries: 5);
+        if (bounded.Count != 5 ||
+            bounded.Any(entry => string.Equals(
+                entry.FilePath,
+                boundedPaths[^1],
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                "Archive safety limiting did not restrict content reads to the newest files.");
+        }
     }
 
     private static void VerifyHtmlChatExport(ChatEntry exactColorEntry, DateTime exportedAt)

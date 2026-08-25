@@ -4,6 +4,8 @@ namespace Afterline.Services;
 
 public sealed class BackgroundProcessor : IAsyncDisposable
 {
+    private const int AutomaticArchiveEntryLimit = 250;
+
     private readonly ArchiveService _archive;
     private readonly Func<AppSettings> _settings;
     private readonly CancellationTokenSource _cts = new();
@@ -33,7 +35,8 @@ public sealed class BackgroundProcessor : IAsyncDisposable
             _settings().ArchiveRoot,
             cancellationToken,
             DateTime.Today.AddDays(-1),
-            DateTime.Today);
+            DateTime.Today,
+            AutomaticArchiveEntryLimit);
         LastProcessedAt = DateTime.Now;
         Processed?.Invoke(this, EventArgs.Empty);
     }

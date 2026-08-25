@@ -25,6 +25,8 @@ internal static class CurrentReleaseData
             "Image Editor — Attached rulers to the preview border instead of the zoomed image, removed the ruler-to-canvas gap, synchronized ruler ticks with scrolling and zoom, and automatically fitted newly loaded Base Images.",
             "Image Editor — Added whole-panel collapse controls for both Editor sidebars and a one-second border highlight on the Close Editor button whenever the workspace opens.",
             "Archive notifications — Added a Settings choice between in-app and Windows archive confirmations, and only announces success after the finalized FiveM log is verified in the archive index.",
+            "Archive performance — Limited automatic dashboard loading to the last seven days, bounded background and Archive-page indexing before chatlog contents are opened, and indexed newly finalized files directly instead of rescanning their entire folder.",
+            "FiveM recovery — Added matching refresh controls to the Dashboard connection card and Live Chat toolbar to discard stale process/NUI state, reconnect to the active server, and immediately re-check visible chat.",
             "Idle usage — Reduced disconnected FiveM detection, backed off unchanged chat polling, stopped hidden UI refreshes, avoided duplicate snapshot and archive-index writes, and limited page-specific status scans to visible pages.",
             "Quality — Expanded the Windows release gate with startup survival, Base Image rendering, project round-trip, interrupted-session recovery, exact and fallback color checks, safe HTML export, updater-manifest validation, and measured idle CPU and memory limits."
         }),

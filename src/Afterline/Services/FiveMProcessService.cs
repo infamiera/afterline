@@ -23,6 +23,16 @@ public static class FiveMProcessService
         }
     }
 
+    public static bool Refresh()
+    {
+        lock (CacheGate)
+        {
+            _cachedAt = long.MinValue;
+        }
+
+        return IsRunning();
+    }
+
     private static bool DetectRunning()
     {
         Process[] processes = Array.Empty<Process>();

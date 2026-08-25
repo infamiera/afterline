@@ -209,7 +209,7 @@ public partial class MainWindow
             _settingsService.Save(_settings);
             _archiveFilterStatusV071.Foreground = (Brush)FindResource("MutedText");
             _archiveFilterStatusV071.Text = "Loading…";
-            await RefreshArchiveAsync();
+            await RefreshArchiveAsync(ArchiveRefreshScope.ArchivePage);
         }
         catch (Exception ex)
         {
@@ -250,7 +250,8 @@ public partial class MainWindow
     private static IReadOnlyList<SessionIndexEntry> FilterCachedArchiveEntriesV071(
         IReadOnlyList<SessionIndexEntry> entries,
         DateTime? fromDate,
-        DateTime? toDate)
+        DateTime? toDate,
+        int maxEntries)
         => entries
             .Where(entry =>
             {
@@ -259,6 +260,7 @@ public partial class MainWindow
                        (!toDate.HasValue || date <= toDate.Value.Date);
             })
             .OrderByDescending(entry => entry.LastWriteUtc)
+            .Take(maxEntries)
             .ToArray();
 
     private static DateTime ResolveArchiveEntryDateV071(SessionIndexEntry entry)
@@ -274,10 +276,12 @@ public partial class MainWindow
             : entry.LastWriteUtc.ToLocalTime().Date;
     }
 
-    private void UpdateArchiveFilterStatusV071(int visibleCount)
+    private void UpdateArchiveFilterStatusV071(int visibleCount, bool safetyLimitReached = false)
     {
         if (_archiveFilterStatusV071 is null) return;
         _archiveFilterStatusV071.Foreground = (Brush)FindResource("MutedText");
-        _archiveFilterStatusV071.Text = $"{visibleCount:N0} shown";
+        _archiveFilterStatusV071.Text = safetyLimitReached
+            ? $"{visibleCount:N0} shown · safety limit"
+            : $"{visibleCount:N0} shown";
     }
 }

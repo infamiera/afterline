@@ -17,7 +17,7 @@ public partial class MainWindow
         {
             ThemeService.Apply(_settings.Theme);
             PopulateSettingsUi();
-            _ = RefreshArchiveAsync();
+            _ = RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
         }
     }
 }

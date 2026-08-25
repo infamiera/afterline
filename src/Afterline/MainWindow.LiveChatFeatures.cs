@@ -268,6 +268,56 @@ public partial class MainWindow
         _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("Success");
     }
 
+    private async void CheckFiveMConnection_Click(object sender, RoutedEventArgs e)
+        => await RefreshFiveMConnectionAsync(sender as Button, reportToLiveChat: false);
+
+    private async void RefreshLiveChat_Click(object sender, RoutedEventArgs e)
+        => await RefreshFiveMConnectionAsync(sender as Button, reportToLiveChat: true);
+
+    private async Task RefreshFiveMConnectionAsync(Button? actionButton, bool reportToLiveChat)
+    {
+        if (actionButton is not null) actionButton.IsEnabled = false;
+        if (reportToLiveChat && _liveActionStatus is not null)
+            _liveActionStatus.Text = "Refreshing the active FiveM chat…";
+        else if (_serverStatusText is not null)
+        {
+            _serverStatusText.Text = "Checking the active FiveM connection…";
+            _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("MutedText");
+        }
+
+        try
+        {
+            int captured = await _capture.RefreshConnectionAsync();
+            UpdateStatusUi();
+            UpdateServerStatus(_capture.CurrentServer);
+            LiveChatList.Items.Refresh();
+            UpdateVisibleLiveCount();
+
+            if (_liveActionStatus is not null)
+            {
+                _liveActionStatus.Text = captured == 0
+                    ? "Connection refreshed · active chat is up to date."
+                    : $"Connection refreshed · imported {captured:N0} new message{(captured == 1 ? string.Empty : "s")}.";
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusUi();
+            string message = ex.InnerException?.Message ?? ex.Message;
+            if (reportToLiveChat && _liveActionStatus is not null)
+                _liveActionStatus.Text = "Unable to refresh active chat: " + message;
+            if (_serverStatusText is not null)
+            {
+                _serverStatusText.Text = "Connection check failed: " + message;
+                _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("Warning");
+            }
+        }
+        finally
+        {
+            if (actionButton is not null) actionButton.IsEnabled = true;
+        }
+    }
+
     private void ShowOocChatCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_showOocChatCheck is null) return;

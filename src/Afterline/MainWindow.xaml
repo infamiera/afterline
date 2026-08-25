@@ -96,7 +96,14 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="FIVEM" Foreground="{StaticResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="FIVEM" Foreground="{StaticResource MutedText}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="↻" Width="30" Height="28" Padding="4,2" ToolTip="Check the FiveM connection now" Click="CheckFiveMConnection_Click"/>
+                            </Grid>
                             <TextBlock x:Name="FiveMStateText" Text="Not detected" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,0"/>
                             <TextBlock Text="Capture only activates while FiveM is running." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                         </StackPanel>
@@ -128,7 +135,7 @@
                         </Grid.RowDefinitions>
                         <StackPanel>
                             <TextBlock Text="Recent sessions" FontSize="18" FontWeight="SemiBold"/>
-                            <TextBlock Text="Completed chatlogs in your archive." Foreground="{StaticResource MutedText}" Margin="0,3,0,0"/>
+                            <TextBlock Text="Completed chatlogs from the last 7 days." Foreground="{StaticResource MutedText}" Margin="0,3,0,0"/>
                         </StackPanel>
                         <ListBox x:Name="RecentSessionsList" Grid.Row="2" BorderThickness="0" Background="Transparent" MouseDoubleClick="RecentSessionsList_MouseDoubleClick"/>
                         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -170,6 +177,7 @@
                                 <TextBlock x:Name="LiveCountText" Text="0 messages shown" Foreground="{StaticResource MutedText}" VerticalAlignment="Center"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Content="Clear display" Padding="10,5" Margin="0,0,6,0" Click="ClearLive_Click"/>
+                                    <Button Content="↻" Width="32" Padding="6,5" Margin="0,0,4,0" ToolTip="Force-refresh the active FiveM chat" Click="RefreshLiveChat_Click"/>
                                     <Button Content="↑" Width="32" Padding="6,5" Margin="0,0,4,0" ToolTip="Jump to the top of Live Chat" Click="ScrollLiveTop_Click"/>
                                     <Button Content="↓" Width="32" Padding="6,5" ToolTip="Jump to the bottom of Live Chat" Click="ScrollLiveBottom_Click"/>
                                 </StackPanel>

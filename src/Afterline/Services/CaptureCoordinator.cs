@@ -154,6 +154,80 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
     }
 
+    public async Task<int> RefreshConnectionAsync()
+    {
+        AppSettings settings = _settings();
+        if (!FiveMProcessService.Refresh())
+        {
+            await HandleFiveMAbsentAsync(settings);
+            LastError = "FiveM is not running.";
+            throw new InvalidOperationException(LastError);
+        }
+
+        await _captureGate.WaitAsync(_cts.Token);
+        try
+        {
+            // A manual refresh intentionally drops the current DevTools socket.
+            // This clears stale targets left behind by a FiveM reconnect without
+            // disturbing the on-disk session journal or its overlap checkpoint.
+            await _reader.ResetAsync();
+
+            IReadOnlyList<CapturedChatLine> current =
+                await _reader.ReadVisibleLinesAsync(_cts.Token);
+            string[] currentText = current.Select(line => line.Text).ToArray();
+            bool visibleChatChanged = !_previousVisible.SequenceEqual(
+                currentText,
+                StringComparer.Ordinal);
+            if (visibleChatChanged)
+            {
+                await TryWriteRawSnapshotAsync(
+                    current,
+                    _reader.CurrentServer,
+                    _cts.Token);
+            }
+
+            await ValidateResumedSessionAsync(
+                currentText,
+                _reader.CurrentServer,
+                settings,
+                _cts.Token);
+            await HandleObservedServerCoreAsync(
+                _reader.CurrentServer,
+                settings,
+                _cts.Token);
+
+            int captured = await CaptureAvailableLinesAsync(
+                current,
+                settings,
+                _cts.Token);
+            if (visibleChatChanged)
+                await TryMarkRawSnapshotProcessedAsync(_cts.Token);
+
+            _nuiUnavailableSince = null;
+            _disconnectedAt = null;
+            LastError = null;
+            SetState(CaptureState.Capturing);
+            return captured;
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            await _reader.ResetAsync();
+            SetState(CaptureState.WaitingForNui);
+            throw new InvalidOperationException(
+                "FiveM was detected, but Afterline could not reconnect to its active chat.",
+                ex);
+        }
+        finally
+        {
+            _captureGate.Release();
+        }
+    }
+
     public async Task FinishSessionAsync()
     {
         string? path = await _journal.FinalizeAsync(

@@ -65,7 +65,7 @@ public partial class MainWindow
     {
         if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
         ShowPage(ArchivePage, "Archive", "Browse plain-text sessions organized by year and month");
-        await RefreshArchiveAsync();
+        await RefreshArchiveAsync(ArchiveRefreshScope.ArchivePage);
     }
 
     private async void LogReaderOpenFolder_Click(object sender, RoutedEventArgs e)
