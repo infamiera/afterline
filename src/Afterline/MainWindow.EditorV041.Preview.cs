@@ -13,7 +13,9 @@ public partial class MainWindow
         var card = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(10) };
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
+        // Keep the canvas ruler flush with the Preview header. The old spacer
+        // created a permanent strip above every loaded image.
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(0) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 

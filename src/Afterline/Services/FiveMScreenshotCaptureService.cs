@@ -7,14 +7,60 @@ using System.Text;
 namespace Afterline.Services;
 
 /// <summary>
-/// Captures only the client area of the foreground FiveM/GTA window. There is no
-/// desktop fallback: an unsupported or unfocused process is always rejected.
+/// Captures only the client area of a verified FiveM/GTA window. There is no
+/// desktop fallback: an unsupported process is always rejected.
 /// </summary>
 public static class FiveMScreenshotCaptureService
 {
     private const int MinimumCaptureDimension = 160;
 
     public sealed record CaptureResult(string FilePath, int PixelWidth, int PixelHeight, string WindowTitle);
+
+    public static bool IsAfterlineForeground()
+    {
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return false;
+        _ = GetWindowThreadProcessId(foreground, out uint processId);
+        return processId == (uint)Environment.ProcessId;
+    }
+
+    public static bool TryFindGameWindowForAfterlineCapture(out IntPtr gameWindow, out string reason)
+    {
+        gameWindow = IntPtr.Zero;
+        reason = "Bring FiveM, GTA5, or GTAVLauncher into the game before capturing.";
+        if (!IsAfterlineForeground())
+            return false;
+
+        long largestArea = 0;
+        IntPtr selectedWindow = IntPtr.Zero;
+        _ = EnumWindows((window, parameter) =>
+        {
+            if (!IsWindowVisible(window) || IsIconic(window)) return true;
+            _ = GetWindowThreadProcessId(window, out uint processId);
+            if (processId == 0 || !IsSupportedProcess((int)processId)) return true;
+            if (!TryGetClientCaptureBounds(window, out Rectangle bounds, out _)) return true;
+
+            long area = (long)bounds.Width * bounds.Height;
+            if (area <= largestArea) return true;
+            largestArea = area;
+            selectedWindow = window;
+            return true;
+        }, IntPtr.Zero);
+
+        if (selectedWindow == IntPtr.Zero)
+            return false;
+
+        gameWindow = selectedWindow;
+        reason = string.Empty;
+        return true;
+    }
+
+    public static bool ActivateGameWindow(IntPtr gameWindow)
+    {
+        if (gameWindow == IntPtr.Zero || !IsWindowVisible(gameWindow)) return false;
+        _ = ShowWindowAsync(gameWindow, 9); // SW_RESTORE
+        return SetForegroundWindow(gameWindow);
+    }
 
     public static CaptureResult CaptureForegroundWindow(string destinationFolder)
     {
@@ -79,13 +125,19 @@ public static class FiveMScreenshotCaptureService
             return false;
         }
 
+        if (!TryGetClientCaptureBounds(window, out clientBounds, out reason)) return false;
+        title = GetWindowTitle(window);
+        return true;
+    }
+
+    private static bool TryGetClientCaptureBounds(IntPtr window, out Rectangle bounds, out string reason)
+    {
+        bounds = Rectangle.Empty;
+        reason = "Afterline could not read the game window's client area.";
         if (!GetClientRect(window, out NativeRect rect) ||
             !ClientToScreen(window, ref rect.LeftTop) ||
             !ClientToScreen(window, ref rect.RightBottom))
-        {
-            reason = "Afterline could not read the game window's client area.";
             return false;
-        }
 
         int width = rect.RightBottom.X - rect.LeftTop.X;
         int height = rect.RightBottom.Y - rect.LeftTop.Y;
@@ -95,8 +147,8 @@ public static class FiveMScreenshotCaptureService
             return false;
         }
 
-        clientBounds = new Rectangle(rect.LeftTop.X, rect.LeftTop.Y, width, height);
-        title = GetWindowTitle(window);
+        bounds = new Rectangle(rect.LeftTop.X, rect.LeftTop.Y, width, height);
+        reason = string.Empty;
         return true;
     }
 
@@ -155,8 +207,22 @@ public static class FiveMScreenshotCaptureService
         public NativePoint RightBottom;
     }
 
+    private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindowAsync(IntPtr hWnd, int command);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

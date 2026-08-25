@@ -217,12 +217,27 @@ public partial class MainWindow
         info.AppendChild(detail);
         root.AppendChild(info);
 
+        var itemActions = new FrameworkElementFactory(typeof(StackPanel));
+        itemActions.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+        itemActions.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+
         var open = new FrameworkElementFactory(typeof(Button));
         open.SetValue(Button.ContentProperty, "Open in Editor");
         open.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
         open.SetBinding(FrameworkElement.TagProperty, new System.Windows.Data.Binding(nameof(FiveMScreenshotGalleryItemV074.FilePath)));
         open.AddHandler(Button.ClickEvent, new RoutedEventHandler(OpenFiveMScreenshotInEditorButtonV074));
-        root.AppendChild(open);
+        itemActions.AppendChild(open);
+
+        var delete = new FrameworkElementFactory(typeof(Button));
+        delete.SetValue(Button.ContentProperty, "Delete");
+        delete.SetValue(Control.ForegroundProperty, FindResource("Warning"));
+        delete.SetValue(FrameworkElement.MarginProperty, new Thickness(8, 0, 0, 0));
+        delete.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+        delete.SetValue(Control.ToolTipProperty, "Move this local capture to the Recycle Bin");
+        delete.SetBinding(FrameworkElement.TagProperty, new System.Windows.Data.Binding(nameof(FiveMScreenshotGalleryItemV074.FilePath)));
+        delete.AddHandler(Button.ClickEvent, new RoutedEventHandler(DeleteFiveMScreenshotButtonV074));
+        itemActions.AppendChild(delete);
+        root.AppendChild(itemActions);
 
         template.VisualTree = root;
         return template;
@@ -239,8 +254,22 @@ public partial class MainWindow
     {
         if (!_settings.EnableFiveMScreenshotCapture || _fiveMScreenshotCaptureInProgressV074) return;
         _fiveMScreenshotCaptureInProgressV074 = true;
+        bool restoreAfterline = FiveMScreenshotCaptureService.IsAfterlineForeground();
+        WindowState previousWindowState = WindowState;
         try
         {
+            if (restoreAfterline)
+            {
+                if (!FiveMScreenshotCaptureService.TryFindGameWindowForAfterlineCapture(out IntPtr gameWindow, out string reason))
+                    throw new InvalidOperationException(reason);
+
+                SetFiveMScreenshotStatusV074("Switching briefly to the game window…");
+                Hide();
+                if (!FiveMScreenshotCaptureService.ActivateGameWindow(gameWindow))
+                    throw new InvalidOperationException("Afterline found the game but Windows would not activate its window for capture.");
+                await Task.Delay(220);
+            }
+
             SetFiveMScreenshotStatusV074("Capturing the foreground FiveM game window…");
             FiveMScreenshotCaptureService.CaptureResult result = await Task.Run(
                 () => FiveMScreenshotCaptureService.CaptureForegroundWindow(_settings.ScreenshotFolder));
@@ -254,7 +283,16 @@ public partial class MainWindow
             DiagnosticLogger.Error("FiveM screenshot capture failed.", ex);
             SetFiveMScreenshotStatusV074(ex.Message);
         }
-        finally { _fiveMScreenshotCaptureInProgressV074 = false; }
+        finally
+        {
+            if (restoreAfterline)
+            {
+                Show();
+                WindowState = previousWindowState;
+                Activate();
+            }
+            _fiveMScreenshotCaptureInProgressV074 = false;
+        }
     }
 
     private async Task RefreshFiveMScreenshotGalleryV074Async(bool scanFolder = false)
@@ -341,6 +379,42 @@ public partial class MainWindow
             OpenFiveMScreenshotInEditorV074(path);
     }
 
+    private void DeleteFiveMScreenshotButtonV074(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string path }) return;
+        string fileName = Path.GetFileName(path);
+        if (System.Windows.MessageBox.Show(
+                this,
+                $"Move '{fileName}' to the Recycle Bin?",
+                "Delete local capture",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    path,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+            }
+            ScreenshotGalleryIndexService.Remove(path);
+            FiveMScreenshotGalleryItemV074? item = FiveMScreenshotsV074.FirstOrDefault(entry =>
+                string.Equals(entry.FilePath, path, StringComparison.OrdinalIgnoreCase));
+            if (item is not null) FiveMScreenshotsV074.Remove(item);
+            if (_fiveMScreenshotGalleryEmptyV074 is not null)
+                _fiveMScreenshotGalleryEmptyV074.Visibility = FiveMScreenshotsV074.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            SetFiveMScreenshotStatusV074($"Moved {fileName} to the Recycle Bin.");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to delete a Gallery capture.", ex);
+            SetFiveMScreenshotStatusV074("That capture could not be moved to the Recycle Bin.");
+        }
+    }
+
     private void OpenFiveMScreenshotInEditorV074(string path)
     {
         if (!File.Exists(path))
@@ -353,7 +427,7 @@ public partial class MainWindow
         LoadEditorMediaV060(path);
     }
 
-    private void ConfigureFiveMScreenshotHotkeyV074()
+    private void ConfigureFiveMScreenshotHotkeyV074(bool showFailure = false)
     {
         ReleaseFiveMScreenshotHotkeyV074();
         if (!_settings.EnableFiveMScreenshotCapture) return;
@@ -378,9 +452,24 @@ public partial class MainWindow
         _fiveMScreenshotHotkeyRegisteredV074 = RegisterHotKey(handle, ScreenshotHotkeyIdV074, modifiers | ModNoRepeatV074, virtualKey);
         if (!_fiveMScreenshotHotkeyRegisteredV074)
         {
+            // MOD_NOREPEAT is not accepted consistently by every Windows/hotkey
+            // combination. The in-progress guard still prevents duplicate captures.
+            _fiveMScreenshotHotkeyRegisteredV074 = RegisterHotKey(handle, ScreenshotHotkeyIdV074, modifiers, virtualKey);
+        }
+        if (!_fiveMScreenshotHotkeyRegisteredV074)
+        {
             _fiveMScreenshotHotkeySourceV074.RemoveHook(FiveMScreenshotHotkeyWndProcV074);
             _fiveMScreenshotHotkeySourceV074 = null;
             DiagnosticLogger.Error($"Unable to register FiveM screenshot hotkey '{_settings.ScreenshotHotkey}'. It may already be in use.");
+            if (showFailure)
+            {
+                System.Windows.MessageBox.Show(
+                    this,
+                    $"Windows could not register '{_settings.ScreenshotHotkey}'. Choose another shortcut that is not already used by another app.",
+                    "Capture hotkey unavailable",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
         }
     }
 
@@ -443,6 +532,30 @@ public partial class MainWindow
         return true;
     }
 
+    private void ScreenshotHotkeyBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        ScreenshotHotkeyBox.SelectAll();
+    }
+
+    private void ScreenshotHotkeyBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
+            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.None)
+            return;
+
+        ModifierKeys modifiers = Keyboard.Modifiers;
+        var parts = new List<string>(5);
+        if (modifiers.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
+        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
+        if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
+        if (modifiers.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
+        parts.Add(key.ToString());
+        ScreenshotHotkeyBox.Text = string.Join("+", parts);
+        ScreenshotHotkeyBox.CaretIndex = ScreenshotHotkeyBox.Text.Length;
+        e.Handled = true;
+    }
+
     private void ApplyFiveMScreenshotCaptureSettingsV074()
     {
         if (_settings.EnableFiveMScreenshotCapture)
@@ -451,7 +564,7 @@ public partial class MainWindow
             EnsureFiveMScreenshotCaptureV074();
             UpdateFiveMScreenshotUiAvailabilityV074(true);
             if (alreadyInitialized)
-                ConfigureFiveMScreenshotHotkeyV074();
+                ConfigureFiveMScreenshotHotkeyV074(showFailure: true);
         }
         else
         {
@@ -487,10 +600,13 @@ public partial class MainWindow
         using var dialog = new Forms.FolderBrowserDialog
         {
             SelectedPath = ScreenshotFolderBox.Text,
-            Description = "Choose where Afterline stores FiveM screenshots"
+            Description = "Choose where Afterline stores screen captures"
         };
         if (dialog.ShowDialog() == Forms.DialogResult.OK)
+        {
             ScreenshotFolderBox.Text = dialog.SelectedPath;
+            ApplyStreamerModePresentationV075();
+        }
     }
 
     private void ResetScreenshotHotkey_Click(object sender, RoutedEventArgs e)

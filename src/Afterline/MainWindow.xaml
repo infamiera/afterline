@@ -243,7 +243,12 @@
                         </Grid>
                         <WrapPanel Grid.Row="2" VerticalAlignment="Center">
                             <TextBlock Text="Folder" VerticalAlignment="Center" Foreground="{StaticResource MutedText}" Margin="0,0,8,0"/>
-                            <TextBox x:Name="SearchRootBox" Width="300" IsReadOnly="True"/>
+                            <Grid Width="300">
+                                <TextBox x:Name="SearchRootBox" IsReadOnly="True"/>
+                                <Border x:Name="SearchRootPrivacyOverlay" Background="{StaticResource Raised}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
+                                    <TextBlock x:Name="SearchRootPrivacyText" TextTrimming="CharacterEllipsis"/>
+                                </Border>
+                            </Grid>
                             <Button Content="Browse" Margin="8,0,16,0" Padding="10,6" Click="BrowseSearchRoot_Click"/>
                             <ComboBox x:Name="SearchModeBox" Width="125" SelectedIndex="0">
                                 <ComboBoxItem Content="Contains"/><ComboBoxItem Content="Exact"/><ComboBoxItem Content="Whole word"/><ComboBoxItem Content="Regex"/>
@@ -349,7 +354,7 @@
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Capture hotkey" VerticalAlignment="Center"/>
-                                <TextBox x:Name="ScreenshotHotkeyBox" Grid.Column="1" ToolTip="Examples: Ctrl+Shift+F12, Ctrl+Alt+S, or F10."/>
+                                <TextBox x:Name="ScreenshotHotkeyBox" Grid.Column="1" ToolTip="Click here, then press the capture shortcut." PreviewKeyDown="ScreenshotHotkeyBox_PreviewKeyDown" GotKeyboardFocus="ScreenshotHotkeyBox_GotKeyboardFocus"/>
                                 <Button Grid.Column="2" Content="Reset" Margin="8,0,0,0" Padding="9,4" ToolTip="Restore the default capture hotkey" Click="ResetScreenshotHotkey_Click"/>
                                 <TextBlock Grid.Column="3" Text="Global while enabled" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
@@ -357,13 +362,16 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Screenshot folder" VerticalAlignment="Center"/>
                                 <TextBox x:Name="ScreenshotFolderBox" Grid.Column="1" IsReadOnly="True"/>
+                                <Border x:Name="ScreenshotFolderPrivacyOverlay" Grid.Column="1" Background="{StaticResource Raised}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
+                                    <TextBlock x:Name="ScreenshotFolderPrivacyText" TextTrimming="CharacterEllipsis"/>
+                                </Border>
                                 <Button Grid.Column="2" Content="Browse" Margin="10,0,0,0" Click="BrowseScreenshotFolder_Click"/>
                             </Grid>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Capture sound" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="ScreenshotCaptureSoundBox" Grid.Column="1">
-                                    <ComboBoxItem Content="Shutter"/><ComboBoxItem Content="Chime"/><ComboBoxItem Content="Soft"/><ComboBoxItem Content="Off"/>
+                                    <ComboBoxItem Content="Shutter"/><ComboBoxItem Content="Chime"/><ComboBoxItem Content="Soft"/><ComboBoxItem Content="Snap"/><ComboBoxItem Content="Digital"/><ComboBoxItem Content="Double click"/><ComboBoxItem Content="Off"/>
                                 </ComboBox>
                                 <TextBlock Grid.Column="2" Text="Audio confirmation after a saved capture" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                 <Button Grid.Column="3" Content="Play" Margin="10,0,0,0" Padding="12,4" ToolTip="Preview the selected capture sound" Click="PlayScreenshotCaptureSound_Click"/>
@@ -375,6 +383,14 @@
                                 <TextBlock x:Name="ScreenshotCaptureSoundVolumeText" Grid.Column="2" Text="60%" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
                             <TextBlock Text="The Gallery keeps only the 20 newest source-resolution captures in memory as thumbnails. Original PNG files stay in this folder." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardStyle}" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Streamer mode" FontSize="18" FontWeight="SemiBold"/>
+                            <CheckBox x:Name="StreamerModeCheck" Content="Hide personal paths on screen" Margin="0,14,0,0" Checked="StreamerModeCheck_Changed" Unchecked="StreamerModeCheck_Changed"/>
+                            <TextBlock Text="Visually masks usernames and local folder paths throughout Afterline. Files, settings, and saved locations are not changed." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
 
@@ -417,6 +433,9 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBox x:Name="ArchiveRootBox" IsReadOnly="True"/>
+                                <Border x:Name="ArchiveRootPrivacyOverlay" Background="{StaticResource Raised}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
+                                    <TextBlock x:Name="ArchiveRootPrivacyText" TextTrimming="CharacterEllipsis"/>
+                                </Border>
                                 <Button Grid.Column="1" Content="Browse" Margin="10,0,0,0" Click="BrowseArchiveRoot_Click"/>
                             </Grid>
                         </StackPanel>

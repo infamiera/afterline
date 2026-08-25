@@ -18,10 +18,10 @@ public partial class MainWindow
 
         _changelogButton = new Button
         {
-            Content = "Changelog",
+            Content = "Notes",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(9, 6, 9, 6),
-            Margin = new Thickness(0, 8, 0, 0),
+            Padding = new Thickness(7, 5, 7, 5),
+            Margin = new Thickness(6, 0, 0, 0),
             ToolTip = "View patch notes for the current and previous Afterline releases."
         };
         _changelogButton.Click += (_, _) =>
@@ -31,6 +31,15 @@ public partial class MainWindow
         };
 
         int updateIndex = updatePanel.Children.IndexOf(_checkUpdatesButton);
-        updatePanel.Children.Insert(Math.Min(updateIndex + 1, updatePanel.Children.Count), _changelogButton);
+        updatePanel.Children.Remove(_checkUpdatesButton);
+        _checkUpdatesButton.Margin = new Thickness(0);
+
+        var actions = new Grid { Margin = new Thickness(0, 7, 0, 0) };
+        actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        actions.Children.Add(_checkUpdatesButton);
+        Grid.SetColumn(_changelogButton, 1);
+        actions.Children.Add(_changelogButton);
+        updatePanel.Children.Insert(Math.Min(updateIndex, updatePanel.Children.Count), actions);
     }
 }
