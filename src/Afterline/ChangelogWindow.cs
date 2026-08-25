@@ -91,7 +91,8 @@ internal sealed class ChangelogWindow : Window
                 ? $"Afterline Canary - #{entry.CanaryBuild.GetValueOrDefault():000}"
                 : $"Afterline Stable - v{entry.Version}",
             FontSize = 20,
-            FontWeight = FontWeights.SemiBold
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
         });
         var badge = new Border
         {
@@ -100,12 +101,17 @@ internal sealed class ChangelogWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(9, 3, 9, 3),
+            Margin = new Thickness(12, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
             {
                 Text = entry.Channel == ChangelogChannel.Canary ? "CANARY" : "STABLE",
                 Foreground = (Brush)FindResource(entry.Channel == ChangelogChannel.Canary ? "MutedText" : "Accent"),
                 FontSize = 9,
-                FontWeight = FontWeights.Bold
+                FontWeight = FontWeights.Bold,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             }
         };
         Grid.SetColumn(badge, 1);

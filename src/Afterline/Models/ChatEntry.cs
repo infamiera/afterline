@@ -18,7 +18,11 @@ public sealed class ChatEntry
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex OocStatusPrefix = new(
-        @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM)\](?:\s|$)|INFO:\s*)",
+        @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM|ANTI-FALL|FRIEND|PAYPHONE)\](?:\s|$)|INFO:\s*)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex OocStandaloneStatus = new(
+        @"^(?:Welcome to GTA World\.?|Weather forecast:|Temperature:|Wind:|Online faction members:|Faction Members (?:Online|On-Duty):|Number:\s*\d|Costs:\s*Initialize Call:|Commands:\s*/payphonecall|You (?:unlocked|locked) the property door\.?|Stats for\s+|Wallet:\s*|Health\s*\||Organization:\s*|Business\s+\d+:|Bank Account Routing:|Current job:|Time\s*\||Properties:\s*Owned:|Custom Number:|Monthly remaining|Premium:|World Points:|Panda Points:|Current Time:|Time spent online|Time remaining on vacation:|You can only tackle one person every\s+\d+\s+seconds!?|\|\s+\S|={8,})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
@@ -57,6 +61,8 @@ public sealed class ChatEntry
             if (IsSystemMessage) return false;
             string content = ContentWithoutTimestamp.TrimStart();
             return OocStatusPrefix.IsMatch(content) ||
+                   OocStandaloneStatus.IsMatch(content) ||
+                   content.Contains("[NEW LOGIN]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains(" just toggled the mapping mode ", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains(" triggered a reload of the property", StringComparison.OrdinalIgnoreCase);
         }

@@ -8,6 +8,12 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "25/AUG/2026", new[]
         {
+            "Live Chat filtering — Expanded Show OOC chat to hide ANTI-FALL notices, login and weather summaries, faction rosters, friend-login alerts, payphone instructions, property/stat readouts, and action cooldown warnings.",
+            "Capture safety — These additions affect only Live Chat and filtered exports; complete captured and archived logs remain unchanged.",
+            "Changelog — Vertically aligned the Stable and Canary channel badges with their release titles."
+        }, ChangelogChannel.Canary, 162),
+        new("0.7.0", "25/AUG/2026", new[]
+        {
             "Diagnostics — Simplified Discord guidance to the #afterline forum channel, retained the linked server invite, and added bounded detection for unclean exits and 15-second UI hangs.",
             "Live Chat — Separated the action row from header toggles, increased button spacing, and expanded Show OOC chat to cover MAPPING, SUCCESS, ERROR, PM, INFO and related mapping-status notices.",
             "Image Editor — Widened the tool rail so its buttons render cleanly and made the return control more prominent with a longer three-second entry highlight.",
