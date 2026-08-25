@@ -173,7 +173,8 @@ public partial class MainWindow
             Padding = new Thickness(0),
             ToolTip = "Close tool panel"
         };
-        close.Click += (_, _) => CloseEditorToolPanel();
+        _editorLeftSidebarToggleV072 = close;
+        close.Click += (_, _) => ToggleEditorLeftSidebarV072();
         Grid.SetColumn(close, 1);
         toolHeader.Children.Add(close);
         toolHostGrid.Children.Add(toolHeader);
@@ -206,6 +207,19 @@ public partial class MainWindow
         stack.Children.Add(CreateEditorToolIconButton("\uEB9F", "Image & canvas", "image"));
         stack.Children.Add(CreateEditorToolIconButton("\uE76D", "Paint & markup", "markup"));
         stack.Children.Add(CreateEditorToolIconButton("\uE74E", "Export", "export"));
+        _editorLeftSidebarReopenV073 = new Button
+        {
+            Content = "▶",
+            FontSize = 13,
+            Width = 34,
+            Height = 34,
+            Padding = new Thickness(0),
+            Margin = new Thickness(0, 4, 0, 0),
+            ToolTip = "Open the left Editor panel",
+            Visibility = Visibility.Collapsed
+        };
+        _editorLeftSidebarReopenV073.Click += (_, _) => ToggleEditorLeftSidebarV072();
+        stack.Children.Add(_editorLeftSidebarReopenV073);
         rail.Child = stack;
         return rail;
     }

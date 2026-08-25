@@ -45,7 +45,8 @@ public partial class MainWindow
         string processInfo = _processor.LastProcessedAt is DateTime processed
             ? $" · archive processed {processed:HH:mm:ss}"
             : string.Empty;
-        BottomStatusText.Text = $"Afterline {GetCurrentBuildVersion()}{processInfo}";
+        string channel = IsCanaryBinaryV062() ? " · Canary" : string.Empty;
+        BottomStatusText.Text = $"Afterline {GetCurrentBuildVersion()}{processInfo}{channel}";
     }
 
     private void ConfigureExportToast()

@@ -68,6 +68,7 @@ public partial class MainWindow
         return new EditorPreferences
         {
             ProjectsFolder = GetEditorProjectsFolderV070(createDirectory: false),
+            ProjectAutosaveMinutes = _settings.Editor.ProjectAutosaveMinutes,
             Font = _editorFontBox?.SelectedItem?.ToString() ?? "Arial Bold",
             FontSize = _editorFontSizeSlider?.Value ?? 18,
             LineSpacing = _editorLineSpacingSlider?.Value ?? 1,

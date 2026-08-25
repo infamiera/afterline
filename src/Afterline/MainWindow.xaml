@@ -124,7 +124,13 @@
                     </Border>
                 </Grid>
 
-                <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource CardStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -144,6 +150,43 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Recent Editor projects" FontSize="18" FontWeight="SemiBold"/>
+                            <TextBlock Text="Double-click a project to continue editing." Foreground="{StaticResource MutedText}" Margin="0,3,0,0"/>
+                        </StackPanel>
+                        <Grid Grid.Row="2">
+                            <TextBlock x:Name="RecentEditorProjectsEmptyText" Text="No saved Editor projects yet." Foreground="{StaticResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                            <ListBox x:Name="RecentEditorProjectsList" ItemsSource="{Binding RecentEditorProjectsV073}" BorderThickness="0" Background="Transparent" MouseDoubleClick="RecentEditorProjectsList_MouseDoubleClick" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="4,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="76"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Width="76" Height="48" Background="{StaticResource Bg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+                                                <Image Source="{Binding Preview}" Stretch="UniformToFill"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Grid>
+                </Border>
+                </Grid>
             </Grid>
 
             <Grid x:Name="LivePage" Grid.Row="2" Visibility="Collapsed">
@@ -351,7 +394,7 @@
 
             <Grid Grid.Row="4">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock x:Name="BottomStatusText" Text="Afterline 0.2.4" Foreground="{StaticResource MutedText}" FontSize="11"/>
+                <TextBlock x:Name="BottomStatusText" Text="Afterline 0.7.0" Foreground="{StaticResource MutedText}" FontSize="11"/>
                 <TextBlock Grid.Column="1" Text="Autosave always on" Foreground="{StaticResource Success}" FontSize="11"/>
             </Grid>
         </Grid>

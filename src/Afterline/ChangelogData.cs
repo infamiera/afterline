@@ -1,6 +1,17 @@
 namespace Afterline;
 
-internal sealed record ChangelogEntry(string Version, string Date, string[] Changes);
+internal enum ChangelogChannel
+{
+    Stable,
+    Canary
+}
+
+internal sealed record ChangelogEntry(
+    string Version,
+    string Date,
+    string[] Changes,
+    ChangelogChannel Channel = ChangelogChannel.Stable,
+    int? CanaryBuild = null);
 
 internal static class ChangelogData
 {

@@ -29,16 +29,6 @@ public partial class MainWindow
         });
 
         var zoom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        _editorLeftSidebarToggleV072 = CreateEditorPreviewButton(
-            "◀",
-            "Collapse the left Editor panel",
-            (_, _) => ToggleEditorLeftSidebarV072());
-        zoom.Children.Add(_editorLeftSidebarToggleV072);
-        _editorRightSidebarToggleV072 = CreateEditorPreviewButton(
-            "▶",
-            "Collapse the right Editor panel",
-            (_, _) => ToggleEditorRightSidebarV072());
-        zoom.Children.Add(_editorRightSidebarToggleV072);
         zoom.Children.Add(CreateEditorPreviewButton("−", "Zoom out", (_, _) => ChangeEditorZoom(-0.1)));
         _editorZoomText = new TextBlock
         {
@@ -101,6 +91,22 @@ public partial class MainWindow
         };
         Grid.SetRow(_editorStatusText, 3);
         root.Children.Add(_editorStatusText);
+
+        _editorRightSidebarReopenV073 = new Button
+        {
+            Content = "◀",
+            Width = 30,
+            Height = 48,
+            Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Open the right Editor panel",
+            Visibility = Visibility.Collapsed
+        };
+        _editorRightSidebarReopenV073.Click += (_, _) => ToggleEditorRightSidebarV072();
+        Grid.SetRow(_editorRightSidebarReopenV073, 2);
+        Panel.SetZIndex(_editorRightSidebarReopenV073, 40);
+        root.Children.Add(_editorRightSidebarReopenV073);
 
         card.Child = root;
         return card;
@@ -221,6 +227,7 @@ public partial class MainWindow
 
         _editorActiveToolKey = key;
         _editorLastToolKeyV072 = key;
+        _editorToolPanelColumn.MinWidth = 220;
         _editorToolPanelColumn.Width = new GridLength(300);
         _editorToolGapColumn.Width = new GridLength(12);
         _editorToolPanelHost.Visibility = Visibility.Visible;
@@ -248,6 +255,7 @@ public partial class MainWindow
     {
         if (_editorToolPanelHost is null || _editorToolPanelColumn is null || _editorToolGapColumn is null) return;
         _editorToolPanelHost.Visibility = Visibility.Collapsed;
+        _editorToolPanelColumn.MinWidth = 0;
         _editorToolPanelColumn.Width = new GridLength(0);
         _editorToolGapColumn.Width = new GridLength(0);
         _editorActiveToolKey = null;
@@ -275,16 +283,53 @@ public partial class MainWindow
     private void FitEditorPreviewToWindow()
     {
         if (_editorPreviewScroll is null || _editorComposition is null) return;
+        _editorPreviewScroll.UpdateLayout();
         double availableWidth = _editorPreviewScroll.ViewportWidth;
         double availableHeight = _editorPreviewScroll.ViewportHeight;
-        if (availableWidth <= 0 || availableHeight <= 0 || _editorComposition.Width <= 0 || _editorComposition.Height <= 0) return;
+        if (!double.IsFinite(availableWidth) || availableWidth <= 1)
+            availableWidth = _editorPreviewScroll.ActualWidth;
+        if (!double.IsFinite(availableHeight) || availableHeight <= 1)
+            availableHeight = _editorPreviewScroll.ActualHeight;
 
-        double fit = Math.Min(availableWidth / _editorComposition.Width, availableHeight / _editorComposition.Height);
+        double compositionWidth = double.IsFinite(_editorComposition.Width) && _editorComposition.Width > 0
+            ? _editorComposition.Width
+            : _editorComposition.ActualWidth;
+        double compositionHeight = double.IsFinite(_editorComposition.Height) && _editorComposition.Height > 0
+            ? _editorComposition.Height
+            : _editorComposition.ActualHeight;
+        if (availableWidth <= 1 || availableHeight <= 1 || compositionWidth <= 0 || compositionHeight <= 0)
+            return;
+
+        // Leave a sliver of breathing room so a rounding error cannot create
+        // scrollbars and make Fit appear to have failed.
+        double fit = Math.Min(
+            Math.Max(1, availableWidth - 4) / compositionWidth,
+            Math.Max(1, availableHeight - 4) / compositionHeight);
         _editorFitZoom = true;
         SetEditorZoom(Math.Clamp(fit, 0.10, 4.0));
+        if (_editorZoomHost is not null)
+        {
+            _editorZoomHost.HorizontalAlignment = HorizontalAlignment.Center;
+            _editorZoomHost.VerticalAlignment = VerticalAlignment.Center;
+        }
         _editorPreviewScroll.ScrollToHorizontalOffset(0);
         _editorPreviewScroll.ScrollToVerticalOffset(0);
         _ = Dispatcher.BeginInvoke(new Action(RefreshEditorRulersV068));
+    }
+
+    private bool _editorFitScheduledV073;
+
+    private void ScheduleEditorFitV073()
+    {
+        if (_editorFitScheduledV073) return;
+        _editorFitScheduledV073 = true;
+        _ = Dispatcher.BeginInvoke(new Action(() =>
+        {
+            _editorFitScheduledV073 = false;
+            if (!_editorFitZoom || _editorPreviewScroll is null) return;
+            _editorPreviewScroll.UpdateLayout();
+            FitEditorPreviewToWindow();
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void EditorPreviewScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

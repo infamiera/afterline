@@ -85,6 +85,16 @@ public partial class MainWindow
         };
         _archiveLastDaysV071.KeyDown += ArchiveFilterV071_KeyDown;
         _archiveLastDaysPanelV071.Children.Add(_archiveLastDaysV071);
+        _archiveLastDaysPanelV071.Children.Add(new TextBlock
+        {
+            Text = "Increasing this range may make Afterline pause briefly while it loads more logs.",
+            Foreground = (Brush)FindResource("Warning"),
+            FontSize = 10.5,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 430,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0)
+        });
         choices.Children.Add(_archiveLastDaysPanelV071);
 
         _archiveBetweenPanelV071 = new StackPanel

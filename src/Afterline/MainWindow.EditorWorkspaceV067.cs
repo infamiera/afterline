@@ -271,6 +271,7 @@ public partial class MainWindow
         var projectBar = new Grid();
         projectBar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         projectBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        projectBar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _editorProjectLabelV067 = new TextBlock
         {
             Text = "Project · Untitled",
@@ -291,6 +292,18 @@ public partial class MainWindow
         addImage.Click += (_, _) => AddImageLayerV067();
         Grid.SetColumn(addImage, 1);
         projectBar.Children.Add(addImage);
+        _editorRightSidebarToggleV072 = new Button
+        {
+            Content = "×",
+            Width = 28,
+            Height = 26,
+            Padding = new Thickness(0),
+            Margin = new Thickness(5, 0, 0, 0),
+            ToolTip = "Collapse the right Editor panel"
+        };
+        _editorRightSidebarToggleV072.Click += (_, _) => ToggleEditorRightSidebarV072();
+        Grid.SetColumn(_editorRightSidebarToggleV072, 2);
+        projectBar.Children.Add(_editorRightSidebarToggleV072);
         projectBar.Margin = new Thickness(0, 0, 0, 7);
         root.Children.Add(projectBar);
 

@@ -7,6 +7,8 @@ public partial class MainWindow
 {
     private Button? _editorLeftSidebarToggleV072;
     private Button? _editorRightSidebarToggleV072;
+    private Button? _editorLeftSidebarReopenV073;
+    private Button? _editorRightSidebarReopenV073;
     private ColumnDefinition? _editorRightSidebarGapColumnV072;
     private ColumnDefinition? _editorRightSidebarColumnV072;
     private GridLength _editorRightSidebarWidthV072 = new(300);
@@ -34,7 +36,8 @@ public partial class MainWindow
         }
 
         UpdateEditorSidebarToggleStateV072();
-        _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
+        _editorFitZoom = true;
+        ScheduleEditorFitV073();
     }
 
     private void ToggleEditorRightSidebarV072()
@@ -67,7 +70,8 @@ public partial class MainWindow
         }
 
         UpdateEditorSidebarToggleStateV072();
-        _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
+        _editorFitZoom = true;
+        ScheduleEditorFitV073();
     }
 
     private void UpdateEditorSidebarToggleStateV072()
@@ -76,18 +80,21 @@ public partial class MainWindow
                         _editorToolPanelColumn?.Width.Value > 0;
         if (_editorLeftSidebarToggleV072 is not null)
         {
-            _editorLeftSidebarToggleV072.Content = leftOpen ? "◀" : "▶";
-            _editorLeftSidebarToggleV072.ToolTip = leftOpen
-                ? "Collapse the left Editor panel"
-                : "Open the left Editor panel";
+            _editorLeftSidebarToggleV072.Content = "×";
+            _editorLeftSidebarToggleV072.ToolTip = "Collapse the left Editor panel";
+            _editorLeftSidebarToggleV072.Visibility = leftOpen ? Visibility.Visible : Visibility.Collapsed;
         }
+        if (_editorLeftSidebarReopenV073 is not null)
+            _editorLeftSidebarReopenV073.Visibility = leftOpen ? Visibility.Collapsed : Visibility.Visible;
 
         if (_editorRightSidebarToggleV072 is not null)
         {
-            _editorRightSidebarToggleV072.Content = _editorRightSidebarCollapsedV072 ? "◀" : "▶";
-            _editorRightSidebarToggleV072.ToolTip = _editorRightSidebarCollapsedV072
-                ? "Open the right Editor panel"
-                : "Collapse the right Editor panel";
+            _editorRightSidebarToggleV072.Content = "×";
+            _editorRightSidebarToggleV072.ToolTip = "Collapse the right Editor panel";
         }
+        if (_editorRightSidebarReopenV073 is not null)
+            _editorRightSidebarReopenV073.Visibility = _editorRightSidebarCollapsedV072
+                ? Visibility.Visible
+                : Visibility.Collapsed;
     }
 }

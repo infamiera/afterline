@@ -52,6 +52,8 @@ public partial class MainWindow : Window
         DataContext = this;
 
         _settings = _settingsService.Load();
+        BottomStatusText.Text = $"Afterline {GetCurrentBuildVersion()}" +
+                                (IsCanaryBinaryV062() ? " · Canary" : string.Empty);
         _capture = new CaptureCoordinator(_journal, () => _settings);
         _processor = new BackgroundProcessor(_archiveService, () => _settings);
 
@@ -177,6 +179,12 @@ public partial class MainWindow : Window
             ShowInTaskbar = false;
             return;
         }
+
+        // Keep the last dirty Editor state recoverable during an intentional exit.
+        // The project writer uses an atomic temporary file, so a failed shutdown
+        // save cannot damage the previous autosave or named project.
+        _editorAutosaveTimerV073.Stop();
+        TryAutosaveEditorProjectV073(showToast: false);
 
         _uiTimer.Stop();
         _archiveRefreshCts?.Cancel();
@@ -313,7 +321,8 @@ public partial class MainWindow : Window
         }
 
         string processInfo = _processor.LastProcessedAt is DateTime processed ? $" · archive processed {processed:HH:mm:ss}" : string.Empty;
-        BottomStatusText.Text = $"Afterline 0.2.4{processInfo}";
+        string channel = IsCanaryBinaryV062() ? " · Canary" : string.Empty;
+        BottomStatusText.Text = $"Afterline {GetCurrentBuildVersion()}{processInfo}{channel}";
     }
 
     private async Task RefreshArchiveAsync(ArchiveRefreshScope scope)

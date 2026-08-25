@@ -43,6 +43,7 @@ public partial class MainWindow
         EnsureUpdatePanelV061();
         EnsureUpdateChannelV062();
         EnsureCanaryUpdateHandoffV2();
+        EnsureEditorProjectAutosaveUiV073();
         EnsureSettingsCanarySidebarV2();
 
         // Finalized Editor/UI initialization replaces the superseded V2/V3/V4
@@ -57,6 +58,7 @@ public partial class MainWindow
         {
             EnsureEditorWorkspaceV067();
             EnsureEditorSelectionGuardV067();
+            InitializeEditorProjectAutosaveHooksV073();
         }
         catch (Exception ex)
         {

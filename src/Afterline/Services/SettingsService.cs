@@ -16,7 +16,7 @@ public sealed class SettingsService
             // Existing settings files that predate FirstRunCompleted deserialize with
             // AppSettings' default value of true and are therefore left alone.
             if (!File.Exists(AppPaths.SettingsFile))
-                return new AppSettings { FirstRunCompleted = false };
+                return new AppSettings { FirstRunCompleted = false, ArchiveLoadingPolicyVersion = 1 };
 
             AppSettings settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), _jsonOptions)
                                    ?? new AppSettings();
@@ -34,7 +34,23 @@ public sealed class SettingsService
                 "Between" => "Between",
                 _ => "LastDays"
             };
+            // Version 1 changes the historical 30-day implicit default to seven days.
+            // Preserve ranges users deliberately changed, while migrating untouched
+            // older installs away from an expensive startup/archive scan.
+            bool archivePolicyChanged = false;
+            if (settings.ArchiveLoadingPolicyVersion is null)
+            {
+                if (settings.ArchiveFilterMode == "LastDays" && settings.ArchiveLastDays == 30)
+                    settings.ArchiveLastDays = 7;
+                settings.ArchiveLoadingPolicyVersion = 1;
+                archivePolicyChanged = true;
+            }
             settings.ArchiveLastDays = Math.Clamp(settings.ArchiveLastDays, 1, 3650);
+            settings.Editor.ProjectAutosaveMinutes = settings.Editor.ProjectAutosaveMinutes switch
+            {
+                0 or 1 or 5 or 10 or 15 or 30 => settings.Editor.ProjectAutosaveMinutes,
+                _ => 5
+            };
             settings.Editor.ExportKeybind ??= "Ctrl+S";
             settings.Editor.UndoKeybind ??= "Ctrl+Z";
             settings.Editor.RedoKeybind ??= "Ctrl+Shift+Z";
@@ -60,6 +76,18 @@ public sealed class SettingsService
                 catch (Exception ex)
                 {
                     DiagnosticLogger.Error("Unable to persist the retired Frost theme migration.", ex);
+                }
+            }
+
+            if (archivePolicyChanged)
+            {
+                try
+                {
+                    Save(settings);
+                }
+                catch (Exception ex)
+                {
+                    DiagnosticLogger.Error("Unable to persist the archive loading-policy migration.", ex);
                 }
             }
 

@@ -140,6 +140,7 @@ public partial class MainWindow
             _editorProjectPathV067 = path;
             UpdateProjectLabelV067();
             SetEditorStatus($"Saved project · {Path.GetFileName(path)}.");
+            MarkEditorProjectSavedV073();
             return true;
         }
         catch (Exception ex)
@@ -184,6 +185,7 @@ public partial class MainWindow
             _editorProjectPathV067 = dialog.FileName;
             UpdateProjectLabelV067();
             SetEditorStatus($"Loaded project · {Path.GetFileName(dialog.FileName)}.");
+            MarkEditorProjectLoadedV073(recoveredAutosave: false);
         }
         catch (Exception ex)
         {

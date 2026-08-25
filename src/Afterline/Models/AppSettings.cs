@@ -24,7 +24,8 @@ public sealed class AppSettings
     // Keep the archive cheap to open on large installations. Users can opt into
     // an explicit range or the complete archive from the Archive page.
     public string ArchiveFilterMode { get; set; } = "LastDays";
-    public int ArchiveLastDays { get; set; } = 30;
+    public int ArchiveLastDays { get; set; } = 7;
+    public int? ArchiveLoadingPolicyVersion { get; set; }
     public DateTime? ArchiveFromDate { get; set; }
     public DateTime? ArchiveToDate { get; set; }
 
@@ -51,6 +52,7 @@ public sealed class EditorPreferences
     public string ProjectsFolder { get; set; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "Afterline Projects");
+    public int ProjectAutosaveMinutes { get; set; } = 5;
 
     public string Font { get; set; } = "Arial Bold";
     public double FontSize { get; set; } = 18;

@@ -1026,9 +1026,12 @@ public partial class MainWindow
         _editorHorizontalRulerRowV068 = new RowDefinition { Height = new GridLength(24) };
         _editorVerticalRulerColumnV068 = new ColumnDefinition { Width = new GridLength(38) };
         grid.RowDefinitions.Add(_editorHorizontalRulerRowV068);
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        // The canvas viewport must consume the remaining preview area. Auto sizing
+        // lets the image dictate the ScrollViewer's desired size, which leaves the
+        // viewport unbounded and makes Fit calculate against the image itself.
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(_editorVerticalRulerColumnV068);
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         Brush rulerBackground = TryFindResource("Inset") as Brush
                                 ?? TryFindResource("Raised") as Brush
