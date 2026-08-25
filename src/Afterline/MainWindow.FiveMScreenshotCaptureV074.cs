@@ -508,7 +508,6 @@ public partial class MainWindow
                     "Capture hotkey unavailable",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
-                }
             }
         }
         else
@@ -516,6 +515,7 @@ public partial class MainWindow
             DiagnosticLogger.Info($"Screen capture shortcut active: {_settings.ScreenshotHotkey} (Windows hotkey).");
         }
         return _fiveMScreenshotHotkeyRegisteredV074;
+    }
 
     private void ReleaseFiveMScreenshotHotkeyV074()
     {
