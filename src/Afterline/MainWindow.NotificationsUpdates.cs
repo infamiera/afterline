@@ -261,7 +261,7 @@ public partial class MainWindow
 
         _checkUpdatesButton = new Button
         {
-            Content = "Check",
+            Content = "Updates",
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = new Thickness(7, 5, 7, 5),
             Margin = new Thickness(0, 7, 0, 0),

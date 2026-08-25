@@ -190,6 +190,8 @@ public partial class MainWindow
                 if (!_editorFitZoom)
                     throw new InvalidOperationException("The first Base Image load did not automatically fit the preview.");
                 if (_editorRulerGridV068 is null ||
+                    _editorHorizontalRulerV068 is null ||
+                    _editorVerticalRulerV068 is null ||
                     _editorPreviewScroll is null ||
                     _editorZoomHost is null ||
                     !ReferenceEquals(_editorPreviewScroll.Parent, _editorRulerGridV068) ||
@@ -211,6 +213,31 @@ public partial class MainWindow
                     throw new InvalidOperationException(
                         "The Editor preview retained a fixed spacer above its ruler and canvas.");
                 }
+
+                RefreshEditorRulersV068();
+                Point horizontalOrigin = _editorComposition.TranslatePoint(new Point(0, 0), _editorHorizontalRulerV068);
+                Point verticalOrigin = _editorComposition.TranslatePoint(new Point(0, 0), _editorVerticalRulerV068);
+                TextBlock? horizontalZero = _editorHorizontalRulerV068.Children
+                    .OfType<TextBlock>()
+                    .FirstOrDefault(label => label.Text == "0");
+                TextBlock? verticalZero = _editorVerticalRulerV068.Children
+                    .OfType<TextBlock>()
+                    .FirstOrDefault(label => label.Text == "0");
+                if (!double.IsFinite(horizontalOrigin.X) || !double.IsFinite(verticalOrigin.Y) ||
+                    horizontalZero is null || verticalZero is null ||
+                    Math.Abs((Canvas.GetLeft(horizontalZero) - 2) - horizontalOrigin.X) > 1.5 ||
+                    Math.Abs((Canvas.GetTop(verticalZero) - 2) - verticalOrigin.Y) > 1.5)
+                {
+                    throw new InvalidOperationException(
+                        "Editor ruler zero points were not anchored to the Base Image top-left corner.");
+                }
+
+                ToggleEditorFullscreenCanary();
+                if (!_editorFullscreenWorkspaceCanary)
+                    throw new InvalidOperationException("The Editor did not enter full screen mode.");
+                ToggleEditorFullscreenCanary();
+                if (_editorFullscreenWorkspaceCanary)
+                    throw new InvalidOperationException("The Editor did not leave full screen mode.");
 
                 int width = Math.Max(1, (int)Math.Ceiling(_editorComposition.ActualWidth));
                 int height = Math.Max(1, (int)Math.Ceiling(_editorComposition.ActualHeight));

@@ -171,6 +171,7 @@
                                                 <ColumnDefinition Width="76"/>
                                                 <ColumnDefinition Width="10"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <Border Width="76" Height="48" Background="{StaticResource Bg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
                                                 <Image Source="{Binding Preview}" Stretch="UniformToFill"/>
@@ -179,9 +180,16 @@
                                                 <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Text="{Binding Detail}" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
+                                            <Button Grid.Column="3" Content="Delete" Tag="{Binding FilePath}" Margin="10,0,0,0" Padding="9,5" VerticalAlignment="Center" Foreground="{StaticResource Warning}" ToolTip="Move this project to the Recycle Bin" Click="DeleteRecentEditorProjectV076_Click"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="ToolTip" Value="double click to open project"/>
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
                             </ListBox>
                         </Grid>
                     </Grid>
@@ -354,10 +362,20 @@
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Capture hotkey" VerticalAlignment="Center"/>
-                                <TextBox x:Name="ScreenshotHotkeyBox" Grid.Column="1" ToolTip="Click here, then press the capture shortcut." PreviewKeyDown="ScreenshotHotkeyBox_PreviewKeyDown" GotKeyboardFocus="ScreenshotHotkeyBox_GotKeyboardFocus"/>
+                                <TextBox x:Name="ScreenshotHotkeyBox" Grid.Column="1" IsReadOnly="True" ToolTip="Click here, then press a keyboard combination or Mouse 4/5." PreviewKeyDown="ScreenshotHotkeyBox_PreviewKeyDown" PreviewMouseDown="ScreenshotHotkeyBox_PreviewMouseDownV076" GotKeyboardFocus="ScreenshotHotkeyBox_GotKeyboardFocus"/>
                                 <Button Grid.Column="2" Content="Reset" Margin="8,0,0,0" Padding="9,4" ToolTip="Restore the default capture hotkey" Click="ResetScreenshotHotkey_Click"/>
                                 <TextBlock Grid.Column="3" Text="Global while enabled" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
+                            <Border x:Name="ScreenshotHotkeyConfirmationPanelV076" Background="{StaticResource Raised}" BorderBrush="{StaticResource Accent}" BorderThickness="1" CornerRadius="7" Padding="10" Margin="250,0,0,10" Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="ScreenshotHotkeyConfirmationTextV076" Text="Shortcut recognized." Foreground="{StaticResource MutedText}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                    <Button Grid.Column="1" Content="Confirm" Style="{StaticResource PrimaryButton}" Padding="10,5" Margin="10,0,0,0" Click="ConfirmScreenshotHotkeyV076_Click"/>
+                                    <Button Grid.Column="2" Content="Re-do" Padding="10,5" Margin="8,0,0,0" Click="RedoScreenshotHotkeyV076_Click"/>
+                                </Grid>
+                            </Border>
+                            <CheckBox x:Name="ScreenshotCaptureNotificationCheckV076" Content="Show a notification after capture" Margin="250,0,0,0"/>
+                            <TextBlock Text="Off by default. When enabled, Afterline uses the Windows notification area after the PNG is saved, without taking focus away from the game. Click it to open the file location." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="250,4,0,10"/>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Screenshot folder" VerticalAlignment="Center"/>

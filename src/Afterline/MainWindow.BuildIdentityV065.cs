@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using Afterline.Services;
 
@@ -29,6 +30,7 @@ public partial class MainWindow
     private UpdateCheckResult? _availableReleaseV065;
     private string? _availableBuildIdV065;
     private string _currentBuildDisplayV065 = string.Empty;
+    private string? _dismissedUpdateAttentionV076;
 
     private void EnsureBuildIdentityV065()
     {
@@ -130,6 +132,7 @@ public partial class MainWindow
                 {
                     _availableReleaseV065 = null;
                     _availableBuildIdV065 = null;
+                    SetUpdateAttentionV076(null);
                     SetUpdateActionStateCanaryV3("Retry", true);
                     return;
                 }
@@ -143,12 +146,14 @@ public partial class MainWindow
                 {
                     _availableReleaseV065 = release;
                     _availableBuildIdV065 = canary.BuildId;
+                    SetUpdateAttentionV076(canary.BuildId);
                     SetUpdateActionStateCanaryV3("Update", true);
                 }
                 else
                 {
                     _availableReleaseV065 = null;
                     _availableBuildIdV065 = null;
+                    SetUpdateAttentionV076(null);
                     SetUpdateActionStateCanaryV3("Check again", true);
                 }
                 return;
@@ -167,6 +172,7 @@ public partial class MainWindow
                                    UpdateService.IsNewer(stableRelease.LatestVersion, currentVersion);
             _availableReleaseV065 = stableAvailable ? stableRelease : null;
             _availableBuildIdV065 = null;
+            SetUpdateAttentionV076(stableAvailable ? stableRelease.LatestVersion : null);
             SetUpdateActionStateCanaryV3(stableAvailable ? "Update" : "Check again", true);
         }
         catch (Exception ex)
@@ -174,6 +180,7 @@ public partial class MainWindow
             DiagnosticLogger.Error("Build-identity update refresh failed.", ex);
             _availableReleaseV065 = null;
             _availableBuildIdV065 = null;
+            SetUpdateAttentionV076(null);
             string current = string.IsNullOrWhiteSpace(_currentBuildDisplayV065)
                 ? GetCurrentBuildVersion()
                 : _currentBuildDisplayV065;
@@ -198,6 +205,10 @@ public partial class MainWindow
                 return;
         }
 
+        string? availableIdentity = _availableBuildIdV065 ?? _availableReleaseV065.LatestVersion;
+        _dismissedUpdateAttentionV076 = availableIdentity;
+        SetUpdateAttentionV076(availableIdentity);
+
         UpdateCheckResult release = _availableReleaseV065;
         string current = string.IsNullOrWhiteSpace(_currentBuildDisplayV065)
             ? GetCurrentBuildVersion()
@@ -216,4 +227,22 @@ public partial class MainWindow
         => string.IsNullOrWhiteSpace(sha)
             ? "unknown"
             : sha[..Math.Min(7, sha.Length)];
+
+    private void SetUpdateAttentionV076(string? availableIdentity)
+    {
+        if (_checkUpdatesButton is null) return;
+        bool highlight = !string.IsNullOrWhiteSpace(availableIdentity) &&
+                         !string.Equals(availableIdentity, _dismissedUpdateAttentionV076, StringComparison.OrdinalIgnoreCase);
+        if (!highlight)
+        {
+            _checkUpdatesButton.ClearValue(Control.BackgroundProperty);
+            _checkUpdatesButton.ClearValue(Control.BorderBrushProperty);
+            _checkUpdatesButton.ClearValue(Control.BorderThicknessProperty);
+            return;
+        }
+
+        _checkUpdatesButton.SetResourceReference(Control.BackgroundProperty, "AfterlineControlHover");
+        _checkUpdatesButton.SetResourceReference(Control.BorderBrushProperty, "Accent");
+        _checkUpdatesButton.BorderThickness = new Thickness(2);
+    }
 }

@@ -301,6 +301,7 @@ public partial class MainWindow
     private void LogReaderNav_Click(object sender, RoutedEventArgs e)
     {
         if (_logReaderPage is null) return;
+        if (!ConfirmStreamerSensitiveViewV076("Log Reader")) return;
         if (_notesBookmarksPage is not null) _notesBookmarksPage.Visibility = Visibility.Collapsed;
         ShowPage(_logReaderPage, "Log Reader", "Read archived chatlogs with Live Chat presentation settings");
     }
@@ -308,6 +309,8 @@ public partial class MainWindow
     internal async Task OpenLogInReaderAsync(string filePath, int? lineNumber)
     {
         if (_logReaderPage is null || _logReaderList is null || _logReaderView is null) return;
+        if (_logReaderPage.Visibility != Visibility.Visible && !ConfirmStreamerSensitiveViewV076("Log Reader"))
+            return;
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
         {
             System.Windows.MessageBox.Show(this, "The selected chatlog could not be found.", "Afterline", MessageBoxButton.OK, MessageBoxImage.Information);

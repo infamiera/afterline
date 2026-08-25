@@ -33,7 +33,14 @@ public partial class MainWindow
     }
 
     private bool ShouldShowLiveChatEntry(object item)
-        => item is not ChatEntry entry || _settings.ShowOocChat || !entry.IsOocLine;
+        => item is not ChatEntry entry || ShouldShowLiveChatEntryV076(entry);
+
+    private bool ShouldShowLiveChatEntryV076(ChatEntry entry)
+    {
+        if (entry.IsSystemMessage) return true;
+        if (entry.IsOocLine) return _settings.ShowOocChat;
+        return _settings.ShowIcChat;
+    }
 
     private void OocDisplayFilter_Changed(object sender, System.Windows.RoutedEventArgs e)
     {

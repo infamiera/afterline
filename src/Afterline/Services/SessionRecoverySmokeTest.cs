@@ -105,7 +105,9 @@ internal static class SessionRecoverySmokeTest
             "[15:58:47] Your vehicle has been teleported to your location. Please wait for a few seconds if the vehicle does not load in.",
             "[14:23:57] [AFK CHECK] You're considered AFK, type /notafk to confirm that you're playing.",
             "[12:58:52] Little Seoul Ammu Nation: Press Y to browse ammunation.",
-            "[07:37:19] [Admin Alert]: A staff message"
+            "[07:37:19] [Admin Alert]: A staff message",
+            "[16:21:16] * You have de-spawned your pet.",
+            "[16:21:09] You have loaded Toffee their settings."
         };
         foreach (string line in filteredLines)
         {

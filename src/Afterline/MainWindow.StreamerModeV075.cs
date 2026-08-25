@@ -8,6 +8,7 @@ namespace Afterline;
 public partial class MainWindow
 {
     private Border? _editorProjectFolderPrivacyOverlayV075;
+    private bool _streamerSensitiveViewAcceptedV076;
 
     private void StreamerModeCheck_Changed(object sender, RoutedEventArgs e)
     {
@@ -73,5 +74,25 @@ public partial class MainWindow
         };
         Grid.SetColumn(overlay, 0);
         return overlay;
+    }
+
+    private bool ConfirmStreamerSensitiveViewV076(string destination)
+    {
+        if (!(_settings?.StreamerModeEnabled ?? false) || _streamerSensitiveViewAcceptedV076)
+            return true;
+
+        MessageBoxResult result = System.Windows.MessageBox.Show(
+            this,
+            $"Streamer mode is active. Open {destination}?\n\nStreamer mode masks local paths, but chat content, character names, server messages, and other log text can still appear on screen.",
+            "Streamer mode reminder",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (result != MessageBoxResult.Yes)
+            return false;
+
+        // This acknowledgement is deliberately memory-only. Restarting Afterline
+        // restores the warning, which is safer than persisting a silent bypass.
+        _streamerSensitiveViewAcceptedV076 = true;
+        return true;
     }
 }

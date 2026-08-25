@@ -18,7 +18,7 @@ public partial class MainWindow
 
         exportButton.Click -= ExportCurrentLiveLog_Click;
         exportButton.Click += ExportFilteredLiveLog_Click;
-        exportButton.ToolTip = "Exports exactly what is currently visible in Live Chat. OOC/gameplay-status visibility and the timestamp toggle are respected.";
+        exportButton.ToolTip = "Exports exactly what is currently visible in Live Chat. IC/OOC visibility and the timestamp toggle are respected.";
         _oocExportFilteringInitialized = true;
     }
 
@@ -49,7 +49,7 @@ public partial class MainWindow
     private async Task<string> ExportVisibleLiveChatAsync(string downloadsFolder, CancellationToken cancellationToken)
     {
         ChatEntry[] visibleEntries = LiveMessages
-            .Where(entry => _settings.ShowOocChat || !entry.IsOocLine)
+            .Where(ShouldShowLiveChatEntryV076)
             .ToArray();
 
         if (visibleEntries.Length == 0)

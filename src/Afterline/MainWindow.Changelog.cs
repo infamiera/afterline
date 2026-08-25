@@ -18,11 +18,11 @@ public partial class MainWindow
 
         _changelogButton = new Button
         {
-            Content = "Notes",
+            Content = "Changes",
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = new Thickness(7, 5, 7, 5),
             Margin = new Thickness(6, 0, 0, 0),
-            ToolTip = "View patch notes for the current and previous Afterline releases."
+            ToolTip = "View changes for the current and previous Afterline releases."
         };
         _changelogButton.Click += (_, _) =>
         {
