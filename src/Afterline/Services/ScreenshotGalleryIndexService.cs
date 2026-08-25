@@ -93,7 +93,7 @@ public static class ScreenshotGalleryIndexService
             return JsonSerializer.Deserialize<List<IndexedCapture>>(
                        File.ReadAllText(AppPaths.ScreenshotGalleryIndexFile),
                        JsonOptions)
-                   ?? Array.Empty<IndexedCapture>();
+                   ?? new List<IndexedCapture>();
         }
         catch (Exception ex)
         {

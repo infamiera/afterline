@@ -12,7 +12,7 @@ internal static class CanaryChangelogData
             "Screenshot gallery — Added a theme-aware Gallery with a 20-thumbnail limit, a background-only folder scan, configurable storage, and one-click Open in Editor handoff.",
             "Capture controls — Added a master setting that unregisters the hotkey, hides the Gallery, clears previews, and performs no screenshot work while disabled.",
             "Live Chat — Expanded OOC filtering with additional gameplay notices and partial Server Staff coverage, including toggleable admin messages."
-        }, ChangelogChannel.Canary, 163),
+        }, ChangelogChannel.Canary, 164),
         new("0.7.0", "25/AUG/2026", new[]
         {
             "Live Chat filtering — Expanded Show OOC chat to hide ANTI-FALL notices, login and weather summaries, faction rosters, friend-login alerts, payphone instructions, property/stat readouts, and action cooldown warnings.",
