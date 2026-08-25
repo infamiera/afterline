@@ -25,6 +25,8 @@ public sealed class AppSettings
         "Afterline",
         "Screenshots");
     public string ScreenshotHotkey { get; set; } = "Ctrl+Shift+F12";
+    public string ScreenshotCaptureSound { get; set; } = "Shutter";
+    public int ScreenshotCaptureSoundVolume { get; set; } = 60;
     public int MaxLiveMessages { get; set; } = 2000;
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;
