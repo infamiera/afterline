@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -45,12 +46,26 @@ internal sealed class ChangelogWindow : Window
         });
         root.Children.Add(heading);
 
+        bool isCanaryBuild = IsCanaryBuild();
         var releaseStack = new StackPanel();
-        IEnumerable<ChangelogEntry> entries = CurrentReleaseData.Entries.Concat(ChangelogData.Entries);
-        if (IsCanaryBuild())
-            entries = CanaryChangelogData.Entries.Concat(entries);
+        IEnumerable<ChangelogEntry> stableEntries = CurrentReleaseData.Entries
+            .Concat(ChangelogData.Entries)
+            .Where(entry => entry.Channel == ChangelogChannel.Stable);
+        IEnumerable<ChangelogEntry> entries = isCanaryBuild
+            ? CanaryChangelogData.Entries
+                .Where(entry => entry.Channel == ChangelogChannel.Canary)
+                .Concat(stableEntries)
+            : stableEntries;
+        bool currentCanaryCard = isCanaryBuild;
         foreach (ChangelogEntry entry in entries)
-            releaseStack.Children.Add(BuildReleaseCard(entry));
+        {
+            int? runningBuild = currentCanaryCard && entry.Channel == ChangelogChannel.Canary
+                ? GetRunningCanaryBuild()
+                : null;
+            releaseStack.Children.Add(BuildReleaseCard(entry, runningBuild));
+            if (entry.Channel == ChangelogChannel.Canary)
+                currentCanaryCard = false;
+        }
 
         var scroll = new ScrollViewer
         {
@@ -79,7 +94,7 @@ internal sealed class ChangelogWindow : Window
         ThemeService.ApplyWindow(this);
     }
 
-    private Border BuildReleaseCard(ChangelogEntry entry)
+    private Border BuildReleaseCard(ChangelogEntry entry, int? runningCanaryBuild)
     {
         var content = new StackPanel();
         var header = new Grid();
@@ -88,7 +103,7 @@ internal sealed class ChangelogWindow : Window
         header.Children.Add(new TextBlock
         {
             Text = entry.Channel == ChangelogChannel.Canary
-                ? $"Afterline Canary - #{entry.CanaryBuild.GetValueOrDefault():000}"
+                ? $"Afterline Canary - #{(runningCanaryBuild ?? entry.CanaryBuild.GetValueOrDefault()):000}"
                 : $"Afterline Stable - v{entry.Version}",
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
@@ -130,39 +145,34 @@ internal sealed class ChangelogWindow : Window
 
         foreach (string change in entry.Changes)
         {
-            var line = new TextBlock
-            {
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = (Brush)FindResource("MutedText"),
-                Margin = new Thickness(2, 0, 6, 8),
-                LineHeight = 19
-            };
-            line.Inlines.Add(new Run("• ")
-            {
-                Foreground = (Brush)FindResource("Accent"),
-                FontWeight = FontWeights.Bold
-            });
             int separator = change.IndexOf(" — ", StringComparison.Ordinal);
-            if (separator > 0)
+            string title = separator > 0 ? change[..separator].Trim() : "Change";
+            string description = separator > 0 ? change[(separator + 3)..].Trim() : change.Trim();
+            var changeBlock = new StackPanel
             {
-                line.Inlines.Add(new Run(change[..separator])
+                Margin = new Thickness(2, 0, 6, 11)
+            };
+            changeBlock.Children.Add(new TextBlock
+            {
+                Text = title,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = CategoryBrush(title),
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 13
+            });
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                changeBlock.Children.Add(new TextBlock
                 {
-                    Foreground = CategoryBrush(change[..separator]),
-                    FontWeight = FontWeights.SemiBold
-                });
-                line.Inlines.Add(new Run(change[separator..])
-                {
-                    Foreground = (Brush)FindResource("MutedText")
+                    Text = description,
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = (Brush)FindResource("MutedText"),
+                    FontSize = 11.5,
+                    LineHeight = 18,
+                    Margin = new Thickness(0, 2, 0, 0)
                 });
             }
-            else
-            {
-                line.Inlines.Add(new Run(change)
-                {
-                    Foreground = (Brush)FindResource("MutedText")
-                });
-            }
-            content.Children.Add(line);
+            content.Children.Add(changeBlock);
         }
 
         var card = new Border
@@ -198,4 +208,15 @@ internal sealed class ChangelogWindow : Window
         => (Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly())
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion.Contains("-canary.", StringComparison.OrdinalIgnoreCase) == true;
+
+    private static int? GetRunningCanaryBuild()
+    {
+        string informational = (Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly())
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? string.Empty;
+        Match match = Regex.Match(informational, @"-canary\.(?<build>\d+)", RegexOptions.IgnoreCase);
+        return match.Success && int.TryParse(match.Groups["build"].Value, out int build)
+            ? build
+            : null;
+    }
 }

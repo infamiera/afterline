@@ -8,6 +8,17 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "25/AUG/2026", new[]
         {
+            "Capture hotkeys — Custom shortcuts now register reliably, support direct key recording, and clearly report Windows shortcut conflicts.",
+            "Capture handoff — A shortcut pressed while Afterline is active can briefly switch to and capture a verified running game window without using a desktop fallback.",
+            "Gallery controls — Added more capture sounds, local Recycle Bin deletion, and retained the bounded 20-thumbnail source-quality gallery.",
+            "Streamer mode — Added a presentation-only Settings section that masks local paths without changing stored folders or file operations.",
+            "Editor preview — Removed the fixed gap above the canvas and ruler so loaded images sit flush beneath the Preview header.",
+            "Live Chat — Expanded Show OOC chat coverage to include vehicle-location teleport notices alongside the existing gameplay and partial Server Staff filters.",
+            "Update display — Reworked the sidebar build card into a compact status with side-by-side actions.",
+            "Changelog — Canary builds now see Canary and Stable notes, while Stable builds are strictly limited to Stable notes; changes use separate headings and brief descriptions."
+        }, ChangelogChannel.Canary, 174),
+        new("0.7.0", "25/AUG/2026", new[]
+        {
             "Screen capture — Renamed Screenshots to Gallery, clarified that captures are stored locally, and moved all capture controls into their own Screen capture Settings section.",
             "Capture feedback — Added an optional Shutter, Chime, Soft, or Off audio confirmation with adjustable volume, instant Play preview, and a Reset control for the default Ctrl+Shift+F12 hotkey.",
             "Live Chat — Extended Show OOC chat filtering for AFK checks and store prompts such as Press Y to browse ammunation, regardless of the location name.",

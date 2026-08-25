@@ -93,7 +93,50 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException("A finalized FiveM session was not verified in the archive index.");
 
         VerifyStartupRegistrationCommand();
+        VerifyOocGameplayFiltering();
+        VerifyStreamerModeMasking();
         await VerifyArchiveDateFilteringAsync(archiveRoot);
+    }
+
+    private static void VerifyOocGameplayFiltering()
+    {
+        string[] filteredLines =
+        {
+            "[15:58:47] Your vehicle has been teleported to your location. Please wait for a few seconds if the vehicle does not load in.",
+            "[14:23:57] [AFK CHECK] You're considered AFK, type /notafk to confirm that you're playing.",
+            "[12:58:52] Little Seoul Ammu Nation: Press Y to browse ammunation.",
+            "[07:37:19] [Admin Alert]: A staff message"
+        };
+        foreach (string line in filteredLines)
+        {
+            if (!new ChatEntry(DateTime.Now, line).IsOocLine)
+                throw new InvalidOperationException($"The gameplay/OOC filter did not classify: {line}");
+        }
+
+        const string roleplay = "[15:59:00] Bianca says: This is an in-character line.";
+        if (new ChatEntry(DateTime.Now, roleplay).IsOocLine)
+            throw new InvalidOperationException("The gameplay/OOC filter hid an ordinary roleplay line.");
+    }
+
+    private static void VerifyStreamerModeMasking()
+    {
+        bool previous = StreamerModePresentationService.Enabled;
+        try
+        {
+            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string path = Path.Combine(profile, "Documents", "Afterline", "Screenshots");
+            StreamerModePresentationService.Enabled = true;
+            string masked = StreamerModePresentationService.PathForDisplay(path);
+            if (string.Equals(masked, path, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(profile) && masked.Contains(profile, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("Streamer mode exposed a local user-profile path.");
+            }
+        }
+        finally
+        {
+            StreamerModePresentationService.Enabled = previous;
+        }
     }
 
     private static void VerifyStartupRegistrationCommand()

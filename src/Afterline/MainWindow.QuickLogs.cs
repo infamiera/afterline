@@ -22,11 +22,11 @@ public partial class MainWindow
                 try
                 {
                     DateTime written = File.GetLastWriteTime(FilePath);
-                    return $"{written:dd MMM yyyy · HH:mm}  ·  {Path.GetDirectoryName(FilePath)}";
+                    return $"{written:dd MMM yyyy · HH:mm}  ·  {StreamerModePresentationService.PathForDisplay(Path.GetDirectoryName(FilePath))}";
                 }
                 catch
                 {
-                    return Path.GetDirectoryName(FilePath) ?? string.Empty;
+                    return StreamerModePresentationService.PathForDisplay(Path.GetDirectoryName(FilePath));
                 }
             }
         }

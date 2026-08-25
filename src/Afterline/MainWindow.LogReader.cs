@@ -342,7 +342,8 @@ public partial class MainWindow
             _logReaderCurrentPath = Path.GetFullPath(filePath);
             _logReaderCurrentServer = ResolveLogReaderServerName(lines, filePath);
             if (_logReaderTitleText is not null) _logReaderTitleText.Text = Path.GetFileName(filePath);
-            if (_logReaderPathText is not null) _logReaderPathText.Text = _logReaderCurrentPath;
+            if (_logReaderPathText is not null)
+                _logReaderPathText.Text = StreamerModePresentationService.PathForDisplay(_logReaderCurrentPath);
 
             _logReaderView.Refresh();
             _logReaderList.Items.Refresh();

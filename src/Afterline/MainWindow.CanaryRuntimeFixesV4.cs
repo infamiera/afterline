@@ -313,6 +313,8 @@ public partial class MainWindow
             ToolTip = "New and existing Afterline Editor projects open from this folder by default."
         };
         projectFolderRow.Children.Add(projectFolder);
+        _editorProjectFolderPrivacyOverlayV075 = CreateStreamerPathOverlayV075(projectFolder.Text);
+        projectFolderRow.Children.Add(_editorProjectFolderPrivacyOverlayV075);
         var browseProjects = CreateSmallEditorButton("Browse…", (_, _) =>
         {
             using var dialog = new Forms.FolderBrowserDialog
@@ -330,6 +332,7 @@ public partial class MainWindow
             _settings.Editor.ProjectsFolder = dialog.SelectedPath;
             projectFolder.Text = dialog.SelectedPath;
             _settingsService.Save(_settings);
+            ApplyStreamerModePresentationV075();
             SetEditorStatus("Editor projects folder updated.");
         });
         browseProjects.MinWidth = 72;

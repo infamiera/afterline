@@ -52,6 +52,17 @@ public static class ScreenshotGalleryIndexService
         }
     }
 
+    public static void Remove(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+        lock (Gate)
+        {
+            WriteUnsafe(ReadUnsafe()
+                .Where(entry => !string.Equals(entry.FilePath, filePath, StringComparison.OrdinalIgnoreCase) && File.Exists(entry.FilePath))
+                .ToArray());
+        }
+    }
+
     public static void IndexExistingFiles(string folder, int maximum)
     {
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder) || maximum <= 0)

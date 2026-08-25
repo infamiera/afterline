@@ -17,6 +17,7 @@ public sealed class AppSettings
     public bool ShowLiveTimestamps { get; set; } = true;
     public bool AutoScrollLiveChat { get; set; } = true;
     public bool UseWindowsArchiveNotifications { get; set; }
+    public bool StreamerModeEnabled { get; set; }
     // Screenshot capture is opt-in at the application level: it only registers a
     // global hotkey while enabled, and never polls or captures outside FiveM/GTA.
     public bool EnableFiveMScreenshotCapture { get; set; } = true;

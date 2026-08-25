@@ -201,6 +201,16 @@ public partial class MainWindow
                     throw new InvalidOperationException(
                         "Editor rulers were not attached to the fixed preview border without a canvas gap.");
                 }
+                if (_editorRulerGridV068.Parent is not Grid rulerParent)
+                    throw new InvalidOperationException("The Editor ruler host was detached from the preview layout.");
+                int rulerRow = Grid.GetRow(_editorRulerGridV068);
+                if (rulerRow <= 0 ||
+                    rulerParent.RowDefinitions.Count <= rulerRow ||
+                    rulerParent.RowDefinitions[rulerRow - 1].ActualHeight > 0.5)
+                {
+                    throw new InvalidOperationException(
+                        "The Editor preview retained a fixed spacer above its ruler and canvas.");
+                }
 
                 int width = Math.Max(1, (int)Math.Ceiling(_editorComposition.ActualWidth));
                 int height = Math.Max(1, (int)Math.Ceiling(_editorComposition.ActualHeight));

@@ -391,7 +391,7 @@ public partial class MainWindow : Window
         foreach (SessionIndexEntry entry in _dashboardRecentSessions)
             RecentSessionsList.Items.Add($"{entry.LastWriteUtc.ToLocalTime():dd MMM yyyy · HH:mm}     {entry.LineCount:N0} lines     {entry.FileName}");
 
-        ArchiveRootText.Text = _settings.ArchiveRoot;
+        ArchiveRootText.Text = StreamerModePresentationService.PathForDisplay(_settings.ArchiveRoot);
     }
 
     private void PopulateSettingsUi()
@@ -410,6 +410,7 @@ public partial class MainWindow : Window
         SelectComboItem(ScreenshotCaptureSoundBox, _settings.ScreenshotCaptureSound);
         ScreenshotCaptureSoundVolumeSlider.Value = Math.Clamp(_settings.ScreenshotCaptureSoundVolume, 0, 100);
         ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(ScreenshotCaptureSoundVolumeSlider.Value):0}%";
+        StreamerModeCheck.IsChecked = _settings.StreamerModeEnabled;
         ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
         ArchiveRootBox.Text = _settings.ArchiveRoot;
         SearchRootBox.Text = _settings.ArchiveRoot;
@@ -418,6 +419,7 @@ public partial class MainWindow : Window
         SelectComboItem(ProcessingBox, _settings.ProcessingIntervalMinutes);
         SelectComboItem(MaxMessagesBox, _settings.MaxLiveMessages);
         LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
+        ApplyStreamerModePresentationV075();
     }
 
     private static void SelectComboItem(System.Windows.Controls.ComboBox box, int value)
@@ -584,13 +586,21 @@ public partial class MainWindow : Window
     private void BrowseSearchRoot_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new Forms.FolderBrowserDialog { SelectedPath = SearchRootBox.Text, Description = "Choose a folder to search recursively" };
-        if (dialog.ShowDialog() == Forms.DialogResult.OK) SearchRootBox.Text = dialog.SelectedPath;
+        if (dialog.ShowDialog() == Forms.DialogResult.OK)
+        {
+            SearchRootBox.Text = dialog.SelectedPath;
+            ApplyStreamerModePresentationV075();
+        }
     }
 
     private void BrowseArchiveRoot_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new Forms.FolderBrowserDialog { SelectedPath = ArchiveRootBox.Text, Description = "Choose where Afterline stores completed chatlogs" };
-        if (dialog.ShowDialog() == Forms.DialogResult.OK) ArchiveRootBox.Text = dialog.SelectedPath;
+        if (dialog.ShowDialog() == Forms.DialogResult.OK)
+        {
+            ArchiveRootBox.Text = dialog.SelectedPath;
+            ApplyStreamerModePresentationV075();
+        }
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
@@ -630,6 +640,7 @@ public partial class MainWindow : Window
                 : screenshotHotkey;
             _settings.ScreenshotCaptureSound = (ScreenshotCaptureSoundBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "Shutter";
             _settings.ScreenshotCaptureSoundVolume = Math.Clamp((int)Math.Round(ScreenshotCaptureSoundVolumeSlider.Value), 0, 100);
+            _settings.StreamerModeEnabled = StreamerModeCheck.IsChecked == true;
             _settings.ReconnectGraceMinutes = ComboInt(ReconnectBox, 5);
             _settings.ProcessingIntervalMinutes = ComboInt(ProcessingBox, 1);
             _settings.MaxLiveMessages = ComboInt(MaxMessagesBox, 2000);
@@ -643,7 +654,7 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(oldSearchRoot) || string.Equals(oldSearchRoot, oldRoot, StringComparison.OrdinalIgnoreCase))
                 SearchRootBox.Text = _settings.ArchiveRoot;
 
-            ArchiveRootText.Text = _settings.ArchiveRoot;
+            ApplyStreamerModePresentationV075();
             ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
             LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
             await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);

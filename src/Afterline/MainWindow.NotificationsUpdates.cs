@@ -146,7 +146,7 @@ public partial class MainWindow
     {
         ShowInAppFileNotification(
             "Chatlog saved",
-            $"{Path.GetFileName(path)} was saved to {Path.GetDirectoryName(path)}.",
+            $"{Path.GetFileName(path)} was saved to {StreamerModePresentationService.PathForDisplay(Path.GetDirectoryName(path))}.",
             path);
     }
 
@@ -240,29 +240,32 @@ public partial class MainWindow
     {
         if (TrayStateText.Parent is not StackPanel panel) return;
 
-        panel.Children.Add(new Separator { Margin = new Thickness(0, 11, 0, 10) });
+        panel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 7) });
 
         _currentBuildText = new TextBlock
         {
-            FontSize = 10.5,
-            TextWrapping = TextWrapping.Wrap
+            FontSize = 9.5,
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
         panel.Children.Add(_currentBuildText);
 
         _latestBuildText = new TextBlock
         {
-            FontSize = 10.5,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 0)
+            FontSize = 9.5,
+            TextWrapping = TextWrapping.NoWrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 2, 0, 0)
         };
         panel.Children.Add(_latestBuildText);
 
         _checkUpdatesButton = new Button
         {
-            Content = "Check for updates",
+            Content = "Check",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(9, 6, 9, 6),
-            Margin = new Thickness(0, 10, 0, 0)
+            Padding = new Thickness(7, 5, 7, 5),
+            Margin = new Thickness(0, 7, 0, 0),
+            ToolTip = "Check for updates"
         };
         _checkUpdatesButton.Click += CheckForUpdates_Click;
         panel.Children.Add(_checkUpdatesButton);
@@ -272,25 +275,52 @@ public partial class MainWindow
 
     private void SetUpdateBuildLines(string current, string latest)
     {
+        bool isCanary = current.Contains("Canary", StringComparison.OrdinalIgnoreCase);
+        string currentCompact = CompactUpdateIdentityV075(current);
+        string latestComparable = latest.Replace(" available", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        bool upToDate = !latest.Contains("Checking", StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(current.Trim(), latestComparable, StringComparison.OrdinalIgnoreCase);
+
         if (_currentBuildText is not null)
         {
             _currentBuildText.Inlines.Clear();
-            _currentBuildText.Inlines.Add(new Run("Current Build: ") { FontWeight = FontWeights.SemiBold });
-            _currentBuildText.Inlines.Add(new Run(current)
+            _currentBuildText.Inlines.Add(new Run(isCanary ? "CANARY " : "STABLE ")
             {
-                Foreground = (System.Windows.Media.Brush)FindResource("Success")
+                FontWeight = FontWeights.Bold,
+                Foreground = (System.Windows.Media.Brush)FindResource(isCanary ? "Accent" : "Success")
+            });
+            _currentBuildText.Inlines.Add(new Run(currentCompact)
+            {
+                Foreground = (System.Windows.Media.Brush)FindResource("MutedText")
             });
         }
 
         if (_latestBuildText is not null)
         {
+            _latestBuildText.Visibility = upToDate ? Visibility.Collapsed : Visibility.Visible;
             _latestBuildText.Inlines.Clear();
-            _latestBuildText.Inlines.Add(new Run("Latest: ") { FontWeight = FontWeights.SemiBold });
-            _latestBuildText.Inlines.Add(new Run(latest)
+            _latestBuildText.Inlines.Add(new Run("Latest ") { FontWeight = FontWeights.SemiBold });
+            _latestBuildText.Inlines.Add(new Run(CompactUpdateIdentityV075(latest))
             {
                 Foreground = (System.Windows.Media.Brush)FindResource("Accent")
             });
         }
+    }
+
+    private static string CompactUpdateIdentityV075(string value)
+    {
+        string compact = value.Trim();
+        compact = compact.Replace(" available", string.Empty, StringComparison.OrdinalIgnoreCase);
+        compact = compact.Replace(" Canary", string.Empty, StringComparison.OrdinalIgnoreCase);
+        compact = compact.Replace(" Stable", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        int buildMarker = compact.IndexOf('#');
+        if (buildMarker >= 0)
+            return compact[buildMarker..];
+
+        if (Version.TryParse(compact, out _))
+            return "v" + compact;
+        return compact;
     }
 
     private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
