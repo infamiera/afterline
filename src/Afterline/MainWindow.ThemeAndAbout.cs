@@ -118,7 +118,7 @@ public partial class MainWindow
             };
             Grid.SetColumn(_diagnosticsFooterButtonV159, 4);
             footerGrid.Children.Add(_diagnosticsFooterButtonV159);
-            DiagnosticLogger.ErrorWritten += (_, _) =>
+            DiagnosticLogger.LogsChanged += (_, _) =>
                 _ = Dispatcher.BeginInvoke(new Action(UpdateDiagnosticsFooterButtonV159));
             UpdateDiagnosticsFooterButtonV159();
         }

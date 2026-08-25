@@ -9,6 +9,40 @@ public static class DiagnosticLogger
     private const int MaximumReportErrors = 250;
 
     public static event EventHandler? ErrorWritten;
+    public static event EventHandler? LogsChanged;
+
+    public static void InitializeForCurrentBuild()
+    {
+        try
+        {
+            AppPaths.EnsureLocalDirectories();
+            string currentBuild = GetCurrentBuildIdentity();
+            lock (Gate)
+            {
+                string previousBuild = File.Exists(AppPaths.DiagnosticBuildMarker)
+                    ? File.ReadAllText(AppPaths.DiagnosticBuildMarker).Trim()
+                    : string.Empty;
+                if (string.Equals(previousBuild, currentBuild, StringComparison.Ordinal)) return;
+
+                DeleteLogFiles();
+                string tempMarker = AppPaths.DiagnosticBuildMarker + $".{Environment.ProcessId}.tmp";
+                try
+                {
+                    File.WriteAllText(tempMarker, currentBuild, new UTF8Encoding(false));
+                    File.Move(tempMarker, AppPaths.DiagnosticBuildMarker, true);
+                }
+                finally
+                {
+                    if (File.Exists(tempMarker)) File.Delete(tempMarker);
+                }
+            }
+        }
+        catch
+        {
+            // Build isolation is best-effort and must never prevent startup. If it
+            // fails, the marker remains unchanged so the next launch retries it.
+        }
+    }
 
     public static void Info(string message) => _ = Write("INFO", message);
     public static void Warn(string message) => _ = Write("WARN", message);
@@ -17,6 +51,24 @@ public static class DiagnosticLogger
         if (!Write("ERROR", ex is null ? message : $"{message} | {ex}")) return;
         try { ErrorWritten?.Invoke(null, EventArgs.Empty); }
         catch { }
+        RaiseLogsChanged();
+    }
+
+    public static bool ClearErrors()
+    {
+        try
+        {
+            lock (Gate)
+            {
+                DeleteLogFiles();
+            }
+            RaiseLogsChanged();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool Write(string level, string message)
@@ -75,15 +127,13 @@ public static class DiagnosticLogger
             path = Path.Combine(downloads, $"Afterline-Error-Report-{stamp}-{suffix}.txt");
 
         IReadOnlyList<string> errors = ReadRecentErrors(MaximumReportErrors);
-        string informational = Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "unknown";
+        string informational = GetCurrentBuildIdentity();
         var report = new StringBuilder();
         report.AppendLine("AFTERLINE ERROR REPORT");
         report.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
         report.AppendLine($"Build: {informational}");
         report.AppendLine($"Windows: {Environment.OSVersion}");
-        report.AppendLine($"Recent errors included: {errors.Count} (maximum {MaximumReportErrors})");
+        report.AppendLine($"Current-build errors included: {errors.Count} (maximum {MaximumReportErrors})");
         report.AppendLine("Discord: https://discord.gg/At2znTygfV");
         report.AppendLine("Afterline error-log forum: https://discord.com/channels/1388519828553203818/1541203371455942748");
         report.AppendLine();
@@ -154,6 +204,24 @@ public static class DiagnosticLogger
             value = value.Replace(personalPath, token, StringComparison.OrdinalIgnoreCase);
         }
         return value;
+    }
+
+    private static string GetCurrentBuildIdentity()
+        => Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? "unknown";
+
+    private static void DeleteLogFiles()
+    {
+        if (File.Exists(AppPaths.DiagnosticLog)) File.Delete(AppPaths.DiagnosticLog);
+        string backup = AppPaths.DiagnosticLog + ".1";
+        if (File.Exists(backup)) File.Delete(backup);
+    }
+
+    private static void RaiseLogsChanged()
+    {
+        try { LogsChanged?.Invoke(null, EventArgs.Empty); }
+        catch { }
     }
 
     private static void RotateIfNeeded()

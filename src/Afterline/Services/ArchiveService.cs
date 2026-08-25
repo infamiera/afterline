@@ -16,7 +16,7 @@ public sealed class ArchiveService
         WriteIndented = true
     };
 
-    private readonly SemaphoreSlim _rebuildGate = new(1, 1);
+    private static readonly SemaphoreSlim RebuildGate = new(1, 1);
 
     public async Task<IReadOnlyList<SessionIndexEntry>> RebuildIndexAsync(
         string root,
@@ -28,7 +28,7 @@ public sealed class ArchiveService
         if (maxEntries is <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxEntries));
 
-        await _rebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await RebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             DateTime? normalizedFrom = fromDate?.Date;
@@ -106,7 +106,7 @@ public sealed class ArchiveService
                     else
                     {
                         lineCount = 0;
-                        using var reader = new StreamReader(file);
+                        using var reader = OpenSharedReader(file);
                         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is not null)
                             lineCount++;
                     }
@@ -159,7 +159,7 @@ public sealed class ArchiveService
         }
         finally
         {
-            _rebuildGate.Release();
+            RebuildGate.Release();
         }
     }
 
@@ -237,7 +237,11 @@ public sealed class ArchiveService
             if (!File.Exists(AppPaths.ArchiveIndexFile))
                 return Array.Empty<SessionIndexEntry>();
 
-            using FileStream stream = File.OpenRead(AppPaths.ArchiveIndexFile);
+            using FileStream stream = new(
+                AppPaths.ArchiveIndexFile,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
             List<SessionIndexEntry>? cached =
                 JsonSerializer.Deserialize<List<SessionIndexEntry>>(stream, IndexJsonOptions);
             return cached is null ? Array.Empty<SessionIndexEntry>() : cached;
@@ -267,7 +271,7 @@ public sealed class ArchiveService
         if (LoadCachedIndex().Any(IsCurrentEntry))
             return true;
 
-        await _rebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await RebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             IReadOnlyList<SessionIndexEntry> cached = LoadCachedIndex();
@@ -275,7 +279,7 @@ public sealed class ArchiveService
                 return true;
 
             int lineCount = 0;
-            using (var reader = new StreamReader(filePath))
+            using (var reader = OpenSharedReader(filePath))
             {
                 while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is not null)
                     lineCount++;
@@ -298,7 +302,7 @@ public sealed class ArchiveService
         }
         finally
         {
-            _rebuildGate.Release();
+            RebuildGate.Release();
         }
     }
 
@@ -307,25 +311,42 @@ public sealed class ArchiveService
         CancellationToken cancellationToken)
     {
         AppPaths.EnsureLocalDirectories();
-        string temp = AppPaths.ArchiveIndexFile + ".tmp";
-        await using (FileStream stream = new(
-            temp,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            16 * 1024,
-            FileOptions.Asynchronous))
+        string temp = AppPaths.ArchiveIndexFile + $".{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+        try
         {
-            await JsonSerializer.SerializeAsync(
-                stream,
-                entries,
-                IndexJsonOptions,
-                cancellationToken).ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
+            await using (FileStream stream = new(
+                temp,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                16 * 1024,
+                FileOptions.Asynchronous))
+            {
+                await JsonSerializer.SerializeAsync(
+                    stream,
+                    entries,
+                    IndexJsonOptions,
+                    cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
 
-        File.Move(temp, AppPaths.ArchiveIndexFile, true);
+            File.Move(temp, AppPaths.ArchiveIndexFile, true);
+        }
+        finally
+        {
+            try { if (File.Exists(temp)) File.Delete(temp); }
+            catch { }
+        }
     }
+
+    private static StreamReader OpenSharedReader(string path)
+        => new(new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            16 * 1024,
+            FileOptions.SequentialScan));
 
     private static bool PathsEqual(string left, string right)
     {

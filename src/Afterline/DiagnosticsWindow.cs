@@ -108,6 +108,7 @@ internal sealed class DiagnosticsWindow : Window
         actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _exportStatus = new TextBlock
         {
             Foreground = (Brush)FindResource("Success"),
@@ -116,14 +117,24 @@ internal sealed class DiagnosticsWindow : Window
             Margin = new Thickness(0, 0, 12, 0)
         };
         actions.Children.Add(_exportStatus);
+        var clear = new Button
+        {
+            Content = "Clear error logs",
+            Padding = new Thickness(14, 8, 14, 8),
+            MinWidth = 120
+        };
+        clear.Click += Clear_Click;
+        Grid.SetColumn(clear, 1);
+        actions.Children.Add(clear);
         var export = new Button
         {
             Content = "Export .txt to Downloads",
             Padding = new Thickness(14, 8, 14, 8),
+            Margin = new Thickness(8, 0, 0, 0),
             Style = (Style)FindResource("PrimaryButton")
         };
         export.Click += Export_Click;
-        Grid.SetColumn(export, 1);
+        Grid.SetColumn(export, 2);
         actions.Children.Add(export);
         var close = new Button
         {
@@ -133,7 +144,7 @@ internal sealed class DiagnosticsWindow : Window
             MinWidth = 80
         };
         close.Click += (_, _) => Close();
-        Grid.SetColumn(close, 2);
+        Grid.SetColumn(close, 3);
         actions.Children.Add(close);
         Grid.SetRow(actions, 6);
         root.Children.Add(actions);
@@ -147,14 +158,38 @@ internal sealed class DiagnosticsWindow : Window
     {
         IReadOnlyList<string> errors = DiagnosticLogger.ReadRecentErrors(100);
         _summary.Text = errors.Count == 0
-            ? "No recorded application errors."
-            : $"Showing the {errors.Count} most recent recorded error{(errors.Count == 1 ? string.Empty : "s")}.";
+            ? "No errors recorded for this build."
+            : $"Showing the {errors.Count} most recent error{(errors.Count == 1 ? string.Empty : "s")} from this build.";
         _summary.Foreground = (Brush)FindResource(errors.Count == 0 ? "Success" : "Warning");
         _errorText.Text = errors.Count == 0
-            ? "Afterline has not recorded any errors. You can still export a report if support asks for one."
+            ? "Afterline has not recorded any errors since this update was installed. You can still export a report if support asks for one."
             : string.Join(Environment.NewLine + new string('-', 78) + Environment.NewLine, errors);
         _errorText.Select(0, 0);
         _errorText.ScrollToLine(0);
+    }
+
+    private void Clear_Click(object sender, RoutedEventArgs e)
+    {
+        MessageBoxResult choice = MessageBox.Show(
+            this,
+            "Clear all diagnostic logs recorded for this Afterline build? This cannot be undone.",
+            "Clear Error Logs",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (choice != MessageBoxResult.Yes) return;
+
+        if (DiagnosticLogger.ClearErrors())
+        {
+            _exportStatus.Foreground = (Brush)FindResource("Success");
+            _exportStatus.Text = "Error logs cleared.";
+            RefreshErrors();
+        }
+        else
+        {
+            _exportStatus.Foreground = (Brush)FindResource("Warning");
+            _exportStatus.Text = "The error logs could not be cleared. Close other Afterline windows and try again.";
+        }
     }
 
     private void Export_Click(object sender, RoutedEventArgs e)

@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "25/AUG/2026", new[]
         {
+            "Diagnostics — Error Logs now show only errors recorded by the currently installed build; installing a new update clears diagnostics left by earlier builds.",
+            "Diagnostics control — Added a confirmed Clear error logs action that wipes the current diagnostic log and its rotated backup, then immediately resets the footer warning state.",
+            "Archive reliability — Added shared-read access for active chatlogs, process-wide index serialization, and unique temporary index files to avoid transient file-lock failures.",
+            "Error review — Confirmed the submitted Editor project, ruler-resource, server-clock, archive, and updater errors all predated Canary #159 and are covered by current fixes or this additional hardening."
+        }, ChangelogChannel.Canary, 160),
+        new("0.7.0", "25/AUG/2026", new[]
+        {
             "Diagnostics — Added an Error Logs button beside Settings with a bounded recent-error viewer and a one-click .txt export to the Windows Downloads folder.",
             "Support — Added visible links to the permanent Afterline Discord invite and the dedicated Afterline forum, with clear guidance to post exported logs only in that forum.",
             "Privacy and stability — Error reports include the Canary build and Windows version, redact common user-profile paths, exclude ordinary info messages, and retain the existing 2 MB rotating log limit.",

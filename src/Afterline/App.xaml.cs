@@ -22,6 +22,10 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // Keep updater failures available to the still-installed build. Once a
+        // newly installed build starts normally, it begins a clean diagnostic era.
+        DiagnosticLogger.InitializeForCurrentBuild();
+
         int canaryManifestSmokeIndex = Array.FindIndex(e.Args, value => string.Equals(
             value,
             "--afterline-smoke-canary-manifest",
