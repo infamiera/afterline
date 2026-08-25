@@ -21,6 +21,10 @@ internal static class CurrentReleaseData
             "Recovery — Made Parse Current Chat replay persisted cache data, resume interrupted journals after crashes, outages, updates, and ordinary restarts, and avoid false [NEW LOGIN] markers for program interruptions.",
             "Updater — Replaced rate-limited Canary polling with a lightweight release manifest, removed duplicate checks, added exact build-number and commit comparison, and prevented installed or older Canary builds from being offered as updates.",
             "Updater — Retained the previous executable until the replacement stays healthy, kept Retry and Check Again usable after failures, and added packaged startup validation before publication.",
+            "Windows startup — Validated the registered launch command against the currently running executable and automatically repaired stale or missing startup entries left by manually replaced Canary files.",
+            "Image Editor — Attached rulers to the preview border instead of the zoomed image, removed the ruler-to-canvas gap, synchronized ruler ticks with scrolling and zoom, and automatically fitted newly loaded Base Images.",
+            "Image Editor — Added whole-panel collapse controls for both Editor sidebars and a one-second border highlight on the Close Editor button whenever the workspace opens.",
+            "Archive notifications — Added a Settings choice between in-app and Windows archive confirmations, and only announces success after the finalized FiveM log is verified in the archive index.",
             "Idle usage — Reduced disconnected FiveM detection, backed off unchanged chat polling, stopped hidden UI refreshes, avoided duplicate snapshot and archive-index writes, and limited page-specific status scans to visible pages.",
             "Quality — Expanded the Windows release gate with startup survival, Base Image rendering, project round-trip, interrupted-session recovery, exact and fallback color checks, safe HTML export, updater-manifest validation, and measured idle CPU and memory limits."
         }),

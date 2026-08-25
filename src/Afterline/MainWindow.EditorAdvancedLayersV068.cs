@@ -1001,17 +1001,27 @@ public partial class MainWindow
 
     private void ConfigureEditorRulersV068()
     {
-        if (_editorZoomHost is null || _editorZoomHost.Child is not FrameworkElement content)
+        if (_editorZoomHost is null ||
+            _editorZoomHost.Child is not FrameworkElement content ||
+            _editorPreviewScroll is null ||
+            _editorPreviewScroll.Parent is not Grid previewRoot)
             return;
 
-        _editorZoomHost.Child = null;
         _editorRulerContentV068 = content;
+        int previewRow = Grid.GetRow(_editorPreviewScroll);
+        int previewColumn = Grid.GetColumn(_editorPreviewScroll);
+        previewRoot.Children.Remove(_editorPreviewScroll);
+        _editorPreviewScroll.Content = null;
+        _editorPreviewScroll.Padding = new Thickness(0);
 
         var grid = new Grid
         {
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            ClipToBounds = true
         };
+        Grid.SetRow(grid, previewRow);
+        Grid.SetColumn(grid, previewColumn);
         _editorRulerGridV068 = grid;
         _editorHorizontalRulerRowV068 = new RowDefinition { Height = new GridLength(24) };
         _editorVerticalRulerColumnV068 = new ColumnDefinition { Width = new GridLength(38) };
@@ -1037,7 +1047,8 @@ public partial class MainWindow
             Height = 24,
             Background = rulerBackground,
             ClipToBounds = true,
-            IsHitTestVisible = false
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
         Grid.SetColumn(_editorHorizontalRulerV068, 1);
         grid.Children.Add(_editorHorizontalRulerV068);
@@ -1047,15 +1058,18 @@ public partial class MainWindow
             Width = 38,
             Background = rulerBackground,
             ClipToBounds = true,
-            IsHitTestVisible = false
+            IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
         Grid.SetRow(_editorVerticalRulerV068, 1);
         grid.Children.Add(_editorVerticalRulerV068);
 
-        Grid.SetRow(content, 1);
-        Grid.SetColumn(content, 1);
-        grid.Children.Add(content);
-        _editorZoomHost.Child = grid;
+        Grid.SetRow(_editorPreviewScroll, 1);
+        Grid.SetColumn(_editorPreviewScroll, 1);
+        _editorPreviewScroll.Content = _editorZoomHost;
+        _editorPreviewScroll.ScrollChanged += (_, _) => RefreshEditorRulersV068();
+        grid.Children.Add(_editorPreviewScroll);
+        previewRoot.Children.Add(grid);
         RefreshEditorRulersV068();
     }
 
@@ -1082,8 +1096,19 @@ public partial class MainWindow
 
         double width = Math.Max(1, _editorComposition.Width);
         double height = Math.Max(1, _editorComposition.Height);
-        _editorHorizontalRulerV068.Width = width;
-        _editorVerticalRulerV068.Height = height;
+        double scale = Math.Max(0.01, _editorZoomScale);
+        double horizontalOffset = _editorPreviewScroll?.HorizontalOffset ?? 0;
+        double verticalOffset = _editorPreviewScroll?.VerticalOffset ?? 0;
+        double visibleWidth = Math.Max(
+            1,
+            _editorHorizontalRulerV068.ActualWidth > 0
+                ? _editorHorizontalRulerV068.ActualWidth
+                : _editorPreviewScroll?.ViewportWidth ?? 1);
+        double visibleHeight = Math.Max(
+            1,
+            _editorVerticalRulerV068.ActualHeight > 0
+                ? _editorVerticalRulerV068.ActualHeight
+                : _editorPreviewScroll?.ViewportHeight ?? 1);
         _editorHorizontalRulerV068.Children.Clear();
         _editorVerticalRulerV068.Children.Clear();
 
@@ -1099,11 +1124,13 @@ public partial class MainWindow
 
         for (double x = 0; x <= width + 0.1; x += minor)
         {
+            double screenX = x * scale - horizontalOffset;
+            if (screenX < -1 || screenX > visibleWidth + 1) continue;
             bool isMajor = Math.Abs(x % major) < 0.01;
             _editorHorizontalRulerV068.Children.Add(new Line
             {
-                X1 = x,
-                X2 = x,
+                X1 = screenX,
+                X2 = screenX,
                 Y1 = isMajor ? 8 : 15,
                 Y2 = 24,
                 Stroke = lineBrush,
@@ -1118,20 +1145,22 @@ public partial class MainWindow
                 Foreground = lineBrush,
                 IsHitTestVisible = false
             };
-            Canvas.SetLeft(label, x + 2);
+            Canvas.SetLeft(label, screenX + 2);
             Canvas.SetTop(label, 0);
             _editorHorizontalRulerV068.Children.Add(label);
         }
 
         for (double y = 0; y <= height + 0.1; y += minor)
         {
+            double screenY = y * scale - verticalOffset;
+            if (screenY < -1 || screenY > visibleHeight + 1) continue;
             bool isMajor = Math.Abs(y % major) < 0.01;
             _editorVerticalRulerV068.Children.Add(new Line
             {
                 X1 = isMajor ? 20 : 29,
                 X2 = 38,
-                Y1 = y,
-                Y2 = y,
+                Y1 = screenY,
+                Y2 = screenY,
                 Stroke = lineBrush,
                 StrokeThickness = 1,
                 Opacity = isMajor ? 0.9 : 0.55
@@ -1145,7 +1174,7 @@ public partial class MainWindow
                 IsHitTestVisible = false
             };
             Canvas.SetLeft(label, 1);
-            Canvas.SetTop(label, y + 2);
+            Canvas.SetTop(label, screenY + 2);
             _editorVerticalRulerV068.Children.Add(label);
         }
     }

@@ -12,6 +12,8 @@ public partial class MainWindow
     private const string EditorLayerDragFormatV069 = "Afterline.Editor.ImageLayer.V069";
     private Point _editorLayerListDragStartV069;
     private EditorImageLayerV067? _editorLayerListDragSourceV069;
+    private Button? _editorCloseRailButtonV072;
+    private CancellationTokenSource? _editorCloseHighlightCtsV072;
 
     private Button CreateEditorCloseRailButtonV069()
     {
@@ -28,8 +30,39 @@ public partial class MainWindow
             VerticalContentAlignment = VerticalAlignment.Center,
             ToolTip = "Close Image Editor and return to Afterline"
         };
+        _editorCloseRailButtonV072 = button;
         button.Click += (_, _) => CloseEditorWorkspaceV069();
         return button;
+    }
+
+    private async void HighlightEditorCloseButtonV072()
+    {
+        if (_editorCloseRailButtonV072 is not Button button)
+            return;
+
+        _editorCloseHighlightCtsV072?.Cancel();
+        _editorCloseHighlightCtsV072?.Dispose();
+        _editorCloseHighlightCtsV072 = new CancellationTokenSource();
+        CancellationToken token = _editorCloseHighlightCtsV072.Token;
+        Brush originalBrush = button.BorderBrush;
+        Thickness originalThickness = button.BorderThickness;
+
+        button.BorderBrush = (Brush)FindResource("Accent");
+        button.BorderThickness = new Thickness(2);
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!token.IsCancellationRequested && ReferenceEquals(button, _editorCloseRailButtonV072))
+        {
+            button.BorderBrush = originalBrush;
+            button.BorderThickness = originalThickness;
+        }
     }
 
     private void CloseEditorWorkspaceV069()
@@ -77,6 +110,7 @@ public partial class MainWindow
         RefreshEditorRulersV068();
         RefreshLayerListV067(_editorSelectedImageLayerV067);
         _editorComposition.UpdateLayout();
+        _editorFitZoom = true;
 
         Dispatcher.BeginInvoke(new Action(() =>
         {
@@ -90,8 +124,7 @@ public partial class MainWindow
             SyncCanaryGuideHostSize();
             RefreshEditorRulersV068();
             RefreshLayerListV067(_editorSelectedImageLayerV067);
-            if (_editorFitZoom)
-                FitEditorPreviewToWindow();
+            FitEditorPreviewToWindow();
         }), DispatcherPriority.Loaded);
     }
 
@@ -146,6 +179,19 @@ public partial class MainWindow
                     !ReferenceEquals(_editorBaseImage.Parent, _editorComposition))
                     throw new InvalidOperationException("The Base Image did not attach to the Editor composition.");
 
+                if (!_editorFitZoom)
+                    throw new InvalidOperationException("The first Base Image load did not automatically fit the preview.");
+                if (_editorRulerGridV068 is null ||
+                    _editorPreviewScroll is null ||
+                    _editorZoomHost is null ||
+                    !ReferenceEquals(_editorPreviewScroll.Parent, _editorRulerGridV068) ||
+                    !ReferenceEquals(_editorZoomHost.Child, _editorComposition) ||
+                    _editorPreviewScroll.Padding != new Thickness(0))
+                {
+                    throw new InvalidOperationException(
+                        "Editor rulers were not attached to the fixed preview border without a canvas gap.");
+                }
+
                 int width = Math.Max(1, (int)Math.Ceiling(_editorComposition.ActualWidth));
                 int height = Math.Max(1, (int)Math.Ceiling(_editorComposition.ActualHeight));
                 var rendered = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
@@ -161,6 +207,31 @@ public partial class MainWindow
 
                 if (!string.IsNullOrWhiteSpace(projectPath))
                 {
+                    if (_editorLeftSidebarToggleV072 is null ||
+                        _editorRightSidebarToggleV072 is null ||
+                        _editorCloseRailButtonV072 is null)
+                    {
+                        throw new InvalidOperationException("Editor workspace collapse or close guidance controls were not initialized.");
+                    }
+
+                    ToggleEditorLeftSidebarV072();
+                    if (_editorToolPanelHost?.Visibility != Visibility.Collapsed ||
+                        _editorToolPanelColumn?.Width.Value != 0)
+                        throw new InvalidOperationException("The left Editor panel did not collapse completely.");
+                    ToggleEditorLeftSidebarV072();
+                    if (_editorToolPanelHost?.Visibility != Visibility.Visible ||
+                        _editorToolPanelColumn?.Width.Value <= 0)
+                        throw new InvalidOperationException("The left Editor panel did not reopen.");
+
+                    ToggleEditorRightSidebarV072();
+                    if (_editorRightSidebarV067?.Visibility != Visibility.Collapsed ||
+                        _editorRightSidebarColumnV072?.Width.Value != 0)
+                        throw new InvalidOperationException("The right Editor panel did not collapse completely.");
+                    ToggleEditorRightSidebarV072();
+                    if (_editorRightSidebarV067?.Visibility != Visibility.Visible ||
+                        _editorRightSidebarColumnV072?.Width.Value <= 0)
+                        throw new InvalidOperationException("The right Editor panel did not reopen.");
+
                     if (_editorToolPanels.ContainsKey("colors") ||
                         !_editorToolPanels.ContainsKey("chat") ||
                         _editorChatColorsExpanderV071 is null)

@@ -29,6 +29,16 @@ public partial class MainWindow
         });
 
         var zoom = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        _editorLeftSidebarToggleV072 = CreateEditorPreviewButton(
+            "◀",
+            "Collapse the left Editor panel",
+            (_, _) => ToggleEditorLeftSidebarV072());
+        zoom.Children.Add(_editorLeftSidebarToggleV072);
+        _editorRightSidebarToggleV072 = CreateEditorPreviewButton(
+            "▶",
+            "Collapse the right Editor panel",
+            (_, _) => ToggleEditorRightSidebarV072());
+        zoom.Children.Add(_editorRightSidebarToggleV072);
         zoom.Children.Add(CreateEditorPreviewButton("−", "Zoom out", (_, _) => ChangeEditorZoom(-0.1)));
         _editorZoomText = new TextBlock
         {
@@ -54,13 +64,14 @@ public partial class MainWindow
         Grid.SetColumn(zoom, 1);
         previewBar.Children.Add(zoom);
         root.Children.Add(previewBar);
+        UpdateEditorSidebarToggleStateV072();
 
         _editorPreviewScroll = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0E, 0x13)),
-            Padding = new Thickness(14),
+            Padding = new Thickness(0),
             CanContentScroll = false
         };
         _editorPreviewScroll.PreviewMouseWheel += EditorPreviewScroll_PreviewMouseWheel;
@@ -209,6 +220,7 @@ public partial class MainWindow
         }
 
         _editorActiveToolKey = key;
+        _editorLastToolKeyV072 = key;
         _editorToolPanelColumn.Width = new GridLength(300);
         _editorToolGapColumn.Width = new GridLength(12);
         _editorToolPanelHost.Visibility = Visibility.Visible;
@@ -229,6 +241,7 @@ public partial class MainWindow
         Brush raised = (Brush)FindResource("Raised");
         foreach ((string buttonKey, Button button) in _editorToolButtons)
             button.Background = string.Equals(buttonKey, key, StringComparison.OrdinalIgnoreCase) ? accent : raised;
+        UpdateEditorSidebarToggleStateV072();
     }
 
     private void CloseEditorToolPanel()
@@ -240,6 +253,7 @@ public partial class MainWindow
         _editorActiveToolKey = null;
         Brush raised = (Brush)FindResource("Raised");
         foreach (Button button in _editorToolButtons.Values) button.Background = raised;
+        UpdateEditorSidebarToggleStateV072();
     }
 
     private void ChangeEditorZoom(double delta)
@@ -255,13 +269,14 @@ public partial class MainWindow
             _editorZoomHost.LayoutTransform = new ScaleTransform(_editorZoomScale, _editorZoomScale);
         if (_editorZoomText is not null)
             _editorZoomText.Text = $"{Math.Round(_editorZoomScale * 100):0}%";
+        RefreshEditorRulersV068();
     }
 
     private void FitEditorPreviewToWindow()
     {
         if (_editorPreviewScroll is null || _editorComposition is null) return;
-        double availableWidth = _editorPreviewScroll.ViewportWidth - 28;
-        double availableHeight = _editorPreviewScroll.ViewportHeight - 28;
+        double availableWidth = _editorPreviewScroll.ViewportWidth;
+        double availableHeight = _editorPreviewScroll.ViewportHeight;
         if (availableWidth <= 0 || availableHeight <= 0 || _editorComposition.Width <= 0 || _editorComposition.Height <= 0) return;
 
         double fit = Math.Min(availableWidth / _editorComposition.Width, availableHeight / _editorComposition.Height);
@@ -269,6 +284,7 @@ public partial class MainWindow
         SetEditorZoom(Math.Clamp(fit, 0.10, 4.0));
         _editorPreviewScroll.ScrollToHorizontalOffset(0);
         _editorPreviewScroll.ScrollToVerticalOffset(0);
+        _ = Dispatcher.BeginInvoke(new Action(RefreshEditorRulersV068));
     }
 
     private void EditorPreviewScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

@@ -69,6 +69,7 @@ public partial class MainWindow
             if (_editorPage.Visibility == Visibility.Visible)
             {
                 ApplyEditorChromeCanary(true);
+                HighlightEditorCloseButtonV072();
                 RefreshFilterPresetGalleryV067();
                 RefreshLayerListV067();
                 RefreshSelectedLayerAdornerV068();
@@ -251,6 +252,11 @@ public partial class MainWindow
                 });
         }
 
+        _editorRightSidebarGapColumnV072 = editorBody.ColumnDefinitions[5];
+        _editorRightSidebarColumnV072 = editorBody.ColumnDefinitions[6];
+        _editorRightSidebarWidthV072 = _editorRightSidebarColumnV072.Width;
+        _editorRightSidebarMinWidthV072 = _editorRightSidebarColumnV072.MinWidth;
+
         var sidebar = new Border
         {
             Style = (Style)FindResource("CardStyle"),
@@ -319,6 +325,7 @@ public partial class MainWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         editorBody.Children.Add(sidebar);
+        UpdateEditorSidebarToggleStateV072();
     }
 
     private Border BuildFilterPresetPanelV067()

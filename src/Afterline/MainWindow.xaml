@@ -295,6 +295,7 @@
                             <TextBlock Text="Capture &amp; processing" FontSize="18" FontWeight="SemiBold"/>
                             <CheckBox x:Name="SettingsShowLiveCheck" Content="Display captured messages in Live Chat" Margin="0,14,0,0"/>
                             <CheckBox x:Name="AutoScrollCheck" Content="Automatically scroll Live Chat"/>
+                            <CheckBox x:Name="WindowsArchiveNotificationCheck" Content="Use Windows notifications when logs are safely archived" ToolTip="When disabled, Afterline shows its in-app archive confirmation instead."/>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Reconnect grace period" VerticalAlignment="Center"/>

@@ -205,4 +205,35 @@ public sealed class ArchiveService
             return Array.Empty<SessionIndexEntry>();
         }
     }
+
+    public async Task<bool> EnsureFileIndexedAsync(
+        string root,
+        string filePath,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(filePath) || !IsInsideRoot(filePath, root))
+            return false;
+
+        var info = new FileInfo(filePath);
+        string normalized = Path.GetFullPath(filePath);
+        bool IsCurrentEntry(SessionIndexEntry entry) =>
+            string.Equals(
+                Path.GetFullPath(entry.FilePath),
+                normalized,
+                StringComparison.OrdinalIgnoreCase) &&
+            entry.SizeBytes == info.Length &&
+            entry.LineCount > 0;
+
+        if (LoadCachedIndex().Any(IsCurrentEntry))
+            return true;
+
+        DateTime archiveDate = ResolveArchiveDate(filePath, info.LastWriteTime);
+        await RebuildIndexAsync(
+            root,
+            cancellationToken,
+            archiveDate,
+            archiveDate).ConfigureAwait(false);
+
+        return LoadCachedIndex().Any(IsCurrentEntry);
+    }
 }

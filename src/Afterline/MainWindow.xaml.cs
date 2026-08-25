@@ -58,6 +58,14 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         TryEnableDarkTitleBar();
+        try
+        {
+            StartupService.Reconcile(_settings.StartWithWindows);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to repair the Windows startup registration.", ex);
+        }
         PopulateSettingsUi();
         SetupTrayIcon();
         ShowPage(DashboardPage, "Dashboard", "FiveM capture and session overview");
@@ -112,6 +120,7 @@ public partial class MainWindow : Window
         menu.Items.Add("Exit", null, (_, _) => Dispatcher.Invoke(ExitApplication));
         _trayIcon.ContextMenuStrip = menu;
         _trayIcon.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
+        _trayIcon.BalloonTipClicked += (_, _) => Dispatcher.Invoke(OpenExportLocation);
     }
 
     private void ShowFromTray()
@@ -209,6 +218,12 @@ public partial class MainWindow : Window
         try
         {
             await _processor.ProcessNowAsync();
+            bool indexed = await _archiveService.EnsureFileIndexedAsync(
+                _settings.ArchiveRoot,
+                path,
+                CancellationToken.None);
+            if (!indexed)
+                throw new IOException("The finalized chatlog could not be verified in the archive index.");
             await Dispatcher.InvokeAsync(() => RefreshArchiveAsync()).Task.Unwrap();
             await Dispatcher.InvokeAsync(() => ShowSessionArchivedNotification(path));
         }
@@ -345,6 +360,7 @@ public partial class MainWindow : Window
         AutoCaptureCheck.IsChecked = _settings.AutoCapture;
         SettingsShowLiveCheck.IsChecked = _settings.ShowLiveChat;
         AutoScrollCheck.IsChecked = _settings.AutoScrollLiveChat;
+        WindowsArchiveNotificationCheck.IsChecked = _settings.UseWindowsArchiveNotifications;
         ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
         ArchiveRootBox.Text = _settings.ArchiveRoot;
         SearchRootBox.Text = _settings.ArchiveRoot;
@@ -510,6 +526,7 @@ public partial class MainWindow : Window
             _settings.AutoCapture = AutoCaptureCheck.IsChecked == true;
             _settings.ShowLiveChat = SettingsShowLiveCheck.IsChecked == true;
             _settings.AutoScrollLiveChat = AutoScrollCheck.IsChecked == true;
+            _settings.UseWindowsArchiveNotifications = WindowsArchiveNotificationCheck.IsChecked == true;
             _settings.ReconnectGraceMinutes = ComboInt(ReconnectBox, 5);
             _settings.ProcessingIntervalMinutes = ComboInt(ProcessingBox, 1);
             _settings.MaxLiveMessages = ComboInt(MaxMessagesBox, 2000);

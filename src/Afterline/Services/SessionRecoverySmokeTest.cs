@@ -83,8 +83,37 @@ internal static class SessionRecoverySmokeTest
         if (loginMarkers != 1 || !archiveText.Contains(continuation, StringComparison.Ordinal))
             throw new InvalidOperationException("Restarting the journal created a false session boundary or lost its continuation.");
 
-        await resumed.FinalizeAsync(archiveRoot, CancellationToken.None);
+        string finalizedPath = await resumed.FinalizeAsync(archiveRoot, CancellationToken.None)
+            ?? throw new InvalidOperationException("The resumed session did not produce a finalized archive file.");
+        bool indexed = await new ArchiveService().EnsureFileIndexedAsync(
+            archiveRoot,
+            finalizedPath,
+            CancellationToken.None);
+        if (!indexed)
+            throw new InvalidOperationException("A finalized FiveM session was not verified in the archive index.");
+
+        VerifyStartupRegistrationCommand();
         await VerifyArchiveDateFilteringAsync(archiveRoot);
+    }
+
+    private static void VerifyStartupRegistrationCommand()
+    {
+        string executable = Path.Combine(
+            Path.GetTempPath(),
+            "Afterline Canary",
+            "Afterline.exe");
+        string current = StartupService.BuildCommand(executable);
+        string stale = StartupService.BuildCommand(Path.Combine(
+            Path.GetTempPath(),
+            "Afterline Canary",
+            "Afterline-old.exe"));
+
+        if (!StartupService.CommandTargetsExecutable(current, executable) ||
+            StartupService.CommandTargetsExecutable(stale, executable))
+        {
+            throw new InvalidOperationException(
+                "Windows startup registration did not distinguish the current executable from a stale Canary path.");
+        }
     }
 
     private static async Task VerifyArchiveDateFilteringAsync(string archiveRoot)
