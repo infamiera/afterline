@@ -436,10 +436,10 @@ public partial class MainWindow
         LoadEditorMediaV060(path);
     }
 
-    private void ConfigureFiveMScreenshotHotkeyV074(bool showFailure = false)
+    private bool ConfigureFiveMScreenshotHotkeyV074(bool showFailure = false)
     {
         ReleaseFiveMScreenshotHotkeyV074();
-        if (!_settings.EnableFiveMScreenshotCapture) return;
+        if (!_settings.EnableFiveMScreenshotCapture) return false;
 
         if (!TryParseFiveMScreenshotHotkeyV074(_settings.ScreenshotHotkey, out uint modifiers, out uint virtualKey))
         {
@@ -472,7 +472,11 @@ public partial class MainWindow
                         MessageBoxImage.Information);
                 }
             }
-            return;
+            else
+            {
+                DiagnosticLogger.Info($"Screen capture shortcut active: {_settings.ScreenshotHotkey} (mouse hook).");
+            }
+            return _screenshotMouseHookV076 != IntPtr.Zero;
         }
 
         IntPtr handle = new WindowInteropHelper(this).Handle;
@@ -480,7 +484,7 @@ public partial class MainWindow
         if (_fiveMScreenshotHotkeySourceV074 is null)
         {
             DiagnosticLogger.Error("Unable to register the FiveM screenshot hotkey because Afterline has no window handle.");
-            return;
+            return false;
         }
 
         _fiveMScreenshotHotkeySourceV074.AddHook(FiveMScreenshotHotkeyWndProcV074);
@@ -506,6 +510,11 @@ public partial class MainWindow
                     MessageBoxImage.Information);
             }
         }
+        else
+        {
+            DiagnosticLogger.Info($"Screen capture shortcut active: {_settings.ScreenshotHotkey} (Windows hotkey).");
+        }
+        return _fiveMScreenshotHotkeyRegisteredV074;
     }
 
     private void ReleaseFiveMScreenshotHotkeyV074()
@@ -537,6 +546,7 @@ public partial class MainWindow
         if (message == WmHotkeyV074 && wParam.ToInt32() == ScreenshotHotkeyIdV074)
         {
             handled = true;
+            DiagnosticLogger.Info($"Screen capture shortcut detected: {_settings.ScreenshotHotkey}.");
             _ = CaptureFiveMScreenshotV074Async();
         }
         return IntPtr.Zero;
@@ -748,8 +758,47 @@ public partial class MainWindow
             ShowScreenshotHotkeyRecognitionV076("That shortcut is not valid. Choose Re-do and try another key or combination.", valid: false);
             return;
         }
-        _screenshotHotkeyConfirmedV076 = true;
-        ScreenshotHotkeyConfirmationPanelV076.Visibility = Visibility.Collapsed;
+        string shortcut = ScreenshotHotkeyBox.Text.Trim();
+        string previous = _settings.ScreenshotHotkey;
+        try
+        {
+            _settings.ScreenshotHotkey = shortcut;
+
+            if (!_settings.EnableFiveMScreenshotCapture)
+            {
+                _settingsService.Save(_settings);
+                _screenshotHotkeyConfirmedV076 = true;
+                ScreenshotHotkeyConfirmationTextV076.Text = $"{shortcut} saved. It will activate when Screen capture is enabled.";
+                ScreenshotHotkeyConfirmationTextV076.Foreground = (Brush)FindResource("Success");
+                return;
+            }
+
+            if (ConfigureFiveMScreenshotHotkeyV074(showFailure: false))
+            {
+                _settingsService.Save(_settings);
+                _screenshotHotkeyConfirmedV076 = true;
+                ScreenshotHotkeyConfirmationTextV076.Text = $"{shortcut} is active now.";
+                ScreenshotHotkeyConfirmationTextV076.Foreground = (Brush)FindResource("Success");
+                return;
+            }
+
+            _settings.ScreenshotHotkey = previous;
+            ScreenshotHotkeyBox.Text = previous;
+            _ = ConfigureFiveMScreenshotHotkeyV074(showFailure: false);
+            _screenshotHotkeyConfirmedV076 = true;
+            ScreenshotHotkeyConfirmationTextV076.Text = $"Windows could not activate {shortcut}. The previous shortcut {previous} is still active.";
+            ScreenshotHotkeyConfirmationTextV076.Foreground = (Brush)FindResource("Warning");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to activate the confirmed screen capture shortcut.", ex);
+            _settings.ScreenshotHotkey = previous;
+            ScreenshotHotkeyBox.Text = previous;
+            _ = ConfigureFiveMScreenshotHotkeyV074(showFailure: false);
+            _screenshotHotkeyConfirmedV076 = true;
+            ScreenshotHotkeyConfirmationTextV076.Text = $"Afterline could not save {shortcut}. The previous shortcut {previous} is still active.";
+            ScreenshotHotkeyConfirmationTextV076.Foreground = (Brush)FindResource("Warning");
+        }
     }
 
     private void RedoScreenshotHotkeyV076_Click(object sender, RoutedEventArgs e)
@@ -768,7 +817,10 @@ public partial class MainWindow
             MouseHookDataV076 data = Marshal.PtrToStructure<MouseHookDataV076>(lParam);
             int button = ((data.MouseData >> 16) & 0xFFFF) switch { 1 => 4, 2 => 5, _ => 0 };
             if (button == _screenshotMouseButtonV076 && ActiveScreenshotModifiersV076() == _screenshotMouseModifiersV076)
+            {
+                DiagnosticLogger.Info($"Screen capture shortcut detected: {_settings.ScreenshotHotkey}.");
                 _ = Dispatcher.BeginInvoke(new Action(() => _ = CaptureFiveMScreenshotV074Async()));
+            }
         }
         return CallNextHookExV076(_screenshotMouseHookV076, code, wParam, lParam);
     }

@@ -18,7 +18,7 @@ public sealed class ChatEntry
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex OocStatusPrefix = new(
-        @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM|ANTI-FALL|FRIEND|PAYPHONE|AFK\s+CHECK)\](?:\s|$)|INFO:\s*)",
+        @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM|ANTI-FALL|FRIEND|PAYPHONE|AFK\s+CHECK|CHARACTER\s+KILL)\]\s*:?(?:\s|$)|INFO:\s*)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex OocStandaloneStatus = new(
