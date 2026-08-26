@@ -107,7 +107,9 @@ internal static class SessionRecoverySmokeTest
             "[12:58:52] Little Seoul Ammu Nation: Press Y to browse ammunation.",
             "[07:37:19] [Admin Alert]: A staff message",
             "[16:21:16] * You have de-spawned your pet.",
-            "[16:21:09] You have loaded Toffee their settings."
+            "[16:21:09] You have loaded Toffee their settings.",
+            "[23:46:32] [INFO]: [17/JUL/2026] Doors are unlocked via fingerprint scanner. Only the Owners and CEO have access.",
+            "[23:47:09] [INFO]: You are not the owner of this property. Please be aware that inactivity can affect it."
         };
         foreach (string line in filteredLines)
         {

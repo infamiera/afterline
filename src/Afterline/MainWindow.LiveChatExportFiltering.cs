@@ -121,9 +121,28 @@ public partial class MainWindow
 
     private string GetCurrentServerDisplayName()
     {
-        string serverName = _capture.CurrentServer?.DisplayName ?? _journal.ActiveServerName ?? "Unknown Server";
-        return string.IsNullOrWhiteSpace(serverName) ? "Unknown Server" : serverName;
+        // DisplayName deliberately returns "Unknown Server" while discovery is still
+        // resolving. Do not let that placeholder mask the friendly name already held
+        // by the active journal (for example after a brief FiveM reconnect).
+        ServerSessionInfo? currentServer = _capture.CurrentServer;
+        if (currentServer?.HasFriendlyName == true)
+            return currentServer.DisplayName;
+
+        string? journalName = _journal.ActiveServerName;
+        if (IsUsableExportServerName(journalName))
+            return journalName!.Trim();
+
+        if (_journal.ResumedServer?.HasFriendlyName == true)
+            return _journal.ResumedServer.DisplayName;
+
+        return "Unknown Server";
     }
+
+    private static bool IsUsableExportServerName(string? value)
+        => !string.IsNullOrWhiteSpace(value) &&
+           !string.Equals(value.Trim(), "Unknown Server", StringComparison.OrdinalIgnoreCase) &&
+           !value.Trim().StartsWith("Unresolved Server ", StringComparison.OrdinalIgnoreCase) &&
+           !ServerSessionInfo.IsGenericServerName(value);
 
     private static string SanitizeExportFileComponent(string value)
     {
