@@ -109,7 +109,8 @@ internal static class SessionRecoverySmokeTest
             "[16:21:16] * You have de-spawned your pet.",
             "[16:21:09] You have loaded Toffee their settings.",
             "[23:46:32] [INFO]: [17/JUL/2026] Doors are unlocked via fingerprint scanner. Only the Owners and CEO have access.",
-            "[23:47:09] [INFO]: You are not the owner of this property. Please be aware that inactivity can affect it."
+            "[23:47:09] [INFO]: You are not the owner of this property. Please be aware that inactivity can affect it.",
+            "[00:01:28] [Character kill] Jose Sandoval has been killed."
         };
         foreach (string line in filteredLines)
         {
