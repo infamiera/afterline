@@ -86,7 +86,8 @@ public partial class MainWindow
         {
             // Input and rendering receive a dispatcher turn between every optional
             // initializer, keeping the already-visible shell navigable.
-            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+            await System.Windows.Threading.Dispatcher.Yield(
+                System.Windows.Threading.DispatcherPriority.Background);
             try
             {
                 initialize();

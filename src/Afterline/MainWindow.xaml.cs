@@ -317,8 +317,9 @@ public partial class MainWindow : Window
 
             const int maximumBatch = 75;
             int added = 0;
-            while (added < maximumBatch && _pendingLiveMessages.TryDequeue(out ChatEntry entry))
+            while (added < maximumBatch && _pendingLiveMessages.TryDequeue(out ChatEntry? entry))
             {
+                if (entry is null) continue;
                 LiveMessages.Add(entry);
                 added++;
             }
