@@ -12,6 +12,7 @@ public partial class MainWindow
     private TextBlock? _liveSessionInfoText;
     private TextBlock? _captureHealthText;
     private DateTime? _localSessionObservedAt;
+    private int _liveSessionInfoUpdateScheduled;
 
     private void EnsureLiveSessionInfo()
     {
@@ -59,10 +60,22 @@ public partial class MainWindow
 
     private void LiveSessionInfo_MessageCaptured(object? sender, ChatEntry entry)
     {
-        Dispatcher.BeginInvoke(new Action(() =>
+        if (Interlocked.CompareExchange(ref _liveSessionInfoUpdateScheduled, 1, 0) != 0)
+            return;
+
+        _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new Action(() =>
         {
-            _localSessionObservedAt ??= DateTime.Now;
-            UpdateLiveSessionInformation();
+            try
+            {
+                _localSessionObservedAt ??= DateTime.Now;
+                UpdateLiveSessionInformation();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _liveSessionInfoUpdateScheduled, 0);
+            }
         }));
     }
 
@@ -95,8 +108,22 @@ public partial class MainWindow
         switch (_capture.State)
         {
             case CaptureState.Capturing:
-                health = string.IsNullOrWhiteSpace(_capture.LastError) ? "Capture health: Healthy" : "Capture health: Recovering";
-                brushKey = string.IsNullOrWhiteSpace(_capture.LastError) ? "Success" : "Warning";
+                DateTime? lastRead = _capture.LastSuccessfulReadAt;
+                if (lastRead is null || now - lastRead.Value > TimeSpan.FromSeconds(10))
+                {
+                    string age = lastRead is null
+                        ? "no successful check yet"
+                        : $"last check {Math.Max(0, (now - lastRead.Value).TotalSeconds):0}s ago";
+                    health = $"Capture health: Stalled · {age}";
+                    brushKey = "Warning";
+                }
+                else
+                {
+                    health = string.IsNullOrWhiteSpace(_capture.LastError)
+                        ? "Capture health: Healthy"
+                        : "Capture health: Recovering";
+                    brushKey = string.IsNullOrWhiteSpace(_capture.LastError) ? "Success" : "Warning";
+                }
                 break;
             case CaptureState.WaitingForNui:
                 health = "Capture health: Waiting for chat UI";

@@ -6,6 +6,15 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "29/AUG/2026", new[]
+        {
+            "Startup responsiveness — Opens the usable application shell first and prepares optional Editor and Settings features in deferred steps.",
+            "Archive loading — Shows cached recent sessions immediately and limits automatic discovery to the relevant dated folders.",
+            "Archive maintenance — Updates finalized chatlogs directly and reserves cancellable recursive rebuilding for a user-requested refresh.",
+            "Capture continuity — Keeps FiveM polling and journal writes independent of Live Chat rendering, with separate last-message and successful-check timestamps.",
+            "Freeze diagnostics — Persists five-second UI delays and fifteen-second freezes, recovers interrupted incidents after forced closure, and retains an exportable previous-session log.",
+            "Stress testing — Adds a packaged 10,000-chatlog archive test with cached, incremental, targeted, and simulated slow-storage cancellation checks."
+        }, ChangelogChannel.Canary, 185),
         new("0.7.0", "26/AUG/2026", new[]
         {
             "Capture shortcut activation — Confirm now saves and activates a recognized keyboard or Mouse 4/5 shortcut immediately, without requiring the separate Settings save action.",

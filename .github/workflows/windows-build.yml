@@ -141,6 +141,30 @@ jobs:
             throw "Afterline failed the session-recovery smoke test with code $($sessionTest.ExitCode)."
           }
 
+      - name: Stress test 10,000-chatlog archive
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $stressRoot = Join-Path $env:RUNNER_TEMP "afterline-archive-stress"
+          $log = Join-Path $env:LOCALAPPDATA "Afterline/Logs/afterline.log"
+          $stressTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-archive-stress", "`"$stressRoot`"") `
+            -PassThru
+          if (-not $stressTest.WaitForExit(120000)) {
+            Stop-Process -Id $stressTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the 10,000-chatlog archive stress test within 120 seconds."
+          }
+          if ($stressTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the 10,000-chatlog archive stress test with code $($stressTest.ExitCode)."
+          }
+          if (Test-Path $log) {
+            Get-Content $log | Select-String "Archive stress test passed"
+          }
+
       - name: Prepare uniquely identified Canary assets
         shell: pwsh
         run: |

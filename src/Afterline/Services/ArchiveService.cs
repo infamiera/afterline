@@ -5,6 +5,17 @@ using Afterline.Models;
 
 namespace Afterline.Services;
 
+public enum ArchiveScanMode
+{
+    FullRecursive,
+    DatedFoldersOnly
+}
+
+public sealed record ArchiveScanProgress(
+    string Phase,
+    int DiscoveredFiles,
+    int IndexedFiles);
+
 public sealed class ArchiveService
 {
     private static readonly Regex ArchiveName = new(
@@ -17,13 +28,29 @@ public sealed class ArchiveService
     };
 
     private static readonly SemaphoreSlim RebuildGate = new(1, 1);
+    private readonly TimeSpan _candidateInspectionDelay;
+    private readonly Action<string>? _candidateObserver;
+
+    public ArchiveService()
+    {
+    }
+
+    internal ArchiveService(
+        TimeSpan candidateInspectionDelay,
+        Action<string>? candidateObserver = null)
+    {
+        _candidateInspectionDelay = candidateInspectionDelay;
+        _candidateObserver = candidateObserver;
+    }
 
     public async Task<IReadOnlyList<SessionIndexEntry>> RebuildIndexAsync(
         string root,
         CancellationToken cancellationToken,
         DateTime? fromDate = null,
         DateTime? toDate = null,
-        int? maxEntries = null)
+        int? maxEntries = null,
+        ArchiveScanMode scanMode = ArchiveScanMode.FullRecursive,
+        IProgress<ArchiveScanProgress>? progress = null)
     {
         if (maxEntries is <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxEntries));
@@ -46,36 +73,51 @@ public sealed class ArchiveService
             PriorityQueue<ArchiveCandidate, DateTime>? newestCandidates = maxEntries.HasValue
                 ? new PriorityQueue<ArchiveCandidate, DateTime>(maxEntries.Value + 1)
                 : null;
-            if (Directory.Exists(root))
+            int discoveredFiles = 0;
+            progress?.Report(new ArchiveScanProgress("Discovering chatlogs", 0, 0));
+            foreach (string file in EnumerateArchiveFiles(
+                         root,
+                         scanMode,
+                         normalizedFrom,
+                         normalizedTo))
             {
-                foreach (string file in Directory.EnumerateFiles(root, "*.txt", SearchOption.AllDirectories))
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_candidateInspectionDelay > TimeSpan.Zero)
+                    await Task.Delay(_candidateInspectionDelay, cancellationToken).ConfigureAwait(false);
+                _candidateObserver?.Invoke(file);
+
+                if (file.Contains(
+                        $"{Path.DirectorySeparatorChar}.active{Path.DirectorySeparatorChar}",
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                discoveredFiles++;
+                if (discoveredFiles % 100 == 0)
+                    progress?.Report(new ArchiveScanProgress(
+                        "Discovering chatlogs",
+                        discoveredFiles,
+                        0));
+
+                var info = new FileInfo(file);
+                DateTime archiveDate = ResolveArchiveDate(file, info.LastWriteTime);
+                if (!MatchesDateRange(archiveDate, normalizedFrom, normalizedTo))
+                    continue;
+
+                var candidate = new ArchiveCandidate(
+                    file,
+                    info.LastWriteTimeUtc,
+                    info.Length);
+                if (newestCandidates is null)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (file.Contains(
-                            $"{Path.DirectorySeparatorChar}.active{Path.DirectorySeparatorChar}",
-                            StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var info = new FileInfo(file);
-                    DateTime archiveDate = ResolveArchiveDate(file, info.LastWriteTime);
-                    if (!MatchesDateRange(archiveDate, normalizedFrom, normalizedTo))
-                        continue;
-
-                    var candidate = new ArchiveCandidate(
-                        file,
-                        info.LastWriteTimeUtc,
-                        info.Length);
-                    if (newestCandidates is null)
-                    {
-                        candidates.Add(candidate);
-                    }
-                    else
-                    {
-                        newestCandidates.Enqueue(candidate, candidate.LastWriteUtc);
-                        if (newestCandidates.Count > maxEntries!.Value)
-                            newestCandidates.Dequeue();
-                    }
+                    candidates.Add(candidate);
                 }
+                else
+                {
+                    newestCandidates.Enqueue(candidate, candidate.LastWriteUtc);
+                    if (newestCandidates.Count > maxEntries!.Value)
+                        newestCandidates.Dequeue();
+                }
+
             }
 
             if (newestCandidates is not null)
@@ -89,6 +131,11 @@ public sealed class ArchiveService
             candidates.Sort((left, right) => right.LastWriteUtc.CompareTo(left.LastWriteUtc));
 
             var refreshedEntries = new List<SessionIndexEntry>(candidates.Count);
+            int indexedFiles = 0;
+            progress?.Report(new ArchiveScanProgress(
+                "Updating archive index",
+                discoveredFiles,
+                0));
             foreach (ArchiveCandidate candidate in candidates)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -118,6 +165,12 @@ public sealed class ArchiveService
                         SizeBytes = candidate.SizeBytes,
                         LineCount = lineCount
                     });
+                    indexedFiles++;
+                    if (indexedFiles % 50 == 0 || indexedFiles == candidates.Count)
+                        progress?.Report(new ArchiveScanProgress(
+                            "Updating archive index",
+                            discoveredFiles,
+                            indexedFiles));
                 }
                 catch (IOException ex)
                 {
@@ -152,9 +205,19 @@ public sealed class ArchiveService
             completeIndex.Sort((left, right) => right.LastWriteUtc.CompareTo(left.LastWriteUtc));
 
             if (File.Exists(AppPaths.ArchiveIndexFile) && IndexesMatch(cached, completeIndex))
+            {
+                progress?.Report(new ArchiveScanProgress(
+                    "Archive index ready",
+                    discoveredFiles,
+                    indexedFiles));
                 return refreshedEntries;
+            }
 
             await WriteIndexAsync(completeIndex, cancellationToken).ConfigureAwait(false);
+            progress?.Report(new ArchiveScanProgress(
+                "Archive index ready",
+                discoveredFiles,
+                indexedFiles));
             return refreshedEntries;
         }
         finally
@@ -178,6 +241,55 @@ public sealed class ArchiveService
         string FilePath,
         DateTime LastWriteUtc,
         long SizeBytes);
+
+    private static IEnumerable<string> EnumerateArchiveFiles(
+        string root,
+        ArchiveScanMode scanMode,
+        DateTime? fromDate,
+        DateTime? toDate)
+    {
+        if (!Directory.Exists(root)) yield break;
+
+        if (scanMode == ArchiveScanMode.FullRecursive ||
+            fromDate is null ||
+            toDate is null)
+        {
+            foreach (string file in Directory.EnumerateFiles(
+                         root,
+                         "*.txt",
+                         SearchOption.AllDirectories))
+                yield return file;
+            yield break;
+        }
+
+        // Older Afterline versions could store chatlogs directly in the archive
+        // root. Inspect that one legacy level without walking every subfolder.
+        foreach (string file in Directory.EnumerateFiles(
+                     root,
+                     "*.txt",
+                     SearchOption.TopDirectoryOnly))
+            yield return file;
+
+        DateTime cursor = new(fromDate.Value.Year, fromDate.Value.Month, 1);
+        DateTime lastMonth = new(toDate.Value.Year, toDate.Value.Month, 1);
+        while (cursor <= lastMonth)
+        {
+            string monthFolder = Path.Combine(
+                root,
+                cursor.ToString("yyyy", CultureInfo.InvariantCulture),
+                cursor.ToString("MM - MMMM", CultureInfo.InvariantCulture));
+            if (Directory.Exists(monthFolder))
+            {
+                foreach (string file in Directory.EnumerateFiles(
+                             monthFolder,
+                             "*.txt",
+                             SearchOption.TopDirectoryOnly))
+                    yield return file;
+            }
+
+            cursor = cursor.AddMonths(1);
+        }
+    }
 
     private static DateTime ResolveArchiveDate(string filePath, DateTime fallback)
     {

@@ -268,7 +268,9 @@ public partial class MainWindow
 
     private void Capture_ServerSessionChanged(object? sender, ServerSessionChangedEventArgs e)
     {
-        Dispatcher.Invoke(() => UpdateServerStatus(e.Server));
+        _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new Action(() => UpdateServerStatus(e.Server)));
     }
 
     private void UpdateServerStatus(ServerSessionInfo? server)

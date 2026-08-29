@@ -7,6 +7,8 @@ public static class AppPaths
 
     public static string SettingsFile => Path.Combine(LocalDataRoot, "settings.json");
     public static string DiagnosticLog => Path.Combine(LocalDataRoot, "Logs", "afterline.log");
+    public static string DiagnosticPreviousSessionLog => Path.Combine(LocalDataRoot, "Logs", "afterline.previous-session.log");
+    public static string DiagnosticPreviousSessionBackup => DiagnosticPreviousSessionLog + ".1";
     public static string DiagnosticBuildMarker => Path.Combine(LocalDataRoot, "Logs", "diagnostic-build.txt");
     public static string DiagnosticRunState => Path.Combine(LocalDataRoot, "Logs", "run-state.json");
     public static string ArchiveIndexFile => Path.Combine(LocalDataRoot, "Cache", "archive-index.json");

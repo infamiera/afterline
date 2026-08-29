@@ -24,10 +24,12 @@ public partial class MainWindow
 
     private void Capture_CachedSessionReplayStarting(object? sender, EventArgs e)
     {
-        Dispatcher.Invoke(() =>
-        {
-            LiveMessages.Clear();
-            LiveCountText.Text = "0 messages shown";
-        });
+        _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Normal,
+            new Action(() =>
+            {
+                LiveMessages.Clear();
+                LiveCountText.Text = "0 messages shown";
+            }));
     }
 }

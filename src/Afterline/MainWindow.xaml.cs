@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -24,6 +25,13 @@ public partial class MainWindow : Window
         ArchivePage
     }
 
+    private enum ArchiveRefreshMode
+    {
+        CachedOnly,
+        RecentFolders,
+        FullRecursive
+    }
+
     private readonly SettingsService _settingsService = new();
     private readonly SessionJournal _journal = new();
     private readonly ArchiveService _archiveService = new();
@@ -45,6 +53,10 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _archiveRefreshCts;
     private int _archiveRefreshVersion;
     private IReadOnlyList<SessionIndexEntry> _dashboardRecentSessions = Array.Empty<SessionIndexEntry>();
+    private bool _manualArchiveRefreshInProgress;
+    private bool _manualArchiveRefreshCancelled;
+    private readonly ConcurrentQueue<ChatEntry> _pendingLiveMessages = new();
+    private int _liveMessageDrainScheduled;
 
     public MainWindow()
     {
@@ -79,17 +91,24 @@ public partial class MainWindow : Window
         {
             DiagnosticLogger.Error("Unable to repair the Windows startup registration.", ex);
         }
-        PopulateSettingsUi();
+        StreamerModePresentationService.Enabled = _settings.StreamerModeEnabled;
         SetupTrayIcon();
         ShowPage(DashboardPage, "Dashboard", "FiveM capture and session overview");
+        DiagnosticLogger.Info("Startup: responsive shell displayed.");
 
         try
         {
-            Directory.CreateDirectory(_settings.ArchiveRoot);
-            await _capture.StartAsync();
+            await RunStartupStageAsync("cached archive load", async () =>
+            {
+                Directory.CreateDirectory(_settings.ArchiveRoot);
+                await RefreshArchiveAsync(
+                    ArchiveRefreshScope.Dashboard,
+                    ArchiveRefreshMode.CachedOnly);
+            });
+            await RunStartupStageAsync("capture initialization", () => _capture.StartAsync());
             _processor.Start();
-            await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
             _uiTimer.Start();
+            _ = RefreshRecentArchiveAfterStartupAsync();
         }
         catch (Exception ex)
         {
@@ -102,6 +121,41 @@ public partial class MainWindow : Window
             _uiTimer.Stop();
             Hide();
             ShowInTaskbar = false;
+        }
+    }
+
+    private static async Task RunStartupStageAsync(string stage, Func<Task> action)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        DiagnosticLogger.Info($"Startup: {stage} started.");
+        try
+        {
+            await action();
+            DiagnosticLogger.Info($"Startup: {stage} completed in {stopwatch.ElapsedMilliseconds:N0} ms.");
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error(
+                $"Startup: {stage} failed after {stopwatch.ElapsedMilliseconds:N0} ms.",
+                ex);
+            throw;
+        }
+    }
+
+    private async Task RefreshRecentArchiveAfterStartupAsync()
+    {
+        try
+        {
+            await RunStartupStageAsync("recent archive scan", () => RefreshArchiveAsync(
+                ArchiveRefreshScope.Dashboard,
+                ArchiveRefreshMode.RecentFolders));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Startup: recent archive scan failed; the cached dashboard remains available.", ex);
         }
     }
 
@@ -219,32 +273,90 @@ public partial class MainWindow : Window
 
     private void Capture_MessageCaptured(object? sender, ChatEntry entry)
     {
-        Dispatcher.Invoke(() =>
+        if (!_settings.ShowLiveChat)
+            return;
+
+        _pendingLiveMessages.Enqueue(entry);
+        int pendingLimit = Math.Max(100, _settings.MaxLiveMessages);
+        while (_pendingLiveMessages.Count > pendingLimit &&
+               _pendingLiveMessages.TryDequeue(out _))
         {
-            if (!_settings.ShowLiveChat) return;
-            LiveMessages.Add(entry);
-            while (LiveMessages.Count > Math.Max(100, _settings.MaxLiveMessages)) LiveMessages.RemoveAt(0);
+        }
+
+        ScheduleLiveMessageDrain();
+    }
+
+    private void ScheduleLiveMessageDrain()
+    {
+        if (Interlocked.CompareExchange(ref _liveMessageDrainScheduled, 1, 0) != 0)
+            return;
+
+        try
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Background,
+                new Action(DrainPendingLiveMessages));
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref _liveMessageDrainScheduled, 0);
+        }
+    }
+
+    private void DrainPendingLiveMessages()
+    {
+        try
+        {
+            if (!_settings.ShowLiveChat)
+            {
+                while (_pendingLiveMessages.TryDequeue(out _))
+                {
+                }
+                return;
+            }
+
+            const int maximumBatch = 75;
+            int added = 0;
+            while (added < maximumBatch && _pendingLiveMessages.TryDequeue(out ChatEntry entry))
+            {
+                LiveMessages.Add(entry);
+                added++;
+            }
+
+            int visibleLimit = Math.Max(100, _settings.MaxLiveMessages);
+            while (LiveMessages.Count > visibleLimit)
+                LiveMessages.RemoveAt(0);
+
+            if (added == 0) return;
             LiveCountText.Text = $"{LiveMessages.Count:N0} messages shown";
             if (_settings.AutoScrollLiveChat && LiveMessages.Count > 0)
                 LiveChatList.ScrollIntoView(LiveMessages[^1]);
-        });
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _liveMessageDrainScheduled, 0);
+            if (!_pendingLiveMessages.IsEmpty)
+                ScheduleLiveMessageDrain();
+        }
     }
 
-    private void Capture_StateChanged(object? sender, CaptureState state) => Dispatcher.Invoke(UpdateStatusUi);
+    private void Capture_StateChanged(object? sender, CaptureState state)
+        => _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(UpdateStatusUi));
 
     private async void Capture_SessionFinalized(object? sender, string path)
     {
         DiagnosticLogger.Info($"Session archived: {path}");
         try
         {
-            await _processor.ProcessNowAsync();
             bool indexed = await _archiveService.EnsureFileIndexedAsync(
                 _settings.ArchiveRoot,
                 path,
                 CancellationToken.None);
             if (!indexed)
                 throw new IOException("The finalized chatlog could not be verified in the archive index.");
-            await Dispatcher.InvokeAsync(() => RefreshArchiveAsync(ArchiveRefreshScope.Dashboard)).Task.Unwrap();
+            await Dispatcher.InvokeAsync(() => RefreshArchiveAsync(
+                ArchiveRefreshScope.Dashboard,
+                ArchiveRefreshMode.CachedOnly)).Task.Unwrap();
             await Dispatcher.InvokeAsync(() => ShowSessionArchivedNotification(path));
         }
         catch (Exception ex)
@@ -253,7 +365,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Processor_Processed(object? sender, EventArgs e) => Dispatcher.Invoke(UpdateStatusUi);
+    private void Processor_Processed(object? sender, EventArgs e)
+        => _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(UpdateStatusUi));
 
     private void UiTimer_Tick(object? sender, EventArgs e)
     {
@@ -275,9 +388,12 @@ public partial class MainWindow : Window
             SessionTimeText.Text = "No active session";
         }
 
+        string pollStatus = _capture.LastSuccessfulReadAt is DateTime checkedAt
+            ? $"Last successful capture check {Math.Max(0, (DateTime.Now - checkedAt).TotalSeconds):0}s ago"
+            : "Waiting for a successful FiveM check";
         AutosaveText.Text = _capture.LastCaptureAt is DateTime last
-            ? $"Last write {(DateTime.Now - last).TotalSeconds:0}s ago"
-            : "Waiting for first chat message";
+            ? $"Last message saved {Math.Max(0, (DateTime.Now - last).TotalSeconds):0}s ago · {pollStatus}"
+            : $"Waiting for first chat message · {pollStatus}";
     }
 
     private void UpdateStatusUi()
@@ -326,7 +442,10 @@ public partial class MainWindow : Window
         BottomStatusText.Text = $"Afterline {GetCurrentBuildVersion()}{processInfo}{channel}";
     }
 
-    private async Task RefreshArchiveAsync(ArchiveRefreshScope scope)
+    private async Task RefreshArchiveAsync(
+        ArchiveRefreshScope scope,
+        ArchiveRefreshMode mode = ArchiveRefreshMode.CachedOnly,
+        IProgress<ArchiveScanProgress>? progress = null)
     {
         int refreshVersion = Interlocked.Increment(ref _archiveRefreshVersion);
         _archiveRefreshCts?.Cancel();
@@ -343,29 +462,59 @@ public partial class MainWindow : Window
         IReadOnlyList<SessionIndexEntry> entries;
         try
         {
-            // The filesystem walk and any first-time line counts must never run on
-            // WPF's dispatcher. This keeps navigation and the new filters responsive
-            // even when the archive contains thousands of text files.
-            entries = await Task.Run(
-                () => _archiveService.RebuildIndexAsync(
+            if (mode == ArchiveRefreshMode.CachedOnly)
+            {
+                entries = await Task.Run(() => FilterCachedArchiveEntriesV071(
+                    _archiveService.LoadCachedIndex(),
                     _settings.ArchiveRoot,
-                    cancellationToken,
                     fromDate,
                     toDate,
-                    maxEntries),
-                cancellationToken);
+                    maxEntries), cancellationToken);
+            }
+            else
+            {
+                // File discovery, metadata inspection, and first-time line counts
+                // always stay off WPF's dispatcher. Automatic refreshes inspect
+                // only the year/month folders intersecting the requested range.
+                ArchiveScanMode scanMode = mode == ArchiveRefreshMode.RecentFolders
+                    ? ArchiveScanMode.DatedFoldersOnly
+                    : ArchiveScanMode.FullRecursive;
+                IReadOnlyList<SessionIndexEntry> rebuilt = await Task.Run(
+                    () => _archiveService.RebuildIndexAsync(
+                        _settings.ArchiveRoot,
+                        cancellationToken,
+                        mode == ArchiveRefreshMode.FullRecursive ? null : fromDate,
+                        mode == ArchiveRefreshMode.FullRecursive ? null : toDate,
+                        mode == ArchiveRefreshMode.FullRecursive ? null : maxEntries,
+                        scanMode,
+                        progress),
+                    cancellationToken);
+                entries = mode == ArchiveRefreshMode.FullRecursive
+                    ? await Task.Run(() => FilterCachedArchiveEntriesV071(
+                        rebuilt,
+                        _settings.ArchiveRoot,
+                        fromDate,
+                        toDate,
+                        maxEntries), cancellationToken)
+                    : rebuilt;
+            }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (mode != ArchiveRefreshMode.FullRecursive)
         {
             return;
         }
+        catch (Exception) when (mode == ArchiveRefreshMode.FullRecursive)
+        {
+            throw;
+        }
         catch
         {
-            entries = FilterCachedArchiveEntriesV071(
+            entries = await Task.Run(() => FilterCachedArchiveEntriesV071(
                 _archiveService.LoadCachedIndex(),
+                _settings.ArchiveRoot,
                 fromDate,
                 toDate,
-                maxEntries);
+                maxEntries));
         }
 
         if (refreshVersion != _archiveRefreshVersion || cancellationToken.IsCancellationRequested)
@@ -379,11 +528,12 @@ public partial class MainWindow : Window
 
         IReadOnlyList<SessionIndexEntry> dashboardEntries = scope == ArchiveRefreshScope.Dashboard
             ? entries
-            : FilterCachedArchiveEntriesV071(
+            : await Task.Run(() => FilterCachedArchiveEntriesV071(
                 _archiveService.LoadCachedIndex(),
+                _settings.ArchiveRoot,
                 DateTime.Today.AddDays(-(DashboardArchiveDays - 1)),
                 DateTime.Today,
-                DashboardArchiveScanLimit);
+                DashboardArchiveScanLimit));
         _dashboardRecentSessions = dashboardEntries.Take(8).ToArray();
         RecentlyParsedLogs.ReplaceAll(dashboardEntries.Take(14));
 
@@ -491,13 +641,17 @@ public partial class MainWindow : Window
     private async void SearchNav_Click(object sender, RoutedEventArgs e)
     {
         ShowPage(SearchPage, "Search", "Search one or multiple terms across your chatlog folders");
-        await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
+        await RefreshArchiveAsync(
+            ArchiveRefreshScope.Dashboard,
+            ArchiveRefreshMode.CachedOnly);
     }
 
     private async void ArchiveNav_Click(object sender, RoutedEventArgs e)
     {
         ShowPage(ArchivePage, "Archive", "Browse plain-text sessions organized by year and month");
-        await RefreshArchiveAsync(ArchiveRefreshScope.ArchivePage);
+        await RefreshArchiveAsync(
+            ArchiveRefreshScope.ArchivePage,
+            ArchiveRefreshMode.CachedOnly);
     }
 
     private void SettingsNav_Click(object sender, RoutedEventArgs e) => ShowPage(SettingsPage, "Settings", "Capture, startup, processing and chatlog storage preferences");
@@ -505,20 +659,89 @@ public partial class MainWindow : Window
     private async void FinishSession_Click(object sender, RoutedEventArgs e)
     {
         await _capture.FinishSessionAsync();
-        await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
+        await RefreshArchiveAsync(
+            ArchiveRefreshScope.Dashboard,
+            ArchiveRefreshMode.CachedOnly);
     }
 
     private async void RefreshArchive_Click(object sender, RoutedEventArgs e)
-        => await RefreshArchiveAsync(
-            ArchivePage.Visibility == Visibility.Visible
-                ? ArchiveRefreshScope.ArchivePage
-                : ArchiveRefreshScope.Dashboard);
+    {
+        if (_manualArchiveRefreshInProgress)
+        {
+            _manualArchiveRefreshCancelled = true;
+            _archiveRefreshCts?.Cancel();
+            return;
+        }
+
+        _manualArchiveRefreshInProgress = true;
+        _manualArchiveRefreshCancelled = false;
+        bool failed = false;
+        SetManualArchiveRefreshUi(true, "Scanning… 0 files");
+        var progress = new Progress<ArchiveScanProgress>(UpdateManualArchiveProgress);
+        var stopwatch = Stopwatch.StartNew();
+        DiagnosticLogger.Info("Archive scan: user-requested full rebuild started.");
+        try
+        {
+            await RefreshArchiveAsync(
+                ArchivePage.Visibility == Visibility.Visible
+                    ? ArchiveRefreshScope.ArchivePage
+                    : ArchiveRefreshScope.Dashboard,
+                ArchiveRefreshMode.FullRecursive,
+                progress);
+            DiagnosticLogger.Info(
+                $"Archive scan: user-requested full rebuild completed in {stopwatch.ElapsedMilliseconds:N0} ms.");
+        }
+        catch (OperationCanceledException)
+        {
+            _manualArchiveRefreshCancelled = true;
+            DiagnosticLogger.Info(
+                $"Archive scan: user-requested full rebuild cancelled after {stopwatch.ElapsedMilliseconds:N0} ms.");
+        }
+        catch (Exception ex)
+        {
+            failed = true;
+            DiagnosticLogger.Error(
+                $"Archive scan: user-requested full rebuild failed after {stopwatch.ElapsedMilliseconds:N0} ms.",
+                ex);
+        }
+        finally
+        {
+            string status = failed
+                ? "Archive scan failed. See Error Logs."
+                : _manualArchiveRefreshCancelled
+                    ? "Archive scan cancelled."
+                    : "Archive index refreshed.";
+            SetManualArchiveRefreshUi(false, status);
+            _manualArchiveRefreshInProgress = false;
+        }
+    }
+
+    private void UpdateManualArchiveProgress(ArchiveScanProgress progress)
+    {
+        string text = progress.Phase == "Updating archive index"
+            ? $"Indexing… {progress.IndexedFiles:N0} files"
+            : $"Scanning… {progress.DiscoveredFiles:N0} files";
+        SetManualArchiveRefreshUi(true, text);
+    }
+
+    private void SetManualArchiveRefreshUi(bool inProgress, string status)
+    {
+        DashboardRefreshArchiveButton.Content = inProgress ? "Cancel scan" : "Refresh archive";
+        ArchiveRefreshButton.Content = inProgress ? "Cancel scan" : "Refresh";
+        if (_archiveFilterStatusV071 is not null)
+        {
+            _archiveFilterStatusV071.Foreground = (Brush)FindResource("MutedText");
+            _archiveFilterStatusV071.Text = status;
+        }
+    }
 
     private async void RefreshSearch_Click(object sender, RoutedEventArgs e)
     {
         SearchSummaryText.Text = "Refreshing parsed logs…";
         await _processor.ProcessNowAsync();
-        await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
+        await RefreshArchiveAsync(
+            ArchiveRefreshScope.Dashboard,
+            ArchiveRefreshMode.CachedOnly);
         SearchSummaryText.Text = "Parsed log list refreshed.";
     }
 
@@ -675,7 +898,9 @@ public partial class MainWindow : Window
             ApplyStreamerModePresentationV075();
             ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
             LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
-            await RefreshArchiveAsync(ArchiveRefreshScope.Dashboard);
+            await RefreshArchiveAsync(
+                ArchiveRefreshScope.Dashboard,
+                ArchiveRefreshMode.CachedOnly);
 
             SettingsSavedText.Text = "Saved";
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
