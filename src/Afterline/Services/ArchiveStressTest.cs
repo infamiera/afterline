@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using Afterline.Models;
@@ -109,7 +108,6 @@ internal static class ArchiveStressTest
 
     private static void CreateChatlogs(string root)
     {
-        var folders = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         Parallel.For(
             0,
             ChatlogCount,
@@ -121,7 +119,10 @@ internal static class ArchiveStressTest
                     root,
                     date.ToString("yyyy", CultureInfo.InvariantCulture),
                     date.ToString("MM - MMMM", CultureInfo.InvariantCulture));
-                if (folders.TryAdd(folder, 0)) Directory.CreateDirectory(folder);
+                // Directory.CreateDirectory is idempotent and concurrency-safe.
+                // Every worker calls it so no writer can outrun a separate
+                // thread that merely reserved the folder name.
+                Directory.CreateDirectory(folder);
 
                 string displayDate = date.ToString("dd-MMMM-yyyy", CultureInfo.InvariantCulture);
                 string path = Path.Combine(

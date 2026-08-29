@@ -14,7 +14,7 @@ internal static class CanaryChangelogData
             "Capture continuity — Keeps FiveM polling and journal writes independent of Live Chat rendering, with separate last-message and successful-check timestamps.",
             "Freeze diagnostics — Persists five-second UI delays and fifteen-second freezes, recovers interrupted incidents after forced closure, and retains an exportable previous-session log.",
             "Stress testing — Adds a packaged 10,000-chatlog archive test with cached, incremental, targeted, and simulated slow-storage cancellation checks."
-        }, ChangelogChannel.Canary, 186),
+        }, ChangelogChannel.Canary, 187),
         new("0.7.0", "26/AUG/2026", new[]
         {
             "Capture shortcut activation — Confirm now saves and activates a recognized keyboard or Mouse 4/5 shortcut immediately, without requiring the separate Settings save action.",
