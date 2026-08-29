@@ -259,12 +259,15 @@ public partial class MainWindow
 
     private static IReadOnlyList<SessionIndexEntry> FilterCachedArchiveEntriesV071(
         IReadOnlyList<SessionIndexEntry> entries,
+        string archiveRoot,
         DateTime? fromDate,
         DateTime? toDate,
         int maxEntries)
         => entries
             .Where(entry =>
             {
+                if (!IsArchiveEntryInsideRootV071(entry.FilePath, archiveRoot))
+                    return false;
                 DateTime date = ResolveArchiveEntryDateV071(entry);
                 return (!fromDate.HasValue || date >= fromDate.Value.Date) &&
                        (!toDate.HasValue || date <= toDate.Value.Date);
@@ -272,6 +275,22 @@ public partial class MainWindow
             .OrderByDescending(entry => entry.LastWriteUtc)
             .Take(maxEntries)
             .ToArray();
+
+    private static bool IsArchiveEntryInsideRootV071(string filePath, string archiveRoot)
+    {
+        try
+        {
+            string root = Path.GetFullPath(archiveRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+            return Path.GetFullPath(filePath)
+                .StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private static DateTime ResolveArchiveEntryDateV071(SessionIndexEntry entry)
     {

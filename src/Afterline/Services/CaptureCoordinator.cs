@@ -34,9 +34,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private DateTime? _nuiUnavailableSince;
     private ServerSessionInfo? _currentServer;
     private bool _resumedSessionAwaitingValidation;
+    private string? _lastCaptureFailureSignature;
+    private DateTime _lastCaptureFailureLoggedUtc = DateTime.MinValue;
 
     public CaptureState State { get; private set; } = CaptureState.Stopped;
     public DateTime? LastCaptureAt { get; private set; }
+    public DateTime? LastSuccessfulReadAt { get; private set; }
     public string? LastError { get; private set; }
     public ServerSessionInfo? CurrentServer => _currentServer;
 
@@ -86,6 +89,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     AppSettings settings = _settings();
                     IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    LastSuccessfulReadAt = DateTime.Now;
                     string[] currentText = current.Select(line => line.Text).ToArray();
                     await TryWriteRawSnapshotAsync(
                         current,
@@ -120,6 +124,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 {
                     liveReadError = ex;
                     LastError = ex.Message;
+                    LogCaptureFailure("Manual current-chat read failed.", ex);
                     await _reader.ResetAsync();
                 }
             }
@@ -174,6 +179,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
             IReadOnlyList<CapturedChatLine> current =
                 await _reader.ReadVisibleLinesAsync(_cts.Token);
+            LastSuccessfulReadAt = DateTime.Now;
             string[] currentText = current.Select(line => line.Text).ToArray();
             bool visibleChatChanged = !_previousVisible.SequenceEqual(
                 currentText,
@@ -216,6 +222,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         catch (Exception ex)
         {
             LastError = ex.Message;
+            LogCaptureFailure("Manual FiveM reconnection failed.", ex);
             await _reader.ResetAsync();
             SetState(CaptureState.WaitingForNui);
             throw new InvalidOperationException(
@@ -271,6 +278,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 {
                     IReadOnlyList<CapturedChatLine> current =
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    LastSuccessfulReadAt = DateTime.Now;
                     string[] currentText = current.Select(line => line.Text).ToArray();
                     bool visibleChatChanged = !_previousVisible.SequenceEqual(
                         currentText,
@@ -310,6 +318,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 catch (Exception ex)
                 {
                     LastError = ex.Message;
+                    LogCaptureFailure("Automatic FiveM chat polling failed; capture will retry.", ex);
                     await _reader.ResetAsync();
                     await HandleNuiUnavailableCoreAsync(
                         settings,
@@ -401,6 +410,21 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
 
         return captured;
+    }
+
+    private void LogCaptureFailure(string context, Exception exception)
+    {
+        string signature = $"{exception.GetType().FullName}:{exception.Message}";
+        DateTime now = DateTime.UtcNow;
+        if (string.Equals(signature, _lastCaptureFailureSignature, StringComparison.Ordinal) &&
+            now - _lastCaptureFailureLoggedUtc < TimeSpan.FromSeconds(60))
+        {
+            return;
+        }
+
+        _lastCaptureFailureSignature = signature;
+        _lastCaptureFailureLoggedUtc = now;
+        DiagnosticLogger.Error(context, exception);
     }
 
     private async Task HandleObservedServerCoreAsync(

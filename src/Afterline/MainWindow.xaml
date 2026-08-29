@@ -145,7 +145,7 @@
                         </StackPanel>
                         <ListBox x:Name="RecentSessionsList" Grid.Row="2" BorderThickness="0" Background="Transparent" MouseDoubleClick="RecentSessionsList_MouseDoubleClick"/>
                         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Refresh archive" Click="RefreshArchive_Click" Margin="0,0,8,0"/>
+                            <Button x:Name="DashboardRefreshArchiveButton" Content="Refresh archive" Click="RefreshArchive_Click" Margin="0,0,8,0"/>
                             <Button Content="Finish Session" Style="{StaticResource PrimaryButton}" Click="FinishSession_Click"/>
                         </StackPanel>
                     </Grid>
@@ -331,7 +331,7 @@
                                     <TextBlock x:Name="ArchiveRootText" Foreground="{StaticResource MutedText}" Margin="0,4,0,0"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="Refresh" Margin="0,0,8,0" Click="RefreshArchive_Click"/>
+                                    <Button x:Name="ArchiveRefreshButton" Content="Refresh" Margin="0,0,8,0" Click="RefreshArchive_Click"/>
                                     <Button Content="Open folder" Click="OpenArchiveFolder_Click"/>
                                 </StackPanel>
                             </Grid>

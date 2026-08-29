@@ -13,6 +13,8 @@ internal sealed class DiagnosticsWindow : Window
     private readonly TextBox _errorText;
     private readonly TextBlock _summary;
     private readonly TextBlock _exportStatus;
+    private readonly Button _previousSessionButton;
+    private bool _showingPreviousSession;
 
     public DiagnosticsWindow(Window owner)
     {
@@ -50,6 +52,23 @@ internal sealed class DiagnosticsWindow : Window
         };
         headingCopy.Children.Add(_summary);
         heading.Children.Add(headingCopy);
+        var headingActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _previousSessionButton = new Button
+        {
+            Content = "Previous session",
+            Padding = new Thickness(12, 7, 12, 7),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        _previousSessionButton.Click += (_, _) =>
+        {
+            _showingPreviousSession = !_showingPreviousSession;
+            RefreshErrors();
+        };
+        headingActions.Children.Add(_previousSessionButton);
         var refresh = new Button
         {
             Content = "Refresh",
@@ -57,8 +76,9 @@ internal sealed class DiagnosticsWindow : Window
             VerticalAlignment = VerticalAlignment.Center
         };
         refresh.Click += (_, _) => RefreshErrors();
-        Grid.SetColumn(refresh, 1);
-        heading.Children.Add(refresh);
+        headingActions.Children.Add(refresh);
+        Grid.SetColumn(headingActions, 1);
+        heading.Children.Add(headingActions);
         root.Children.Add(heading);
 
         var support = new Border
@@ -79,7 +99,7 @@ internal sealed class DiagnosticsWindow : Window
         });
         supportCopy.Children.Add(new TextBlock
         {
-            Text = "Send a message there and include the exported .txt file so it can be diagnosed. Nothing is uploaded automatically.",
+            Text = "Exports include bounded current and previous-session diagnostic timelines so startup delays and recovered freezes can be diagnosed. Nothing is uploaded automatically.",
             Foreground = (Brush)FindResource("MutedText"),
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
@@ -156,13 +176,25 @@ internal sealed class DiagnosticsWindow : Window
 
     private void RefreshErrors()
     {
-        IReadOnlyList<string> errors = DiagnosticLogger.ReadRecentErrors(100);
+        IReadOnlyList<string> errors = _showingPreviousSession
+            ? DiagnosticLogger.ReadPreviousSessionErrors(100)
+            : DiagnosticLogger.ReadRecentErrors(100);
+        _previousSessionButton.Content = _showingPreviousSession
+            ? "Current logs"
+            : "Previous session";
+        _previousSessionButton.IsEnabled = _showingPreviousSession ||
+                                           DiagnosticLogger.HasPreviousSessionErrors;
         _summary.Text = errors.Count == 0
-            ? "No errors recorded for this build."
-            : $"Showing the {errors.Count} most recent error{(errors.Count == 1 ? string.Empty : "s")} from this build.";
+            ? _showingPreviousSession
+                ? "No errors were captured in the previous-session snapshot."
+                : "No errors recorded in the current diagnostic log."
+            : $"Showing the {errors.Count} most recent error{(errors.Count == 1 ? string.Empty : "s")} from " +
+              (_showingPreviousSession ? "the previous-session snapshot." : "the current diagnostic log.");
         _summary.Foreground = (Brush)FindResource(errors.Count == 0 ? "Success" : "Warning");
         _errorText.Text = errors.Count == 0
-            ? "Afterline has not recorded any errors since this update was installed. You can still export a report if support asks for one."
+            ? _showingPreviousSession
+                ? "No previous-session errors are available. Current and previous-session diagnostics are both included when an error report is exported."
+                : "Afterline has not recorded any current errors. You can still export a report if support asks for one."
             : string.Join(Environment.NewLine + new string('-', 78) + Environment.NewLine, errors);
         _errorText.Select(0, 0);
         _errorText.ScrollToLine(0);
@@ -172,7 +204,7 @@ internal sealed class DiagnosticsWindow : Window
     {
         MessageBoxResult choice = MessageBox.Show(
             this,
-            "Clear all diagnostic logs recorded for this Afterline build? This cannot be undone.",
+            "Clear the current diagnostic log and the retained previous-session snapshot? This cannot be undone.",
             "Clear Error Logs",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -181,6 +213,7 @@ internal sealed class DiagnosticsWindow : Window
 
         if (DiagnosticLogger.ClearErrors())
         {
+            _showingPreviousSession = false;
             _exportStatus.Foreground = (Brush)FindResource("Success");
             _exportStatus.Text = "Error logs cleared.";
             RefreshErrors();

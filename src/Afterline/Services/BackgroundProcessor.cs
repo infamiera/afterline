@@ -27,16 +27,15 @@ public sealed class BackgroundProcessor : IAsyncDisposable
 
     public async Task ProcessNowAsync(CancellationToken cancellationToken = default)
     {
-        // Routine processing only needs to discover today's and yesterday's
-        // sessions. Older files are indexed on demand when their Archive filter
-        // makes them visible, preventing large libraries from being rescanned
-        // every minute.
+        // Automatic processing is deliberately restricted to the current dated
+        // folders. A recursive walk is reserved for an explicit user refresh.
         await _archive.RebuildIndexAsync(
             _settings().ArchiveRoot,
             cancellationToken,
             DateTime.Today.AddDays(-1),
             DateTime.Today,
-            AutomaticArchiveEntryLimit);
+            AutomaticArchiveEntryLimit,
+            ArchiveScanMode.DatedFoldersOnly);
         LastProcessedAt = DateTime.Now;
         Processed?.Invoke(this, EventArgs.Empty);
     }

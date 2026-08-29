@@ -172,6 +172,8 @@ public partial class MainWindow
         {
             try
             {
+                VerifyCaptureEventDoesNotWaitForUiV077();
+
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                     throw new FileNotFoundException("The Editor smoke-test image is unavailable.", path);
 
@@ -401,6 +403,33 @@ public partial class MainWindow
                 System.Windows.Application.Current.Shutdown(1);
             }
         }), DispatcherPriority.ApplicationIdle);
+    }
+
+    private void VerifyCaptureEventDoesNotWaitForUiV077()
+    {
+        bool previousShowLiveChat = _settings.ShowLiveChat;
+        _settings.ShowLiveChat = true;
+        try
+        {
+            var smokeEntry = new Afterline.Models.ChatEntry(
+                DateTime.Now,
+                "[00:00:00] capture UI isolation smoke test");
+            Task delivery = Task.Run(() => Capture_MessageCaptured(this, smokeEntry));
+            if (!delivery.Wait(TimeSpan.FromSeconds(2)))
+            {
+                throw new InvalidOperationException(
+                    "Capture event delivery waited for the WPF dispatcher and could stall later journal writes.");
+            }
+
+            delivery.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            _settings.ShowLiveChat = previousShowLiveChat;
+            while (_pendingLiveMessages.TryDequeue(out _))
+            {
+            }
+        }
     }
 
     private void LayerListPointerDownV069(object sender, MouseButtonEventArgs e)

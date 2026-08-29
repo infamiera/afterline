@@ -120,6 +120,31 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        int archiveStressIndex = Array.FindIndex(e.Args, value => string.Equals(
+            value,
+            "--afterline-smoke-archive-stress",
+            StringComparison.OrdinalIgnoreCase));
+        if (archiveStressIndex >= 0)
+        {
+            try
+            {
+                string stressRoot = e.Args.Length > archiveStressIndex + 1
+                    ? e.Args[archiveStressIndex + 1]
+                    : throw new ArgumentException("The archive stress-test folder is missing.");
+                Task.Run(() => ArchiveStressTest.RunAsync(stressRoot))
+                    .GetAwaiter()
+                    .GetResult();
+                DiagnosticLogger.Info("Canary 10,000-chatlog archive stress test passed.");
+                Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                DiagnosticLogger.Error("Canary 10,000-chatlog archive stress test failed.", ex);
+                Environment.Exit(1);
+            }
+            return;
+        }
+
         ApplicationHealthMonitor.Start(Dispatcher);
 
         try

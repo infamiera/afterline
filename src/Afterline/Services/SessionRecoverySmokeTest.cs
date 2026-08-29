@@ -12,6 +12,8 @@ internal static class SessionRecoverySmokeTest
 
         Directory.CreateDirectory(archiveRoot);
         AppPaths.EnsureLocalDirectories();
+        ApplicationHealthMonitor.RunPersistenceSmokeTest(archiveRoot);
+        DiagnosticLogger.RunPreviousSessionSnapshotSmokeTest(archiveRoot);
 
         DateTime startedAt = DateTime.Today.AddHours(4).AddMinutes(40);
         var server = new ServerSessionInfo

@@ -307,19 +307,22 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         return valueElement.GetString();
     }
 
-    public async Task ResetAsync()
+    public Task ResetAsync()
     {
-        if (_socket is not null)
+        ClientWebSocket? socket = Interlocked.Exchange(ref _socket, null);
+        if (socket is not null)
         {
             try
             {
-                if (_socket.State == WebSocketState.Open)
-                    await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "reset", CancellationToken.None);
+                // This is a recovery path. A graceful close can itself wait on
+                // the unresponsive DevTools endpoint that prompted the reset.
+                socket.Abort();
             }
             catch { }
-
-            _socket.Dispose();
-            _socket = null;
+            finally
+            {
+                socket.Dispose();
+            }
         }
 
         _contextId = 0;
@@ -328,6 +331,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _lastResolutionAddress = null;
         _lastResolutionAttemptUtc = DateTime.MinValue;
         _lastExactVisibleText = Array.Empty<string>();
+        return Task.CompletedTask;
     }
 
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)

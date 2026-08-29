@@ -7,6 +7,7 @@ public static class DiagnosticLogger
 {
     private static readonly object Gate = new();
     private const int MaximumReportErrors = 250;
+    private const int MaximumDiagnosticTimelineLines = 400;
 
     public static event EventHandler? ErrorWritten;
     public static event EventHandler? LogsChanged;
@@ -19,12 +20,13 @@ public static class DiagnosticLogger
             string currentBuild = GetCurrentBuildIdentity();
             lock (Gate)
             {
+                SnapshotCurrentSessionLogs();
                 string previousBuild = File.Exists(AppPaths.DiagnosticBuildMarker)
                     ? File.ReadAllText(AppPaths.DiagnosticBuildMarker).Trim()
                     : string.Empty;
                 if (string.Equals(previousBuild, currentBuild, StringComparison.Ordinal)) return;
 
-                DeleteLogFiles();
+                DeleteCurrentLogFiles();
                 string tempMarker = AppPaths.DiagnosticBuildMarker + $".{Environment.ProcessId}.tmp";
                 try
                 {
@@ -60,7 +62,8 @@ public static class DiagnosticLogger
         {
             lock (Gate)
             {
-                DeleteLogFiles();
+                DeleteCurrentLogFiles();
+                DeletePreviousSessionLogFiles();
             }
             RaiseLogsChanged();
             return true;
@@ -93,6 +96,18 @@ public static class DiagnosticLogger
     }
 
     public static IReadOnlyList<string> ReadRecentErrors(int maximum = 100)
+        => ReadErrorsFromPaths(
+            maximum,
+            AppPaths.DiagnosticLog + ".1",
+            AppPaths.DiagnosticLog);
+
+    public static IReadOnlyList<string> ReadPreviousSessionErrors(int maximum = 100)
+        => ReadErrorsFromPaths(
+            maximum,
+            AppPaths.DiagnosticPreviousSessionBackup,
+            AppPaths.DiagnosticPreviousSessionLog);
+
+    private static IReadOnlyList<string> ReadErrorsFromPaths(int maximum, params string[] paths)
     {
         maximum = Math.Clamp(maximum, 1, MaximumReportErrors);
         var recent = new Queue<string>(maximum);
@@ -100,8 +115,8 @@ public static class DiagnosticLogger
         {
             lock (Gate)
             {
-                ReadErrorsFromFile(AppPaths.DiagnosticLog + ".1", maximum, recent);
-                ReadErrorsFromFile(AppPaths.DiagnosticLog, maximum, recent);
+                foreach (string path in paths)
+                    ReadErrorsFromFile(path, maximum, recent);
             }
         }
         catch
@@ -113,6 +128,37 @@ public static class DiagnosticLogger
     }
 
     public static bool HasErrors => ReadRecentErrors(1).Count > 0;
+    public static bool HasPreviousSessionErrors => ReadPreviousSessionErrors(1).Count > 0;
+
+    internal static void RunPreviousSessionSnapshotSmokeTest(string testRoot)
+    {
+        string folder = Path.Combine(testRoot, "diagnostic-snapshot");
+        Directory.CreateDirectory(folder);
+        string source = Path.Combine(folder, "current.log");
+        string snapshot = Path.Combine(folder, "previous.log");
+        const string expected = "[2026-08-29 12:00:00.000] [ERROR] previous-session freeze smoke";
+        try
+        {
+            File.WriteAllText(source, expected + Environment.NewLine, new UTF8Encoding(false));
+            lock (Gate)
+                SnapshotLogFile(source, snapshot);
+            IReadOnlyList<string> restored = ReadErrorsFromPaths(10, snapshot);
+            IReadOnlyList<string> timeline = ReadRecentDiagnosticLines(10, snapshot);
+            if (restored.Count != 1 ||
+                !restored[0].Contains("previous-session freeze smoke", StringComparison.Ordinal) ||
+                timeline.Count != 1 ||
+                !timeline[0].Contains("previous-session freeze smoke", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The previous-session diagnostic snapshot could not be restored.");
+            }
+        }
+        finally
+        {
+            try { if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true); }
+            catch { }
+        }
+    }
 
     public static string ExportErrorReportToDownloads()
     {
@@ -127,34 +173,108 @@ public static class DiagnosticLogger
             path = Path.Combine(downloads, $"Afterline-Error-Report-{stamp}-{suffix}.txt");
 
         IReadOnlyList<string> errors = ReadRecentErrors(MaximumReportErrors);
+        HashSet<string> currentRecords = errors.ToHashSet(StringComparer.Ordinal);
+        IReadOnlyList<string> previousErrors = ReadPreviousSessionErrors(MaximumReportErrors)
+            .Where(error => !currentRecords.Contains(error))
+            .ToArray();
+        IReadOnlyList<string> currentTimeline = ReadRecentDiagnosticLines(
+            MaximumDiagnosticTimelineLines,
+            AppPaths.DiagnosticLog + ".1",
+            AppPaths.DiagnosticLog);
+        HashSet<string> currentTimelineLines = currentTimeline.ToHashSet(StringComparer.Ordinal);
+        IReadOnlyList<string> previousTimeline = ReadRecentDiagnosticLines(
+                MaximumDiagnosticTimelineLines,
+                AppPaths.DiagnosticPreviousSessionBackup,
+                AppPaths.DiagnosticPreviousSessionLog)
+            .Where(line => !currentTimelineLines.Contains(line))
+            .ToArray();
         string informational = GetCurrentBuildIdentity();
         var report = new StringBuilder();
         report.AppendLine("AFTERLINE ERROR REPORT");
         report.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
         report.AppendLine($"Build: {informational}");
         report.AppendLine($"Windows: {Environment.OSVersion}");
-        report.AppendLine($"Current-build errors included: {errors.Count} (maximum {MaximumReportErrors})");
+        report.AppendLine($"Current diagnostic errors included: {errors.Count} (maximum {MaximumReportErrors})");
+        report.AppendLine($"Previous-session-only errors included: {previousErrors.Count} (maximum {MaximumReportErrors})");
+        report.AppendLine($"Current diagnostic timeline lines included: {currentTimeline.Count} (maximum {MaximumDiagnosticTimelineLines})");
+        report.AppendLine($"Previous-session-only timeline lines included: {previousTimeline.Count} (maximum {MaximumDiagnosticTimelineLines})");
         report.AppendLine("Discord: https://discord.gg/At2znTygfV");
         report.AppendLine("Support channel: #afterline forum channel on Discord");
         report.AppendLine();
         report.AppendLine("Send this report only in the #afterline forum channel on Discord.");
         report.AppendLine("Common Windows user-profile paths have been redacted automatically.");
         report.AppendLine(new string('-', 78));
-        if (errors.Count == 0)
+        if (errors.Count == 0 && previousErrors.Count == 0)
         {
             report.AppendLine("No errors are currently recorded.");
         }
         else
         {
+            report.AppendLine("CURRENT DIAGNOSTIC LOG");
+            report.AppendLine(new string('-', 78));
             foreach (string error in errors)
             {
                 report.AppendLine(RedactPersonalPaths(error));
                 report.AppendLine(new string('-', 78));
             }
+
+            if (previousErrors.Count > 0)
+            {
+                report.AppendLine();
+                report.AppendLine("PREVIOUS SESSION SNAPSHOT");
+                report.AppendLine(new string('-', 78));
+                foreach (string error in previousErrors)
+                {
+                    report.AppendLine(RedactPersonalPaths(error));
+                    report.AppendLine(new string('-', 78));
+                }
+            }
         }
+
+        AppendDiagnosticTimeline(report, "CURRENT DIAGNOSTIC TIMELINE", currentTimeline);
+        AppendDiagnosticTimeline(report, "PREVIOUS SESSION DIAGNOSTIC TIMELINE", previousTimeline);
 
         File.WriteAllText(path, report.ToString(), new UTF8Encoding(false));
         return path;
+    }
+
+    private static IReadOnlyList<string> ReadRecentDiagnosticLines(int maximum, params string[] paths)
+    {
+        maximum = Math.Clamp(maximum, 1, MaximumDiagnosticTimelineLines);
+        var recent = new Queue<string>(maximum);
+        try
+        {
+            lock (Gate)
+            {
+                foreach (string path in paths)
+                {
+                    if (!File.Exists(path)) continue;
+                    foreach (string line in File.ReadLines(path))
+                    {
+                        recent.Enqueue(line);
+                        while (recent.Count > maximum)
+                            recent.Dequeue();
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+        return recent.ToArray();
+    }
+
+    private static void AppendDiagnosticTimeline(
+        StringBuilder report,
+        string heading,
+        IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0) return;
+        report.AppendLine();
+        report.AppendLine(heading);
+        report.AppendLine(new string('-', 78));
+        foreach (string line in lines)
+            report.AppendLine(RedactPersonalPaths(line));
     }
 
     private static void ReadErrorsFromFile(string path, int maximum, Queue<string> recent)
@@ -211,11 +331,45 @@ public static class DiagnosticLogger
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? "unknown";
 
-    private static void DeleteLogFiles()
+    private static void SnapshotCurrentSessionLogs()
+    {
+        SnapshotLogFile(AppPaths.DiagnosticLog, AppPaths.DiagnosticPreviousSessionLog);
+        SnapshotLogFile(AppPaths.DiagnosticLog + ".1", AppPaths.DiagnosticPreviousSessionBackup);
+    }
+
+    private static void SnapshotLogFile(string source, string destination)
+    {
+        if (!File.Exists(source))
+        {
+            if (File.Exists(destination)) File.Delete(destination);
+            return;
+        }
+
+        string temp = destination + $".{Environment.ProcessId}.tmp";
+        try
+        {
+            File.Copy(source, temp, true);
+            File.Move(temp, destination, true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
+    }
+
+    private static void DeleteCurrentLogFiles()
     {
         if (File.Exists(AppPaths.DiagnosticLog)) File.Delete(AppPaths.DiagnosticLog);
         string backup = AppPaths.DiagnosticLog + ".1";
         if (File.Exists(backup)) File.Delete(backup);
+    }
+
+    private static void DeletePreviousSessionLogFiles()
+    {
+        if (File.Exists(AppPaths.DiagnosticPreviousSessionLog))
+            File.Delete(AppPaths.DiagnosticPreviousSessionLog);
+        if (File.Exists(AppPaths.DiagnosticPreviousSessionBackup))
+            File.Delete(AppPaths.DiagnosticPreviousSessionBackup);
     }
 
     private static void RaiseLogsChanged()

@@ -127,12 +127,12 @@ public partial class MainWindow
     private void UpdateDiagnosticsFooterButtonV159()
     {
         if (_diagnosticsFooterButtonV159 is null) return;
-        bool hasErrors = DiagnosticLogger.HasErrors;
+        bool hasErrors = DiagnosticLogger.HasErrors || DiagnosticLogger.HasPreviousSessionErrors;
         _diagnosticsFooterButtonV159.SetResourceReference(
             Control.ForegroundProperty,
             hasErrors ? "Warning" : "Text");
         _diagnosticsFooterButtonV159.ToolTip = hasErrors
-            ? "Application errors recorded — click to view and export"
+            ? "Application errors recorded in current or previous-session logs — click to view and export"
             : "Error logs and diagnostics";
     }
 
@@ -161,7 +161,9 @@ public partial class MainWindow
     }
 
     private void Theme_ServerSessionChanged(object? sender, ServerSessionChangedEventArgs e)
-        => Dispatcher.Invoke(() => ApplyStyledServerLabel(e.Server));
+        => _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new Action(() => ApplyStyledServerLabel(e.Server)));
 
     private void ApplyStyledServerLabel(ServerSessionInfo? server)
     {
