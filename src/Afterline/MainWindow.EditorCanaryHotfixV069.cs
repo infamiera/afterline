@@ -191,8 +191,10 @@ public partial class MainWindow
                 if (_editorGuideHostCanary is null ||
                     _editorGuideHostCanary.Width <= _editorComposition.Width ||
                     _editorGuideHostCanary.Height <= _editorComposition.Height ||
-                    _editorComposition.Margin.Left <= 0 ||
-                    _editorComposition.Margin.Top <= 0)
+                    _editorCompositionFrameV078 is null ||
+                    _editorCompositionFrameV078.Margin.Left <= 0 ||
+                    _editorCompositionFrameV078.Margin.Top <= 0 ||
+                    _editorComposition.Margin != new Thickness(0))
                 {
                     throw new InvalidOperationException(
                         "The Editor pasteboard did not provide working room around the Base Image.");
@@ -305,11 +307,11 @@ public partial class MainWindow
                         throw new InvalidOperationException(
                             "Line Colors was not merged into the Chat & Font panel.");
                     }
-                    if (_editorInput is null)
-                        throw new InvalidOperationException("The Chat & Font input was not initialized.");
-                    _editorInput.Text = "Select this text";
+                    TextBox editorInput = _editorInput
+                        ?? throw new InvalidOperationException("The Chat & Font input was not initialized.");
+                    editorInput.Text = "Select this text";
                     _editorChatColorsExpanderV071.IsExpanded = false;
-                    _editorInput.Select(0, 6);
+                    editorInput.Select(0, 6);
                     if (!_editorChatColorsExpanderV071.IsExpanded || _editorLineColorPresetBox is null)
                     {
                         throw new InvalidOperationException(
@@ -404,7 +406,7 @@ public partial class MainWindow
 
                     const string selectedText = "[17:38:23] Bianca Yurei says [low]: /quietly amused/.";
                     int selectedStart = selectedText.IndexOf("Bianca Yurei", StringComparison.Ordinal);
-                    if (_editorInput is not null) _editorInput.Text = selectedText;
+                    editorInput.Text = selectedText;
                     _editorTextColorOverridesV071.Add(new EditorTextColorOverride(
                         0,
                         selectedStart,
@@ -415,9 +417,9 @@ public partial class MainWindow
                     if (_editorLineColorList is null || _editorLineColorList.Items.Count == 0)
                         throw new InvalidOperationException("The merged Line Colors list was not populated.");
                     _editorLineColorList.SelectedIndex = -1;
-                    _editorInput.Select(0, Math.Min(6, _editorInput.Text.Length));
+                    editorInput.Select(0, Math.Min(6, editorInput.Text.Length));
                     _editorLineColorList.SelectedIndex = 0;
-                    if (_editorInput.SelectionLength != 0)
+                    if (editorInput.SelectionLength != 0)
                     {
                         throw new InvalidOperationException(
                             "Selecting a whole line retained a stale text-range color target.");

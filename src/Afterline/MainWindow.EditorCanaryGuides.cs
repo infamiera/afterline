@@ -6,6 +6,7 @@ namespace Afterline;
 public partial class MainWindow
 {
     private Grid? _editorGuideHostCanary;
+    private Grid? _editorCompositionFrameV078;
     private double _editorPasteboardOffsetXV078;
     private double _editorPasteboardOffsetYV078;
 
@@ -29,7 +30,16 @@ public partial class MainWindow
             ClipToBounds = false
         };
 
-        host.Children.Add(_editorComposition);
+        _editorCompositionFrameV078 = new Grid
+        {
+            Width = Math.Max(1, _editorComposition.Width),
+            Height = Math.Max(1, _editorComposition.Height),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            ClipToBounds = false
+        };
+        _editorCompositionFrameV078.Children.Add(_editorComposition);
+        host.Children.Add(_editorCompositionFrameV078);
         ReparentEditorGuideCanary(_editorSelectionBoundaryImageCanary, host, 4);
         ReparentEditorGuideCanary(_editorSnapGuideCanvasCanary, host, 6);
         ReparentEditorGuideCanary(_editorSelectionOverlayCanary, host, 7);
@@ -54,7 +64,7 @@ public partial class MainWindow
 
     private void SyncCanaryGuideHostSize()
     {
-        if (_editorGuideHostCanary is null || _editorComposition is null) return;
+        if (_editorGuideHostCanary is null || _editorComposition is null || _editorCompositionFrameV078 is null) return;
 
         double width = Math.Max(1, _editorComposition.Width);
         double height = Math.Max(1, _editorComposition.Height);
@@ -66,12 +76,15 @@ public partial class MainWindow
         _editorPasteboardOffsetYV078 = Math.Clamp(height * 0.70, 240, 1400);
         _editorGuideHostCanary.Width = width + _editorPasteboardOffsetXV078 * 2;
         _editorGuideHostCanary.Height = height + _editorPasteboardOffsetYV078 * 2;
-        _editorComposition.ClipToBounds = false;
-        _editorComposition.Margin = new Thickness(
+        _editorCompositionFrameV078.Width = width;
+        _editorCompositionFrameV078.Height = height;
+        _editorCompositionFrameV078.Margin = new Thickness(
             _editorPasteboardOffsetXV078,
             _editorPasteboardOffsetYV078,
             0,
             0);
+        _editorComposition.ClipToBounds = false;
+        _editorComposition.Margin = new Thickness(0);
 
         ApplyPasteboardOffsetToEditorOverlaysV078();
 
@@ -95,7 +108,7 @@ public partial class MainWindow
 
         foreach (UIElement child in _editorGuideHostCanary.Children)
         {
-            if (ReferenceEquals(child, _editorComposition))
+            if (ReferenceEquals(child, _editorCompositionFrameV078))
                 continue;
             child.RenderTransform = new System.Windows.Media.TranslateTransform(
                 _editorPasteboardOffsetXV078,

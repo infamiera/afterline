@@ -14,7 +14,7 @@ internal static class CanaryChangelogData
             "Off-canvas layers — Allows image layers to move and resize beyond every Base Image edge while preserving the Base Image as the saved export boundary.",
             "Editor workspace — Adds a compact theme-aware layout, Space or middle-button panning, pointer-anchored zoom, and a larger navigable pasteboard.",
             "Editor validation — Extends the packaged project test with Explorer import, negative-coordinate round trips, off-canvas resize geometry, and export-boundary checks."
-        }, ChangelogChannel.Canary, 190),
+        }, ChangelogChannel.Canary, 191),
         new("0.7.0", "29/AUG/2026", new[]
         {
             "Startup responsiveness — Opens the usable application shell first and prepares optional Editor and Settings features in deferred steps.",
