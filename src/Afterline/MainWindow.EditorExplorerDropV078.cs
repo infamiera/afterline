@@ -12,13 +12,13 @@ public partial class MainWindow
             return;
 
         int next = 0;
-        if (_editorBaseOriginal is null)
+        if (!EditorHasRenderedBaseImageV079())
         {
             // The first dropped image establishes the non-destructive export
             // boundary. Any additional files in the same Explorer drop become
             // ordinary image layers above it.
             LoadEditorMediaV060(paths[0]);
-            if (_editorBaseOriginal is null)
+            if (!EditorHasRenderedBaseImageV079())
                 return;
             next = 1;
         }
@@ -68,6 +68,9 @@ public partial class MainWindow
         if (_editorFitZoom || !IsLayerFullyVisibleV078(lastAdded))
             _ = Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
     }
+
+    private bool EditorHasRenderedBaseImageV079()
+        => _editorBaseOriginal is not null || _editorBaseImage?.Source is not null;
 
     private (double Width, double Height, double X, double Y) CalculateDroppedLayerPlacementV078(
         BitmapSource bitmap,

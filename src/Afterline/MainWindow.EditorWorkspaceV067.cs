@@ -458,7 +458,7 @@ public partial class MainWindow
         controls.Children.Add(opacity.Panel);
 
         controls.Children.Add(EditorSubtleNote(
-            "Drag the selected image on the canvas. Drag any edge or corner to resize it, or right-click to set an exact pixel size, lock it, or reset its dimensions."));
+            "Drag the selected image anywhere across the canvas or pasteboard. Corners keep its proportions; hold Shift for a free resize, or right-click for exact sizing and layer controls."));
         root.Children.Add(controls);
 
         border.Child = root;
@@ -1212,7 +1212,7 @@ public partial class MainWindow
 
         // Once a Base Image exists it defines the saved/exported canvas. Image
         // layers may extend into the pasteboard, but must never resize that canvas.
-        if (_editorBaseOriginal is not null)
+        if (EditorHasRenderedBaseImageV079())
         {
             SyncCanaryGuideHostSize();
             return;
