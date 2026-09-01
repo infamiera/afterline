@@ -6,6 +6,8 @@ namespace Afterline;
 public partial class MainWindow
 {
     private Grid? _editorGuideHostCanary;
+    private double _editorPasteboardOffsetXV078;
+    private double _editorPasteboardOffsetYV078;
 
     private void MoveCanaryEditorGuidesOutsideComposition()
     {
@@ -22,7 +24,9 @@ public partial class MainWindow
             Width = Math.Max(1, _editorComposition.Width),
             Height = Math.Max(1, _editorComposition.Height),
             HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = System.Windows.Media.Brushes.Transparent,
+            ClipToBounds = false
         };
 
         host.Children.Add(_editorComposition);
@@ -54,8 +58,22 @@ public partial class MainWindow
 
         double width = Math.Max(1, _editorComposition.Width);
         double height = Math.Max(1, _editorComposition.Height);
-        _editorGuideHostCanary.Width = width;
-        _editorGuideHostCanary.Height = height;
+        // A bounded pasteboard gives transforms room on every side without
+        // changing the Base Image/export dimensions. It is deliberately based
+        // on the canvas rather than layer positions so its origin remains stable
+        // while a pointer drag is in progress.
+        _editorPasteboardOffsetXV078 = Math.Clamp(width * 0.70, 240, 1800);
+        _editorPasteboardOffsetYV078 = Math.Clamp(height * 0.70, 240, 1400);
+        _editorGuideHostCanary.Width = width + _editorPasteboardOffsetXV078 * 2;
+        _editorGuideHostCanary.Height = height + _editorPasteboardOffsetYV078 * 2;
+        _editorComposition.ClipToBounds = false;
+        _editorComposition.Margin = new Thickness(
+            _editorPasteboardOffsetXV078,
+            _editorPasteboardOffsetYV078,
+            0,
+            0);
+
+        ApplyPasteboardOffsetToEditorOverlaysV078();
 
         if (_editorSelectionOverlayCanary is not null)
         {
@@ -67,6 +85,21 @@ public partial class MainWindow
         {
             _editorSnapGuideCanvasCanary.Width = width;
             _editorSnapGuideCanvasCanary.Height = height;
+        }
+    }
+
+    private void ApplyPasteboardOffsetToEditorOverlaysV078()
+    {
+        if (_editorGuideHostCanary is null || _editorComposition is null)
+            return;
+
+        foreach (UIElement child in _editorGuideHostCanary.Children)
+        {
+            if (ReferenceEquals(child, _editorComposition))
+                continue;
+            child.RenderTransform = new System.Windows.Media.TranslateTransform(
+                _editorPasteboardOffsetXV078,
+                _editorPasteboardOffsetYV078);
         }
     }
 }

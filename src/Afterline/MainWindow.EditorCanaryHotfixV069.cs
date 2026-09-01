@@ -188,6 +188,23 @@ public partial class MainWindow
                 if (_editorBaseOriginal is null || _editorBaseImage.Source is null ||
                     !ReferenceEquals(_editorBaseImage.Parent, _editorComposition))
                     throw new InvalidOperationException("The Base Image did not attach to the Editor composition.");
+                if (_editorGuideHostCanary is null ||
+                    _editorGuideHostCanary.Width <= _editorComposition.Width ||
+                    _editorGuideHostCanary.Height <= _editorComposition.Height ||
+                    _editorComposition.Margin.Left <= 0 ||
+                    _editorComposition.Margin.Top <= 0)
+                {
+                    throw new InvalidOperationException(
+                        "The Editor pasteboard did not provide working room around the Base Image.");
+                }
+                if (!_compactEditorWorkspaceV078Initialized ||
+                    _editorToolPanelColumn is null || _editorToolPanelColumn.Width.Value > 260.5 ||
+                    _editorRightSidebarColumnV072 is null || _editorRightSidebarColumnV072.Width.Value > 276.5 ||
+                    _editorLayerListV067 is null || _editorLayerListV067.MinHeight > 180.5)
+                {
+                    throw new InvalidOperationException(
+                        "The compact Editor workspace density was not applied.");
+                }
 
                 if (!_editorFitZoom)
                     throw new InvalidOperationException("The first Base Image load did not automatically fit the preview.");
@@ -335,12 +352,46 @@ public partial class MainWindow
                     if (resized.X != 0 || resized.Y != 0 || resized.Width != 60 || resized.Height != 60)
                         throw new InvalidOperationException("Eight-direction image-layer resize geometry failed its edge/corner check.");
 
-                    BitmapSource smokeSource = _editorBaseOriginal
-                        ?? throw new InvalidOperationException("The Editor smoke-test Base Image was lost.");
-                    EditorImageLayerV067 filteredLayer = AddImageLayerFromBitmapV067(
-                        smokeSource,
-                        "Filtered smoke layer");
-                    SelectImageLayerV068(filteredLayer);
+                    var (offCanvasResize, _, _) = CalculateLayerResizeBoundsV071(
+                        new Rect(20, 20, 40, 40),
+                        EditorLayerResizeHandleV071.NorthWest,
+                        -40,
+                        -35,
+                        64,
+                        64,
+                        snap: false,
+                        snapThreshold: 10);
+                    if (offCanvasResize.X != -20 || offCanvasResize.Y != -15 ||
+                        offCanvasResize.Width != 80 || offCanvasResize.Height != 75)
+                    {
+                        throw new InvalidOperationException(
+                            "Image-layer transform geometry did not preserve a north/west off-canvas resize.");
+                    }
+
+                    if (_editorBaseOriginal is null)
+                        throw new InvalidOperationException("The Editor smoke-test Base Image was lost.");
+                    int layerCountBeforeDrop = _editorImageLayersV067.Count;
+                    ImportDroppedEditorImagesV078(
+                        new[] { path },
+                        new Point(_editorComposition.Width / 2, _editorComposition.Height / 2));
+                    if (_editorImageLayersV067.Count != layerCountBeforeDrop + 1)
+                        throw new InvalidOperationException(
+                            "Dropping an image onto an existing Base Image did not create a new layer.");
+                    EditorImageLayerV067 filteredLayer = _editorImageLayersV067[^1];
+                    double baseCanvasWidth = _editorComposition.Width;
+                    double baseCanvasHeight = _editorComposition.Height;
+                    filteredLayer.X = -18;
+                    filteredLayer.Y = -12;
+                    UpdateImageLayerVisualV067(filteredLayer);
+                    EnsureLayerCanvasExtentV067();
+                    if (_editorComposition.Width != baseCanvasWidth ||
+                        _editorComposition.Height != baseCanvasHeight ||
+                        filteredLayer.Image.RenderTransform is not TranslateTransform layerTransform ||
+                        layerTransform.X != -18 || layerTransform.Y != -12)
+                    {
+                        throw new InvalidOperationException(
+                            "An off-canvas image layer changed the Base Image export boundary or lost its coordinates.");
+                    }
                     if (_editorFilterBrightnessCanary is not null)
                         _editorFilterBrightnessCanary.Value = 25;
                     _editorFilterTimerCanary?.Stop();
@@ -383,6 +434,8 @@ public partial class MainWindow
                     if (_editorBaseOriginal is null || _editorBaseImage.Source is null)
                         throw new InvalidOperationException("The saved Editor project did not restore its Base Image.");
                     if (_editorImageLayersV067.Count != 1 ||
+                        _editorImageLayersV067[0].X != -18 ||
+                        _editorImageLayersV067[0].Y != -12 ||
                         !_editorTextColorOverridesV071.Any(value =>
                             value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
                     {

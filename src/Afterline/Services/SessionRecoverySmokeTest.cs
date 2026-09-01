@@ -14,6 +14,11 @@ internal static class SessionRecoverySmokeTest
         AppPaths.EnsureLocalDirectories();
         ApplicationHealthMonitor.RunPersistenceSmokeTest(archiveRoot);
         DiagnosticLogger.RunPreviousSessionSnapshotSmokeTest(archiveRoot);
+        CaptureReplayGuard.RunSmokeTest();
+        VerifyTimestampProvenance();
+        await PotentialDuplicateCleanupService.RunSmokeTestAsync(
+            archiveRoot,
+            CancellationToken.None);
 
         DateTime startedAt = DateTime.Today.AddHours(4).AddMinutes(40);
         var server = new ServerSessionInfo
@@ -78,11 +83,32 @@ internal static class SessionRecoverySmokeTest
             new ChatEntry(startedAt.AddMinutes(2), continuation),
             CancellationToken.None);
 
+        string repeatedFirst = "[04:42:01] (( PM from (196) Player: hi ))";
+        string repeatedSecond = "[04:42:02] (( PM from (196) Player: hi ))";
+        await resumed.AppendAsync(
+            new ChatEntry(startedAt.AddMinutes(2).AddSeconds(1), repeatedFirst),
+            CancellationToken.None);
+        await resumed.AppendAsync(
+            new ChatEntry(startedAt.AddMinutes(2).AddSeconds(2), repeatedSecond),
+            CancellationToken.None);
+        IReadOnlyList<string> committedTail = await resumed.ReadRecentCommittedLinesAsync(
+            20,
+            CancellationToken.None);
+        if (!committedTail.Contains(repeatedFirst, StringComparer.Ordinal) ||
+            !committedTail.Contains(repeatedSecond, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Legitimate repeated messages with distinct visible timestamps were not both committed.");
+        }
+
         string archiveFile = resumed.ActiveFile
             ?? throw new InvalidOperationException("The resumed journal has no archive file.");
         string archiveText = await File.ReadAllTextAsync(archiveFile);
         int loginMarkers = archiveText.Split("[NEW LOGIN]", StringSplitOptions.None).Length - 1;
-        if (loginMarkers != 1 || !archiveText.Contains(continuation, StringComparison.Ordinal))
+        if (loginMarkers != 1 ||
+            !archiveText.Contains(continuation, StringComparison.Ordinal) ||
+            !archiveText.Contains(repeatedFirst, StringComparison.Ordinal) ||
+            !archiveText.Contains(repeatedSecond, StringComparison.Ordinal))
             throw new InvalidOperationException("Restarting the journal created a false session boundary or lost its continuation.");
 
         string finalizedPath = await resumed.FinalizeAsync(archiveRoot, CancellationToken.None)
@@ -123,6 +149,26 @@ internal static class SessionRecoverySmokeTest
         const string roleplay = "[15:59:00] Bianca says: This is an in-character line.";
         if (new ChatEntry(DateTime.Now, roleplay).IsOocLine)
             throw new InvalidOperationException("The gameplay/OOC filter hid an ordinary roleplay line.");
+    }
+
+    private static void VerifyTimestampProvenance()
+    {
+        DateTime observed = DateTime.Today.AddHours(17);
+        var visibleTimestamp = new ChatEntry(
+            observed,
+            "[14:53:02] (( PM from (196) Player: hi ))");
+        var localTimestamp = new ChatEntry(
+            observed,
+            "(( PM from (196) Player: hi ))");
+
+        if (visibleTimestamp.TimestampSource != ChatTimestampSource.VisibleChat ||
+            visibleTimestamp.CapturedAt.TimeOfDay != new TimeSpan(14, 53, 2) ||
+            localTimestamp.TimestampSource != ChatTimestampSource.LocalObservation ||
+            localTimestamp.CapturedAt != observed)
+        {
+            throw new InvalidOperationException(
+                "Visible FiveM timestamps were not kept distinct from local observation time.");
+        }
     }
 
     private static void VerifyStreamerModeMasking()

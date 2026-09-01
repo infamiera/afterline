@@ -63,8 +63,8 @@ public partial class MainWindow
             _editorRightSidebarColumnV072.MinWidth = Math.Max(0, _editorRightSidebarMinWidthV072);
             _editorRightSidebarColumnV072.Width = _editorRightSidebarWidthV072.Value > 0
                 ? _editorRightSidebarWidthV072
-                : new GridLength(300);
-            _editorRightSidebarGapColumnV072.Width = new GridLength(8);
+                : new GridLength(276);
+            _editorRightSidebarGapColumnV072.Width = new GridLength(6);
             _editorRightSidebarV067.Visibility = Visibility.Visible;
             _editorRightSidebarCollapsedV072 = false;
         }

@@ -3,6 +3,13 @@ using System.Windows.Media;
 
 namespace Afterline.Models;
 
+public enum ChatTimestampSource
+{
+    VisibleChat,
+    LocalObservation,
+    Application
+}
+
 public sealed class ChatEntry
 {
     private static readonly Regex TimestampPrefix = new(
@@ -36,6 +43,10 @@ public sealed class ChatEntry
     public DateTime CapturedAt { get; }
     public string Text { get; }
     public bool IsSystemMessage { get; }
+    public ChatTimestampSource TimestampSource { get; }
+    public Guid? PotentialDuplicateGroupId { get; }
+    public bool IsPotentialDuplicate { get; private set; }
+    public bool IsPotentialDuplicateReviewClone { get; }
     public IReadOnlyList<ChatColorRun> CapturedColorRuns { get; }
 
     public string ContentWithoutTimestamp => TimestampPrefix.Replace(Text, string.Empty).TrimStart();
@@ -112,15 +123,27 @@ public sealed class ChatEntry
         DateTime capturedAt,
         string text,
         bool isSystemMessage = false,
-        IEnumerable<ChatColorRun>? capturedColorRuns = null)
+        IEnumerable<ChatColorRun>? capturedColorRuns = null,
+        Guid? potentialDuplicateGroupId = null,
+        bool isPotentialDuplicateReviewClone = false)
     {
         Text = text ?? string.Empty;
         IsSystemMessage = isSystemMessage;
+        TimestampSource = isSystemMessage
+            ? ChatTimestampSource.Application
+            : TimestampPrefix.IsMatch(Text)
+                ? ChatTimestampSource.VisibleChat
+                : ChatTimestampSource.LocalObservation;
+        PotentialDuplicateGroupId = potentialDuplicateGroupId;
+        IsPotentialDuplicate = potentialDuplicateGroupId is not null;
+        IsPotentialDuplicateReviewClone = isPotentialDuplicateReviewClone;
         CapturedAt = isSystemMessage ? capturedAt : ResolveTimestamp(capturedAt, Text);
         CapturedColorRuns = isSystemMessage
             ? Array.Empty<ChatColorRun>()
             : ChatColorReliabilityService.EnsureExpectedAccents(Text, capturedColorRuns);
     }
+
+    public void ClearPotentialDuplicateFlag() => IsPotentialDuplicate = false;
 
     public static ChatEntry System(DateTime timestamp, string text) => new(timestamp, text, true);
 

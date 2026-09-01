@@ -30,6 +30,7 @@ public partial class MainWindow
         ConfigureLiveChatContextMenu();
         ConfigureLiveChatHeader();
         ConfigureServerStatus();
+        EnsurePotentialDuplicateReviewUi();
         ConfigureSearchClearBehavior();
         EnsureNotificationAndUpdateUi();
 
@@ -415,6 +416,17 @@ public partial class MainWindow
                 _liveActionStatus.Text = imported == 0
                     ? "Current chat is already up to date."
                     : $"Restored {imported:N0} cached/current message{(imported == 1 ? string.Empty : "s")}.";
+
+            string? activePath = _journal.ActiveFile;
+            if (activePath is not null)
+            {
+                IReadOnlyList<PotentialDuplicateCandidate> pending =
+                    await _capture.ReadPotentialDuplicatesAsync(
+                        activePath,
+                        CancellationToken.None);
+                if (pending.Count > 0)
+                    await OfferPotentialDuplicateReviewAsync(activePath);
+            }
         }
         catch (Exception ex)
         {

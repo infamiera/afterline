@@ -24,6 +24,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly SessionJournal _journal;
     private readonly LastSessionCacheService _lastSessionCache = new();
     private readonly RawCaptureFailsafeService _rawCaptureFailsafe = new();
+    private readonly CaptureReplayGuard _replayGuard = new();
+    private readonly PotentialDuplicateCandidateService _potentialDuplicates = new();
     private readonly Func<AppSettings> _settings;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _captureGate = new(1, 1);
@@ -48,6 +50,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public event EventHandler<string>? SessionFinalized;
     public event EventHandler<ServerSessionChangedEventArgs>? ServerSessionChanged;
     public event EventHandler? CachedSessionReplayStarting;
+    public event EventHandler<PotentialDuplicateCandidate>? PotentialDuplicateDetected;
 
     public CaptureCoordinator(SessionJournal journal, Func<AppSettings> settings)
     {
@@ -63,6 +66,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         _previousVisible = (await _journal.RecoverAsync(
             _settings().ArchiveRoot,
             _cts.Token)).ToList();
+        _replayGuard.Reset(_previousVisible);
         if (_journal.ResumedServer is not null)
         {
             _currentServer = _journal.ResumedServer;
@@ -360,15 +364,46 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             return 0;
 
         int overlap = FindOverlap(_previousVisible, currentText);
-        int captured = 0;
+        CapturedChatLine[] pending = current.Skip(overlap).ToArray();
+        string[] pendingText = pending.Select(line => line.Text).ToArray();
+        CaptureReplayDecision inMemoryReplay = _replayGuard.Evaluate(pendingText);
+        CaptureReplayDecision replay = CaptureReplayDecision.None;
+        IReadOnlyList<string> committedTail = Array.Empty<string>();
 
-        foreach (CapturedChatLine line in current.Skip(overlap))
+        if (inMemoryReplay.IsReplay || CaptureReplayGuard.LooksLikeRestampedBatch(pendingText))
         {
+            try
+            {
+                committedTail = await _journal.ReadRecentCommittedLinesAsync(
+                    2500,
+                    cancellationToken);
+                replay = CaptureReplayGuard.EvaluateAgainst(committedTail, pendingText);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A journal read is required before suppression. If confirmation
+                // fails, retain the complete candidate batch.
+                DiagnosticLogger.Error(
+                    "Capture replay candidate could not be confirmed against the active chatlog; every row was retained.",
+                    ex);
+            }
+        }
+
+        int captured = 0;
+        Guid? candidateId = replay.IsReplay ? Guid.NewGuid() : null;
+
+        for (int pendingIndex = 0; pendingIndex < pending.Length; pendingIndex++)
+        {
+            CapturedChatLine line = pending[pendingIndex];
             DateTime observedAt = DateTime.Now;
+            bool potentialDuplicate = replay.IsReplay &&
+                                      pendingIndex >= replay.CandidateStartIndex &&
+                                      pendingIndex < replay.CandidateStartIndex + replay.CandidateCount;
             var entry = new ChatEntry(
                 InferVisibleTimestamp(line.Text, observedAt),
                 line.Text,
-                capturedColorRuns: line.ColorRuns);
+                capturedColorRuns: line.ColorRuns,
+                potentialDuplicateGroupId: potentialDuplicate ? candidateId : null);
 
             if (!_journal.HasActiveSession)
             {
@@ -401,6 +436,34 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             captured++;
         }
 
+        _replayGuard.RecordCommitted(pendingText);
+
+        if (replay.IsReplay && candidateId is Guid id && _journal.ActiveFile is string journalPath)
+        {
+            try
+            {
+                PotentialDuplicateCandidate candidate = await _potentialDuplicates.RecordAsync(
+                    id,
+                    journalPath,
+                    _currentServer ?? ServerSessionInfo.Unknown,
+                    pending,
+                    committedTail,
+                    replay,
+                    cancellationToken);
+                DiagnosticLogger.Warn(
+                    $"Potential duplicate capture detected: {replay.CandidateCount:N0} row(s) were retained for user review.");
+                PotentialDuplicateDetected?.Invoke(this, candidate);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Candidate persistence must never interfere with the authoritative
+                // journal. Every captured line has already been retained.
+                DiagnosticLogger.Error(
+                    "Potential duplicate review data could not be saved; all chatlog rows remain untouched.",
+                    ex);
+            }
+        }
+
         _previousVisible = currentText.ToList();
         if (_journal.HasActiveSession)
         {
@@ -411,6 +474,17 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         return captured;
     }
+
+    public Task<IReadOnlyList<PotentialDuplicateCandidate>> ReadPotentialDuplicatesAsync(
+        string? journalPath,
+        CancellationToken cancellationToken)
+        => _potentialDuplicates.ReadPendingAsync(journalPath, cancellationToken);
+
+    public Task MarkPotentialDuplicatesReviewedAsync(
+        IEnumerable<Guid> candidateIds,
+        bool removed,
+        CancellationToken cancellationToken)
+        => _potentialDuplicates.MarkReviewedAsync(candidateIds, removed, cancellationToken);
 
     private void LogCaptureFailure(string context, Exception exception)
     {
@@ -567,6 +641,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             await _reader.ResetAsync();
 
         _previousVisible.Clear();
+        _replayGuard.Reset();
         _nuiUnavailableSince = null;
         _disconnectedAt = DateTime.Now;
 

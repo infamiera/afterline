@@ -911,8 +911,8 @@ public partial class MainWindow
             Name = string.IsNullOrWhiteSpace(name) ? "Image Layer" : name,
             Bitmap = bitmap,
             Image = image,
-            X = Math.Max(0, x),
-            Y = Math.Max(0, y),
+            X = x,
+            Y = y,
             Width = Math.Max(1, width ?? bitmap.PixelWidth * Math.Clamp(scale, 0.1, 3.0)),
             Height = Math.Max(1, height ?? bitmap.PixelHeight * Math.Clamp(scale, 0.1, 3.0)),
             Opacity = Math.Clamp(opacity, 0, 1),
@@ -938,7 +938,8 @@ public partial class MainWindow
         layer.Image.Source = layer.Bitmap;
         layer.Image.Width = Math.Max(1, layer.Width);
         layer.Image.Height = Math.Max(1, layer.Height);
-        layer.Image.Margin = new Thickness(layer.X, layer.Y, 0, 0);
+        layer.Image.Margin = new Thickness(0);
+        layer.Image.RenderTransform = new TranslateTransform(layer.X, layer.Y);
         layer.Image.Opacity = layer.Opacity;
         layer.Image.Visibility = layer.IsVisible ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -1206,7 +1207,18 @@ public partial class MainWindow
 
     private void EnsureLayerCanvasExtentV067()
     {
-        if (_editorLayerCanvasAdjustingV067 || _editorComposition is null || _editorImageLayersV067.Count == 0)
+        if (_editorLayerCanvasAdjustingV067 || _editorComposition is null)
+            return;
+
+        // Once a Base Image exists it defines the saved/exported canvas. Image
+        // layers may extend into the pasteboard, but must never resize that canvas.
+        if (_editorBaseOriginal is not null)
+        {
+            SyncCanaryGuideHostSize();
+            return;
+        }
+
+        if (_editorImageLayersV067.Count == 0)
             return;
 
         double requiredWidth = _editorComposition.Width;

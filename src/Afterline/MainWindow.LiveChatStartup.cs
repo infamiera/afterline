@@ -72,6 +72,7 @@ public partial class MainWindow
             EnsureBuildIdentityV065,
             EnsureFinalChannelHandoffV066,
             EnsureEditorWorkspaceV067,
+            EnsureCompactEditorWorkspaceV078,
             EnsureEditorSelectionGuardV067,
             InitializeEditorProjectAutosaveHooksV073);
 
