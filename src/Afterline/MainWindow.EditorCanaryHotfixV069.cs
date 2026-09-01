@@ -370,15 +370,51 @@ public partial class MainWindow
                             "Image-layer transform geometry did not preserve a north/west off-canvas resize.");
                     }
 
-                    if (_editorBaseOriginal is null)
-                        throw new InvalidOperationException("The Editor smoke-test Base Image was lost.");
+                    var (proportionalResize, _, _) = CalculateLayerResizeBoundsV071(
+                        new Rect(10, 10, 160, 90),
+                        EditorLayerResizeHandleV071.SouthEast,
+                        80,
+                        45,
+                        640,
+                        360,
+                        snap: false,
+                        snapThreshold: 10,
+                        preserveAspectRatio: true);
+                    if (Math.Abs(proportionalResize.Width / proportionalResize.Height - 16d / 9d) > 0.001 ||
+                        proportionalResize.Width <= 160 || proportionalResize.Height <= 90)
+                    {
+                        throw new InvalidOperationException(
+                            "Proportional corner resize geometry did not retain the image aspect ratio.");
+                    }
+
+                    BitmapSource smokeBase = _editorBaseOriginal
+                        ?? throw new InvalidOperationException("The Editor smoke-test Base Image was lost.");
                     int layerCountBeforeDrop = _editorImageLayersV067.Count;
-                    ImportDroppedEditorImagesV078(
-                        new[] { path },
-                        new Point(_editorComposition.Width / 2, _editorComposition.Height / 2));
+                    double canvasWidthBeforeDrop = _editorComposition.Width;
+                    double canvasHeightBeforeDrop = _editorComposition.Height;
+                    // The rendered Base Image is the authoritative drop state.
+                    // Filter/media transitions can temporarily clear the backing
+                    // field while the valid Image.Source remains on screen.
+                    _editorBaseOriginal = null;
+                    try
+                    {
+                        ImportDroppedEditorImagesV078(
+                            new[] { path },
+                            new Point(_editorComposition.Width / 2, _editorComposition.Height / 2));
+                    }
+                    finally
+                    {
+                        _editorBaseOriginal = smokeBase;
+                    }
                     if (_editorImageLayersV067.Count != layerCountBeforeDrop + 1)
                         throw new InvalidOperationException(
-                            "Dropping an image onto an existing Base Image did not create a new layer.");
+                            "Dropping onto a rendered Base Image replaced it instead of creating a new layer.");
+                    if (Math.Abs(_editorComposition.Width - canvasWidthBeforeDrop) > 0.5 ||
+                        Math.Abs(_editorComposition.Height - canvasHeightBeforeDrop) > 0.5)
+                    {
+                        throw new InvalidOperationException(
+                            "Adding a dropped layer changed the rendered Base Image export boundary.");
+                    }
                     EditorImageLayerV067 filteredLayer = _editorImageLayersV067[^1];
                     double baseCanvasWidth = _editorComposition.Width;
                     double baseCanvasHeight = _editorComposition.Height;

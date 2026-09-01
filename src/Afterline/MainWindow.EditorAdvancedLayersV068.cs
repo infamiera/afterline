@@ -62,8 +62,7 @@ public partial class MainWindow
     private double _editorLayerResizeStartHeightV068;
     private double _editorLayerResizeStartXV071;
     private double _editorLayerResizeStartYV071;
-    private double _editorLayerResizeDeltaXV068;
-    private double _editorLayerResizeDeltaYV068;
+    private Point _editorLayerResizePointerStartV079;
     private EditorLayerResizeHandleV071 _editorLayerResizeHandleV071 = EditorLayerResizeHandleV071.SouthEast;
 
     private bool _editorLayerStrokeActiveV068;
@@ -238,8 +237,7 @@ public partial class MainWindow
         {
             Fill = Brushes.Transparent,
             Stroke = (Brush)FindResource("Accent"),
-            StrokeThickness = 1.25,
-            StrokeDashArray = new DoubleCollection { 5, 3 },
+            StrokeThickness = 0.75,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
@@ -254,8 +252,8 @@ public partial class MainWindow
             bool verticalEdge = handle is EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.West;
             var thumb = new Thumb
             {
-                Width = horizontalEdge ? 24 : verticalEdge ? 8 : 13,
-                Height = verticalEdge ? 24 : horizontalEdge ? 8 : 13,
+                Width = horizontalEdge ? 20 : verticalEdge ? 7 : 9,
+                Height = verticalEdge ? 20 : horizontalEdge ? 7 : 9,
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 Cursor = ResizeCursorV071(handle),
@@ -263,9 +261,9 @@ public partial class MainWindow
                     ? Brushes.Transparent
                     : (Brush)FindResource("Accent"),
                 BorderBrush = horizontalEdge || verticalEdge ? Brushes.Transparent : Brushes.White,
-                BorderThickness = horizontalEdge || verticalEdge ? new Thickness(0) : new Thickness(1),
+                BorderThickness = horizontalEdge || verticalEdge ? new Thickness(0) : new Thickness(0.75),
                 Tag = handle,
-                ToolTip = "Drag this edge or corner to resize the selected image layer. Canvas borders snap when snapping is enabled."
+                ToolTip = "Drag to resize. Corners preserve proportions; hold Shift for a free transform."
             };
             thumb.DragStarted += LayerResizeStartedV068;
             thumb.DragDelta += LayerResizeDeltaV068;
@@ -318,6 +316,8 @@ public partial class MainWindow
                 _editorLayerSelectionOutlineV068.Width = layer!.Width;
                 _editorLayerSelectionOutlineV068.Height = layer.Height;
                 _editorLayerSelectionOutlineV068.Margin = new Thickness(layer.X, layer.Y, 0, 0);
+                _editorLayerSelectionOutlineV068.StrokeThickness =
+                    0.85 / Math.Max(0.1, _editorZoomScale);
                 _editorLayerSelectionOutlineV068.Stroke = layer.IsLocked
                     ? (Brush)FindResource("MutedText")
                     : (Brush)FindResource("Accent");
@@ -388,9 +388,6 @@ public partial class MainWindow
             e.Handled = true;
             return;
         }
-
-        if (IsPointOverChatV068(point))
-            return;
 
         EditorImageLayerV067? hit = HitTestImageLayerV068(point);
         if (hit is null)
@@ -562,8 +559,9 @@ public partial class MainWindow
         _editorLayerResizeStartYV071 = layer.Y;
         _editorLayerResizeStartWidthV068 = layer.Width;
         _editorLayerResizeStartHeightV068 = layer.Height;
-        _editorLayerResizeDeltaXV068 = 0;
-        _editorLayerResizeDeltaYV068 = 0;
+        _editorLayerResizePointerStartV079 = _editorComposition is null
+            ? new Point(layer.X + layer.Width, layer.Y + layer.Height)
+            : Mouse.GetPosition(_editorComposition);
     }
 
     private void LayerResizeDeltaV068(object sender, DragDeltaEventArgs e)
@@ -572,9 +570,16 @@ public partial class MainWindow
         if (layer is null || layer.IsLocked)
             return;
 
+        if (_editorComposition is null)
+            return;
         double zoom = Math.Max(0.1, _editorZoomScale);
-        _editorLayerResizeDeltaXV068 += e.HorizontalChange / zoom;
-        _editorLayerResizeDeltaYV068 += e.VerticalChange / zoom;
+        Point pointer = Mouse.GetPosition(_editorComposition);
+        Vector pointerDelta = pointer - _editorLayerResizePointerStartV079;
+        bool corner = _editorLayerResizeHandleV071 is
+            EditorLayerResizeHandleV071.NorthWest or
+            EditorLayerResizeHandleV071.NorthEast or
+            EditorLayerResizeHandleV071.SouthEast or
+            EditorLayerResizeHandleV071.SouthWest;
         (double baseWidth, double baseHeight) = GetBaseImageBoundsV068();
         (Rect bounds, double? guideX, double? guideY) = CalculateLayerResizeBoundsV071(
             new Rect(
@@ -583,12 +588,13 @@ public partial class MainWindow
                 _editorLayerResizeStartWidthV068,
                 _editorLayerResizeStartHeightV068),
             _editorLayerResizeHandleV071,
-            _editorLayerResizeDeltaXV068,
-            _editorLayerResizeDeltaYV068,
+            pointerDelta.X,
+            pointerDelta.Y,
             baseWidth,
             baseHeight,
             _editorSnapCheckCanary?.IsChecked == true,
-            10 / zoom);
+            10 / zoom,
+            preserveAspectRatio: corner && (Keyboard.Modifiers & ModifierKeys.Shift) == 0);
 
         layer.X = bounds.X;
         layer.Y = bounds.Y;
@@ -617,15 +623,32 @@ public partial class MainWindow
             _ => Cursors.SizeNWSE
         };
 
-    private static void PositionLayerResizeThumbV071(
+    private void PositionLayerResizeThumbV071(
         Thumb thumb,
         EditorLayerResizeHandleV071 handle,
         EditorImageLayerV067 layer)
     {
         bool horizontalEdge = handle is EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.South;
         bool verticalEdge = handle is EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.West;
-        if (horizontalEdge) thumb.Width = Math.Max(16, layer.Width - 14);
-        if (verticalEdge) thumb.Height = Math.Max(16, layer.Height - 14);
+        double zoom = Math.Max(0.1, _editorZoomScale);
+        double cornerSize = 8 / zoom;
+        double edgeThickness = 6 / zoom;
+        if (horizontalEdge)
+        {
+            thumb.Width = Math.Max(16 / zoom, layer.Width - cornerSize * 2);
+            thumb.Height = edgeThickness;
+        }
+        else if (verticalEdge)
+        {
+            thumb.Width = edgeThickness;
+            thumb.Height = Math.Max(16 / zoom, layer.Height - cornerSize * 2);
+        }
+        else
+        {
+            thumb.Width = cornerSize;
+            thumb.Height = cornerSize;
+            thumb.BorderThickness = new Thickness(0.75 / zoom);
+        }
 
         double left = handle switch
         {
@@ -654,13 +677,36 @@ public partial class MainWindow
         double baseWidth,
         double baseHeight,
         bool snap,
-        double snapThreshold)
+        double snapThreshold,
+        bool preserveAspectRatio = false)
     {
         const double minimum = 16;
         bool moveLeft = handle is EditorLayerResizeHandleV071.NorthWest or EditorLayerResizeHandleV071.West or EditorLayerResizeHandleV071.SouthWest;
         bool moveRight = handle is EditorLayerResizeHandleV071.NorthEast or EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.SouthEast;
         bool moveTop = handle is EditorLayerResizeHandleV071.NorthWest or EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.NorthEast;
         bool moveBottom = handle is EditorLayerResizeHandleV071.SouthWest or EditorLayerResizeHandleV071.South or EditorLayerResizeHandleV071.SouthEast;
+
+        if (preserveAspectRatio &&
+            (moveLeft || moveRight) &&
+            (moveTop || moveBottom))
+        {
+            double widthDelta = moveLeft ? -deltaX : deltaX;
+            double heightDelta = moveTop ? -deltaY : deltaY;
+            double denominator = start.Width * start.Width + start.Height * start.Height;
+            double projectedScale = denominator <= 0
+                ? 1
+                : 1 + (widthDelta * start.Width + heightDelta * start.Height) / denominator;
+            double minimumScale = Math.Max(minimum / start.Width, minimum / start.Height);
+            double scale = Math.Max(minimumScale, projectedScale);
+            double proportionalWidth = start.Width * scale;
+            double proportionalHeight = start.Height * scale;
+            deltaX = moveLeft
+                ? start.Width - proportionalWidth
+                : proportionalWidth - start.Width;
+            deltaY = moveTop
+                ? start.Height - proportionalHeight
+                : proportionalHeight - start.Height;
+        }
 
         double left = start.Left;
         double right = start.Right;
@@ -765,14 +811,6 @@ public partial class MainWindow
 
     private static Rect LayerBoundsV068(EditorImageLayerV067 layer)
         => new(layer.X, layer.Y, Math.Max(1, layer.Width), Math.Max(1, layer.Height));
-
-    private bool IsPointOverChatV068(Point point)
-    {
-        if (_editorMultipleChatsCheckCanary?.IsChecked == true && _editorExtraChatsCanary.Any(layer =>
-                layer.Bitmap is not null && new Rect(layer.X, layer.Y, layer.Bitmap.PixelWidth, layer.Bitmap.PixelHeight).Contains(point)))
-            return true;
-        return IsEditorChatPointV061(point);
-    }
 
     private void SelectImageLayerV068(EditorImageLayerV067 layer)
     {
