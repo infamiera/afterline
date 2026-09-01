@@ -11,7 +11,7 @@ internal static class CanaryChangelogData
             "Editor image drops — Adds Explorer images as new layers whenever a rendered Base Image already exists, without changing the Base Image or export dimensions.",
             "Layer transforms — Replaces unstable resize deltas with direct pointer geometry, supports proportional corner resizing, and allows layers to move across the Base Image and pasteboard.",
             "Transform controls — Uses thinner zoom-independent outlines and handles for more precise layer positioning and resizing."
-        }, ChangelogChannel.Canary, 193),
+        }, ChangelogChannel.Canary, 195),
         new("0.7.0", "01/SEP/2026", new[]
         {
             "Duplicate review — Detects only varied ordered chat-buffer replays with collapsed replacement timestamps, retains every line, and asks the user to review highlighted candidates after the session.",
