@@ -359,6 +359,8 @@ public partial class MainWindow : Window
                 ArchiveRefreshScope.Dashboard,
                 ArchiveRefreshMode.CachedOnly)).Task.Unwrap();
             await Dispatcher.InvokeAsync(() => ShowSessionArchivedNotification(path));
+            await Dispatcher.InvokeAsync(() => RefreshPotentialDuplicateReviewAvailability(path));
+            await Dispatcher.InvokeAsync(() => OfferPotentialDuplicateReviewAsync(path)).Task.Unwrap();
         }
         catch (Exception ex)
         {

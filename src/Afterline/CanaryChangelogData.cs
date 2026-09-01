@@ -6,6 +6,15 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "01/SEP/2026", new[]
+        {
+            "Duplicate review — Detects only varied ordered chat-buffer replays with collapsed replacement timestamps, retains every line, and asks the user to review highlighted candidates after the session.",
+            "Safe cleanup — Removes only user-confirmed exact ranges, rejects ambiguous matches, and creates a complete text and color-metadata backup before changing a chatlog.",
+            "Explorer image drops — Makes the first dropped image the Base Image and adds later or multi-selected images as immediately transformable layers.",
+            "Off-canvas layers — Allows image layers to move and resize beyond every Base Image edge while preserving the Base Image as the saved export boundary.",
+            "Editor workspace — Adds a compact theme-aware layout, Space or middle-button panning, pointer-anchored zoom, and a larger navigable pasteboard.",
+            "Editor validation — Extends the packaged project test with Explorer import, negative-coordinate round trips, off-canvas resize geometry, and export-boundary checks."
+        }, ChangelogChannel.Canary, 191),
         new("0.7.0", "29/AUG/2026", new[]
         {
             "Startup responsiveness — Opens the usable application shell first and prepares optional Editor and Settings features in deferred steps.",

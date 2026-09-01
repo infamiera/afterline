@@ -62,7 +62,7 @@ public partial class MainWindow
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0E, 0x13)),
+            Background = (Brush)FindResource("Bg"),
             Padding = new Thickness(0),
             CanContentScroll = false
         };
@@ -230,8 +230,8 @@ public partial class MainWindow
         _editorActiveToolKey = key;
         _editorLastToolKeyV072 = key;
         _editorToolPanelColumn.MinWidth = 220;
-        _editorToolPanelColumn.Width = new GridLength(300);
-        _editorToolGapColumn.Width = new GridLength(12);
+        _editorToolPanelColumn.Width = new GridLength(_editorToolPanelWidthCanary);
+        _editorToolGapColumn.Width = new GridLength(6);
         _editorToolPanelHost.Visibility = Visibility.Visible;
         _editorToolPanelContent.Content = panel;
         _editorToolPanelTitle.Text = key switch
@@ -309,21 +309,38 @@ public partial class MainWindow
         if (availableWidth <= 1 || availableHeight <= 1 || compositionWidth <= 0 || compositionHeight <= 0)
             return;
 
-        // Leave a sliver of breathing room so a rounding error cannot create
-        // scrollbars and make Fit appear to have failed.
+        // Fit the Base Image rather than the larger pasteboard. The pasteboard is
+        // only working room for off-canvas layers and must not make the image
+        // needlessly tiny.
         double fit = Math.Min(
-            Math.Max(1, availableWidth - 4) / compositionWidth,
-            Math.Max(1, availableHeight - 4) / compositionHeight);
+            Math.Max(1, availableWidth - 24) / compositionWidth,
+            Math.Max(1, availableHeight - 24) / compositionHeight);
         _editorFitZoom = true;
         SetEditorZoom(Math.Clamp(fit, 0.10, 4.0));
         if (_editorZoomHost is not null)
         {
-            _editorZoomHost.HorizontalAlignment = HorizontalAlignment.Center;
-            _editorZoomHost.VerticalAlignment = VerticalAlignment.Center;
+            _editorZoomHost.HorizontalAlignment = HorizontalAlignment.Left;
+            _editorZoomHost.VerticalAlignment = VerticalAlignment.Top;
         }
-        _editorPreviewScroll.ScrollToHorizontalOffset(0);
-        _editorPreviewScroll.ScrollToVerticalOffset(0);
-        _ = Dispatcher.BeginInvoke(new Action(RefreshEditorRulersV068));
+        CenterEditorBaseInPreviewV078(compositionWidth, compositionHeight);
+        _ = Dispatcher.BeginInvoke(
+            new Action(() => CenterEditorBaseInPreviewV078(compositionWidth, compositionHeight)),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void CenterEditorBaseInPreviewV078(double compositionWidth, double compositionHeight)
+    {
+        if (_editorPreviewScroll is null) return;
+        _editorPreviewScroll.UpdateLayout();
+        double scaledWidth = compositionWidth * _editorZoomScale;
+        double scaledHeight = compositionHeight * _editorZoomScale;
+        double horizontal = _editorPasteboardOffsetXV078 * _editorZoomScale -
+                            Math.Max(0, (_editorPreviewScroll.ViewportWidth - scaledWidth) / 2);
+        double vertical = _editorPasteboardOffsetYV078 * _editorZoomScale -
+                          Math.Max(0, (_editorPreviewScroll.ViewportHeight - scaledHeight) / 2);
+        _editorPreviewScroll.ScrollToHorizontalOffset(Math.Max(0, horizontal));
+        _editorPreviewScroll.ScrollToVerticalOffset(Math.Max(0, vertical));
+        RefreshEditorRulersV068();
     }
 
     private bool _editorFitScheduledV073;
@@ -344,7 +361,19 @@ public partial class MainWindow
     private void EditorPreviewScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+        if (_editorPreviewScroll is null) return;
+
+        Point pointer = e.GetPosition(_editorPreviewScroll);
+        double previousScale = _editorZoomScale;
+        double previousHorizontal = _editorPreviewScroll.HorizontalOffset;
+        double previousVertical = _editorPreviewScroll.VerticalOffset;
         ChangeEditorZoom(e.Delta > 0 ? 0.1 : -0.1);
+        double ratio = _editorZoomScale / Math.Max(0.01, previousScale);
+        _editorPreviewScroll.UpdateLayout();
+        _editorPreviewScroll.ScrollToHorizontalOffset(
+            Math.Max(0, (previousHorizontal + pointer.X) * ratio - pointer.X));
+        _editorPreviewScroll.ScrollToVerticalOffset(
+            Math.Max(0, (previousVertical + pointer.Y) * ratio - pointer.Y));
         e.Handled = true;
     }
 

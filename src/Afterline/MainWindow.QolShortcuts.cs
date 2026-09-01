@@ -111,22 +111,33 @@ public partial class MainWindow
             _editorPage.AllowDrop = true;
             _editorPage.PreviewDragOver += (_, e) =>
             {
-                e.Effects = DroppedFileV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif") is null ? DragDropEffects.None : DragDropEffects.Copy;
+                e.Effects = DroppedFilesV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif").Count == 0
+                    ? DragDropEffects.None
+                    : DragDropEffects.Copy;
                 e.Handled = true;
             };
             _editorPage.PreviewDrop += (_, e) =>
             {
-                string? path = DroppedFileV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif");
+                IReadOnlyList<string> paths = DroppedFilesV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif");
+                Point dropPoint = _editorComposition is null
+                    ? new Point(double.NaN, double.NaN)
+                    : e.GetPosition(_editorComposition);
                 e.Handled = true;
-                if (path is not null) LoadEditorMediaV060(path);
+                if (paths.Count > 0) ImportDroppedEditorImagesV078(paths, dropPoint);
             };
         }
     }
 
     private static string? DroppedFileV050(DragEventArgs e, params string[] extensions)
+        => DroppedFilesV050(e, extensions).FirstOrDefault();
+
+    private static IReadOnlyList<string> DroppedFilesV050(DragEventArgs e, params string[] extensions)
     {
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetData(DataFormats.FileDrop) is not string[] files) return null;
-        return files.FirstOrDefault(path => File.Exists(path) && extensions.Any(ext => string.Equals(Path.GetExtension(path), ext, StringComparison.OrdinalIgnoreCase)));
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetData(DataFormats.FileDrop) is not string[] files)
+            return Array.Empty<string>();
+        return files
+            .Where(path => File.Exists(path) && extensions.Any(ext => string.Equals(Path.GetExtension(path), ext, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
     }
 
     private void ConfigureKeyboardShortcutsV050() => PreviewKeyDown += QolV050_PreviewKeyDown;

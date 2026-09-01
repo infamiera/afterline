@@ -325,6 +325,31 @@ public sealed class SessionJournal
         }
     }
 
+    public async Task<IReadOnlyList<string>> ReadRecentCommittedLinesAsync(
+        int maximum,
+        CancellationToken cancellationToken)
+    {
+        maximum = Math.Clamp(maximum, 1, 5000);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_activeFile is null || !File.Exists(_activeFile))
+                return Array.Empty<string>();
+
+            // This path is reached only after the in-memory guard sees the
+            // timestamp-collapse signature. Streaming the active journal here
+            // confirms the candidate against what was actually committed while
+            // keeping ordinary capture free of extra disk reads.
+            return File.ReadLines(_activeFile)
+                .TakeLast(maximum)
+                .ToArray();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<string> ExportCurrentLogAsync(
         string archiveRoot,
         string downloadsFolder,

@@ -301,6 +301,7 @@ public partial class MainWindow
         };
         Panel.SetZIndex(_editorLayerLockBadgeV068, 23);
         host.Children.Add(_editorLayerLockBadgeV068);
+        ApplyPasteboardOffsetToEditorOverlaysV078();
         RefreshSelectedLayerAdornerV068();
     }
 
@@ -339,8 +340,8 @@ public partial class MainWindow
                 : Visibility.Collapsed;
             if (show && layer is not null)
                 _editorLayerLockBadgeV068.Margin = new Thickness(
-                    Math.Max(0, layer.X + layer.Width - 28),
-                    Math.Max(0, layer.Y + 3),
+                    layer.X + layer.Width - 28,
+                    layer.Y + 3,
                     0,
                     0);
         }
@@ -444,8 +445,8 @@ public partial class MainWindow
         }
 
         EditorImageLayerV067 layer = _editorLayerDragTargetV068;
-        double x = Math.Max(0, _editorLayerDragStartXV068 + point.X - _editorLayerDragStartV068.X);
-        double y = Math.Max(0, _editorLayerDragStartYV068 + point.Y - _editorLayerDragStartV068.Y);
+        double x = _editorLayerDragStartXV068 + point.X - _editorLayerDragStartV068.X;
+        double y = _editorLayerDragStartYV068 + point.Y - _editorLayerDragStartV068.Y;
         (x, y, double? guideX, double? guideY) = SnapImageLayerV068(layer, x, y);
         layer.X = x;
         layer.Y = y;
@@ -642,7 +643,7 @@ public partial class MainWindow
                 => layer.Y + layer.Height / 2 - thumb.Height / 2,
             _ => layer.Y + layer.Height - thumb.Height / 2
         };
-        thumb.Margin = new Thickness(Math.Max(0, left), Math.Max(0, top), 0, 0);
+        thumb.Margin = new Thickness(left, top, 0, 0);
     }
 
     private static (Rect Bounds, double? GuideX, double? GuideY) CalculateLayerResizeBoundsV071(
@@ -665,9 +666,9 @@ public partial class MainWindow
         double right = start.Right;
         double top = start.Top;
         double bottom = start.Bottom;
-        if (moveLeft) left = Math.Clamp(start.Left + deltaX, 0, start.Right - minimum);
+        if (moveLeft) left = Math.Min(start.Left + deltaX, start.Right - minimum);
         if (moveRight) right = Math.Max(start.Left + minimum, start.Right + deltaX);
-        if (moveTop) top = Math.Clamp(start.Top + deltaY, 0, start.Bottom - minimum);
+        if (moveTop) top = Math.Min(start.Top + deltaY, start.Bottom - minimum);
         if (moveBottom) bottom = Math.Max(start.Top + minimum, start.Bottom + deltaY);
 
         double? guideX = null;
@@ -744,7 +745,7 @@ public partial class MainWindow
                 guideY = baseHeight;
             }
         }
-        return (Math.Max(0, x), Math.Max(0, y), guideX, guideY);
+        return (x, y, guideX, guideY);
     }
 
     private (double Width, double Height) GetBaseImageBoundsV068()

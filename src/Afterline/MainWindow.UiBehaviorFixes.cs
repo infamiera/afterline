@@ -37,6 +37,7 @@ public partial class MainWindow
 
     private bool ShouldShowLiveChatEntryV076(ChatEntry entry)
     {
+        if (entry.IsPotentialDuplicate || entry.IsPotentialDuplicateReviewClone) return true;
         if (entry.IsSystemMessage) return true;
         if (entry.IsOocLine) return _settings.ShowOocChat;
         return _settings.ShowIcChat;
