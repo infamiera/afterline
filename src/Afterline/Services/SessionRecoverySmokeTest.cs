@@ -35,6 +35,10 @@ internal static class SessionRecoverySmokeTest
         if (marker is null)
             throw new InvalidOperationException("The initial journal did not create its login marker.");
 
+        var liveReplayCache = new LastSessionCacheService();
+        await liveReplayCache.BeginAsync(server, startedAt, CancellationToken.None);
+        await liveReplayCache.AppendAsync(marker, CancellationToken.None);
+
         string firstLine = "[04:40:56] Welcome to the recovery smoke test.";
         string secondLine = "[04:41:13] Recovery checkpoint line.";
         var firstLineColors = new[]
@@ -47,9 +51,10 @@ internal static class SessionRecoverySmokeTest
             firstLine,
             capturedColorRuns: firstLineColors);
         await initial.AppendAsync(exactColorEntry, CancellationToken.None);
-        await initial.AppendAsync(
-            new ChatEntry(startedAt.AddMinutes(1).AddSeconds(13), secondLine),
-            CancellationToken.None);
+        await liveReplayCache.AppendAsync(exactColorEntry, CancellationToken.None);
+        var secondEntry = new ChatEntry(startedAt.AddMinutes(1).AddSeconds(13), secondLine);
+        await initial.AppendAsync(secondEntry, CancellationToken.None);
+        await liveReplayCache.AppendAsync(secondEntry, CancellationToken.None);
         await initial.UpdateVisibleSnapshotAsync(
             new[] { firstLine, secondLine },
             CancellationToken.None);
