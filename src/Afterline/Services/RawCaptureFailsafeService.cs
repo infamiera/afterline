@@ -222,7 +222,6 @@ public sealed class RawCaptureFailsafeService
                 AppPaths.RecoveryBackupsDirectory,
                 baseName,
                 ".txt");
-            ChatColorSidecarService.DeleteForTextFile(destination);
             IReadOnlyList<CapturedChatLine> capturedLines = snapshot.GetCapturedLines();
 
             await using FileStream stream = new(
@@ -240,21 +239,7 @@ public sealed class RawCaptureFailsafeService
                 cancellationToken);
 
             foreach (CapturedChatLine line in capturedLines)
-            {
                 await writer.WriteLineAsync(line.Text.AsMemory(), cancellationToken);
-                try
-                {
-                    await ChatColorSidecarService.AppendAsync(
-                        destination,
-                        line.Text,
-                        line.ColorRuns,
-                        cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    DiagnosticLogger.Error("Unable to preserve exact colors in the raw recovery copy.", ex);
-                }
-            }
 
             await writer.FlushAsync(cancellationToken);
             await stream.FlushAsync(cancellationToken);
