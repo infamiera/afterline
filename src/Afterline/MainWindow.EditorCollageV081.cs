@@ -9,9 +9,15 @@ namespace Afterline;
 
 public partial class MainWindow
 {
-    private sealed record EditorCollagePresetV081(string Id, string Name, IReadOnlyList<Rect> Slots)
+    private sealed record EditorCollagePresetV081(
+        string Id,
+        string Name,
+        IReadOnlyList<Rect> Slots,
+        int LogoSlotIndex = -1)
     {
         public override string ToString() => Name;
+
+        public bool IsLogoSlot(int index) => index == LogoSlotIndex;
     }
 
     private sealed record EditorCollageCanvasV081(string Name, int Width, int Height)
@@ -50,7 +56,58 @@ public partial class MainWindow
             new Rect(0, 0, 1.0 / 3, 1),
             new Rect(1.0 / 3, 0, 1.0 / 3, 1),
             new Rect(2.0 / 3, 0, 1.0 / 3, 1)
-        })
+        }),
+        new("brand-mosaic-8", "Brand mosaic · 8 + logo", new[]
+        {
+            new Rect(0, 0, 1.0 / 3, 0.20),
+            new Rect(0, 0.20, 1.0 / 3, 0.40),
+            new Rect(1.0 / 3, 0, 1.0 / 3, 0.42),
+            new Rect(2.0 / 3, 0, 1.0 / 3, 0.20),
+            new Rect(2.0 / 3, 0.20, 1.0 / 3, 0.40),
+            new Rect(0, 0.60, 1.0 / 3, 0.40),
+            new Rect(1.0 / 3, 0.60, 1.0 / 3, 0.40),
+            new Rect(2.0 / 3, 0.60, 1.0 / 3, 0.40),
+            new Rect(1.0 / 3, 0.42, 1.0 / 3, 0.18)
+        }, LogoSlotIndex: 8),
+        new("logo-grid-8", "Logo grid · 8 + logo", new[]
+        {
+            new Rect(0, 0, 1.0 / 3, 1.0 / 3),
+            new Rect(1.0 / 3, 0, 1.0 / 3, 1.0 / 3),
+            new Rect(2.0 / 3, 0, 1.0 / 3, 1.0 / 3),
+            new Rect(0, 1.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(2.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(0, 2.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(1.0 / 3, 2.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(2.0 / 3, 2.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(1.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 3)
+        }, LogoSlotIndex: 8),
+        new("logo-cross-4", "Logo cross · 4 + logo", new[]
+        {
+            new Rect(0.25, 0, 0.50, 0.28),
+            new Rect(0, 0.28, 0.25, 0.44),
+            new Rect(0.75, 0.28, 0.25, 0.44),
+            new Rect(0.25, 0.72, 0.50, 0.28),
+            new Rect(0.25, 0.28, 0.50, 0.44)
+        }, LogoSlotIndex: 4),
+        new("logo-band-6", "Logo band · 6 + logo", new[]
+        {
+            new Rect(0, 0, 1.0 / 3, 0.40),
+            new Rect(1.0 / 3, 0, 1.0 / 3, 0.40),
+            new Rect(2.0 / 3, 0, 1.0 / 3, 0.40),
+            new Rect(0, 0.60, 1.0 / 3, 0.40),
+            new Rect(1.0 / 3, 0.60, 1.0 / 3, 0.40),
+            new Rect(2.0 / 3, 0.60, 1.0 / 3, 0.40),
+            new Rect(0, 0.40, 1, 0.20)
+        }, LogoSlotIndex: 6),
+        new("logo-feature-5", "Logo feature · 5 + logo", new[]
+        {
+            new Rect(0, 0, 0.28, 0.50),
+            new Rect(0, 0.50, 0.28, 0.50),
+            new Rect(0.28, 0, 0.44, 0.72),
+            new Rect(0.72, 0, 0.28, 0.50),
+            new Rect(0.72, 0.50, 0.28, 0.50),
+            new Rect(0.28, 0.72, 0.44, 0.28)
+        }, LogoSlotIndex: 5)
     };
 
     private static readonly EditorCollageCanvasV081[] EditorCollageCanvasesV081 =
@@ -64,6 +121,7 @@ public partial class MainWindow
     private ComboBox? _editorCollagePresetV081;
     private ComboBox? _editorCollageCanvasV081;
     private Slider? _editorCollageGapV081;
+    private Canvas? _editorCollageLayoutPreviewV086;
     private bool _editorCollageGapUiUpdatingV082;
     private bool _editorCollageGapHistoryCapturedV082;
     private bool _editorCollagePanningV081;
@@ -106,9 +164,11 @@ public partial class MainWindow
             "Choose a fixed collage layout, then drop images from Explorer onto its numbered frames. Drag a filled frame to reposition the image crop without moving the frame."));
 
         _editorCollagePresetV081 = new ComboBox { Height = 34, ItemsSource = EditorCollagePresetsV081, SelectedIndex = 0 };
+        _editorCollagePresetV081.SelectionChanged += (_, _) => RefreshCollageLayoutPreviewV086();
         content.Children.Add(CreateEditorField("Layout", _editorCollagePresetV081));
 
         _editorCollageCanvasV081 = new ComboBox { Height = 34, ItemsSource = EditorCollageCanvasesV081, SelectedIndex = 0 };
+        _editorCollageCanvasV081.SelectionChanged += (_, _) => RefreshCollageLayoutPreviewV086();
         content.Children.Add(CreateEditorField("Canvas size", _editorCollageCanvasV081));
 
         var gap = CreateEditorV041Slider("Frame gap", 0, 80, 12, 1);
@@ -122,7 +182,11 @@ public partial class MainWindow
                 BeginLiveCollageGapEditV082();
         };
         _editorCollageGapV081.PreviewKeyUp += (_, _) => EndLiveCollageGapEditV082();
-        _editorCollageGapV081.ValueChanged += (_, _) => ApplyLiveCollageGapV082();
+        _editorCollageGapV081.ValueChanged += (_, _) =>
+        {
+            ApplyLiveCollageGapV082();
+            RefreshCollageLayoutPreviewV086();
+        };
         content.Children.Add(gap.Panel);
         content.Children.Add(EditorSubtleNote(
             "Adjust this at any time. The Base Image and export size stay fixed while the collage frames expand or contract inside it."));
@@ -139,8 +203,88 @@ public partial class MainWindow
         create.Click += (_, _) => CreateCollageV081();
         content.Children.Add(create);
         content.Children.Add(EditorSubtleNote(
-            "Frame borders and drop labels are preview guides only. Empty frames remain transparent in exported PNG files."));
+            "Frame borders and drop labels are preview guides only. Empty frames remain transparent in exported PNG files. Logo slots keep the complete logo visible."));
+
+        content.Children.Add(new TextBlock
+        {
+            Text = "Layout preview",
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 10, 0, 5)
+        });
+        _editorCollageLayoutPreviewV086 = new Canvas
+        {
+            Width = 320,
+            Height = 180,
+            ClipToBounds = true,
+            IsHitTestVisible = false
+        };
+        var previewViewbox = new Viewbox
+        {
+            Height = 142,
+            Stretch = Stretch.Uniform,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = _editorCollageLayoutPreviewV086
+        };
+        var previewBorder = new Border
+        {
+            Child = previewViewbox,
+            Padding = new Thickness(6),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        previewBorder.SetResourceReference(Border.BackgroundProperty, "Panel");
+        previewBorder.SetResourceReference(Border.BorderBrushProperty, "Border");
+        content.Children.Add(previewBorder);
+        RefreshCollageLayoutPreviewV086();
         return WrapEditorToolPanel(content);
+    }
+
+    private void RefreshCollageLayoutPreviewV086()
+    {
+        if (_editorCollageLayoutPreviewV086 is null)
+            return;
+
+        EditorCollagePresetV081 preset = _editorCollagePresetV081?.SelectedItem as EditorCollagePresetV081
+            ?? EditorCollagePresetsV081[0];
+        EditorCollageCanvasV081 canvas = _editorCollageCanvasV081?.SelectedItem as EditorCollageCanvasV081
+            ?? EditorCollageCanvasesV081[0];
+        double previewWidth = 320;
+        double previewHeight = Math.Clamp(previewWidth * canvas.Height / Math.Max(1d, canvas.Width), 100, 400);
+        double previewGap = Math.Clamp(_editorCollageGapV081?.Value ?? 12, 0, 80) * previewWidth / canvas.Width;
+
+        _editorCollageLayoutPreviewV086.Children.Clear();
+        _editorCollageLayoutPreviewV086.Width = previewWidth;
+        _editorCollageLayoutPreviewV086.Height = previewHeight;
+        for (int index = 0; index < preset.Slots.Count; index++)
+        {
+            Rect slot = preset.Slots[index];
+            bool isLogo = preset.IsLogoSlot(index);
+            var label = new TextBlock
+            {
+                Text = isLogo ? "LOGO" : (index + 1).ToString(),
+                FontSize = isLogo ? 11 : 10,
+                FontWeight = isLogo ? FontWeights.Bold : FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false
+            };
+            label.SetResourceReference(TextBlock.ForegroundProperty, isLogo ? "Text" : "MutedText");
+            var frame = new Border
+            {
+                Child = label,
+                Width = Math.Max(3, slot.Width * previewWidth - previewGap),
+                Height = Math.Max(3, slot.Height * previewHeight - previewGap),
+                BorderThickness = new Thickness(isLogo ? 1.5 : 1),
+                CornerRadius = new CornerRadius(1),
+                Opacity = isLogo ? 0.82 : 0.66
+            };
+            frame.SetResourceReference(Border.BackgroundProperty, isLogo ? "Accent" : "Border");
+            frame.SetResourceReference(Border.BorderBrushProperty, isLogo ? "Accent" : "Border");
+            Canvas.SetLeft(frame, slot.X * previewWidth + previewGap / 2);
+            Canvas.SetTop(frame, slot.Y * previewHeight + previewGap / 2);
+            _editorCollageLayoutPreviewV086.Children.Add(frame);
+        }
     }
 
     private void CreateCollageV081()
@@ -169,9 +313,10 @@ public partial class MainWindow
         {
             Rect slot = preset.Slots[index];
             Rect bounds = CalculateCollageFrameBoundsV082(slot, canvas.Width, canvas.Height, gap);
+            string slotName = preset.IsLogoSlot(index) ? "Collage Logo" : $"Collage Slot {index + 1}";
             AddImageLayerFromBitmapV067(
                 empty,
-                $"Collage Slot {index + 1}",
+                slotName,
                 bounds.X,
                 bounds.Y,
                 width: bounds.Width,
@@ -302,6 +447,24 @@ public partial class MainWindow
             Math.Max(16, slot.Width * canvasWidth - gap),
             Math.Max(16, slot.Height * canvasHeight - gap));
 
+    private static bool IsCollageLogoSlotV086(EditorImageLayerV067 layer)
+    {
+        if (!layer.IsCollageFrame || string.IsNullOrWhiteSpace(layer.CollagePresetId))
+            return false;
+
+        EditorCollagePresetV081? preset = EditorCollagePresetsV081.FirstOrDefault(item =>
+            string.Equals(item.Id, layer.CollagePresetId, StringComparison.Ordinal));
+        return preset?.IsLogoSlot(layer.CollageSlotIndex) == true;
+    }
+
+    private static string CollageFrameNameV086(EditorImageLayerV067 layer, string? fileName = null)
+    {
+        string name = IsCollageLogoSlotV086(layer)
+            ? "Collage Logo"
+            : $"Collage Slot {layer.CollageSlotIndex + 1}";
+        return string.IsNullOrWhiteSpace(fileName) ? name : $"{name} · {fileName}";
+    }
+
     private static void VerifyLiveCollageGapGeometryV082()
     {
         var leftSlot = new Rect(0, 0, 0.5, 1);
@@ -316,6 +479,16 @@ public partial class MainWindow
         {
             throw new InvalidOperationException(
                 "Live collage gap geometry changed the canvas boundary or failed to expand frames into removed spacing.");
+        }
+
+        foreach (EditorCollagePresetV081 preset in EditorCollagePresetsV081)
+        {
+            if (preset.LogoSlotIndex >= preset.Slots.Count || preset.LogoSlotIndex < -1 ||
+                preset.Slots.Any(slot => slot.X < 0 || slot.Y < 0 || slot.Width <= 0 || slot.Height <= 0 ||
+                    slot.Right > 1.0001 || slot.Bottom > 1.0001))
+            {
+                throw new InvalidOperationException($"Collage preset '{preset.Id}' contains invalid frame geometry.");
+            }
         }
     }
 
@@ -350,7 +523,7 @@ public partial class MainWindow
                 frame.CollageSource = LoadBitmapFileV067(paths[pathIndex]);
                 frame.CollageOffsetX = 0;
                 frame.CollageOffsetY = 0;
-                frame.Name = $"Collage Slot {frame.CollageSlotIndex + 1} · {Path.GetFileName(paths[pathIndex])}";
+                frame.Name = CollageFrameNameV086(frame, Path.GetFileName(paths[pathIndex]));
                 RefreshCollageFrameBitmapV081(frame);
                 UpdateImageLayerVisualV067(frame);
                 last = frame;
@@ -377,6 +550,12 @@ public partial class MainWindow
         if (layer.CollageSource is null)
         {
             layer.Bitmap = CreateProjectBackgroundBitmapV081(1, 1, "Transparent");
+            return;
+        }
+
+        if (IsCollageLogoSlotV086(layer))
+        {
+            layer.Bitmap = layer.CollageSource;
             return;
         }
 
@@ -454,7 +633,11 @@ public partial class MainWindow
             : Brushes.Transparent;
         if (overlay.Child is TextBlock label)
         {
-            label.Text = layer.CollageSource is null ? $"DROP IMAGE\nSLOT {layer.CollageSlotIndex + 1}" : string.Empty;
+            label.Text = layer.CollageSource is null
+                ? IsCollageLogoSlotV086(layer)
+                    ? "DROP LOGO\nOPTIONAL"
+                    : $"DROP IMAGE\nSLOT {layer.CollageSlotIndex + 1}"
+                : string.Empty;
             label.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
         }
     }
@@ -521,7 +704,9 @@ public partial class MainWindow
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = $"Choose image for collage slot {layer.CollageSlotIndex + 1}",
+            Title = IsCollageLogoSlotV086(layer)
+                ? "Choose image for collage logo"
+                : $"Choose image for collage slot {layer.CollageSlotIndex + 1}",
             Filter = "Image files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
             CheckFileExists = true,
             Multiselect = false
@@ -531,7 +716,7 @@ public partial class MainWindow
         layer.CollageSource = LoadBitmapFileV067(dialog.FileName);
         layer.CollageOffsetX = 0;
         layer.CollageOffsetY = 0;
-        layer.Name = $"Collage Slot {layer.CollageSlotIndex + 1} · {Path.GetFileName(dialog.FileName)}";
+        layer.Name = CollageFrameNameV086(layer, Path.GetFileName(dialog.FileName));
         RefreshCollageFrameBitmapV081(layer);
         UpdateImageLayerVisualV067(layer);
         RefreshLayerListV067(layer);
@@ -543,7 +728,7 @@ public partial class MainWindow
         layer.CollageSource = null;
         layer.CollageOffsetX = 0;
         layer.CollageOffsetY = 0;
-        layer.Name = $"Collage Slot {layer.CollageSlotIndex + 1}";
+        layer.Name = CollageFrameNameV086(layer);
         RefreshCollageFrameBitmapV081(layer);
         UpdateImageLayerVisualV067(layer);
         RefreshLayerListV067(layer);
