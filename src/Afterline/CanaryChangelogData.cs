@@ -9,7 +9,8 @@ internal static class CanaryChangelogData
         new("0.7.0", "02/SEP/2026", new[]
         {
             "Collage logo frames — Makes logo-designated slots fill their frame and respond to drag-to-reposition cropping like every image slot.",
-            "Collage layouts — Adds six non-logo grid, panorama, feature and editorial arrangements with live previews and gap controls."
+            "Collage layouts — Adds six non-logo grid, panorama, feature and editorial arrangements with live previews and gap controls.",
+            "Chat filtering — Covers additional gameplay notifications and variable Server Staff punishment broadcasts without hiding session boundaries."
         }, ChangelogChannel.Canary, 215),
         new("0.7.0", "02/SEP/2026", new[]
         {
