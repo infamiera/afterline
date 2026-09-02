@@ -9,7 +9,7 @@ internal static class CanaryChangelogData
         new("0.7.0", "02/SEP/2026", new[]
         {
             "Collage layouts — Adds five logo-focused compositions, including an eight-photo brand mosaic with an optional center logo.",
-            "Layout preview — Shows the selected composition, canvas shape and live frame spacing before creating a collage.",
+            "Layout preview — Shows the selected layout, canvas shape and live frame spacing before creating a collage.",
             "Live Chat filtering — Extends OOC coverage for additional gameplay notices while keeping login and disconnect events visible."
         }, ChangelogChannel.Canary, 212),
         new("0.7.0", "02/SEP/2026", new[]
