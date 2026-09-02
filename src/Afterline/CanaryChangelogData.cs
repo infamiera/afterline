@@ -8,6 +8,16 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "02/SEP/2026", new[]
         {
+            "Transparent projects — Starts new Editor projects with a real transparent Base Image, with optional black or white defaults and alpha-safe PNG export.",
+            "Background removal — Adds a non-destructive preview for removing edge-connected backgrounds from the Base Image or selected image layer.",
+            "Set as Base Image — Promotes an image layer to the Base Image using its displayed dimensions or a custom pixel size.",
+            "Collage Maker — Adds six fixed-frame layouts with Explorer drop targets and independent image-crop repositioning.",
+            "Editor controls — Expands font size to 100 and chat width to 1,500.",
+            "Editor history — Adds chronological document, image and layer Undo or Redo through shortcuts and the File menu.",
+            "About Afterline — Removes the duplicated Contact block while retaining the official project link."
+        }, ChangelogChannel.Canary, 203),
+        new("0.7.0", "02/SEP/2026", new[]
+        {
             "Layer presentation — Keeps image pixels visible across the pasteboard without changing the Base Image or exported canvas.",
             "Layer corners — Adds a per-layer corner-radius control that persists through project saves and undo history.",
             "Transform controls — Improves proportional resizing and uses thinner selection borders and handles.",

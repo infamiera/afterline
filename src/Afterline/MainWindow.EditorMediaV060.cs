@@ -105,6 +105,7 @@ public partial class MainWindow
             _editorGifCompletedLoops = 0;
             _editorGifFrameIndex = 0;
             _editorLoadedMediaPath = path;
+            _editorSyntheticBaseV081 = false;
 
             string extension = Path.GetExtension(path);
             if (string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase))
@@ -189,9 +190,10 @@ public partial class MainWindow
         }
         if (_editorRemoveImageButton is not null) _editorRemoveImageButton.IsEnabled = false;
         ClearEditorMarkup(resetHistory: true);
+        CreateDefaultProjectBaseV081();
         UpdateEditorCanvasSize();
         UpdateEditorMediaControlsV060();
-        SetEditorStatus("Screenshot removed. The Editor is back in chat-overlay-only mode.");
+        SetEditorStatus("Screenshot removed. The Editor is using the configured new-project background.");
     }
 
     private static BitmapFrame FreezeEditorFrameV060(BitmapFrame source)

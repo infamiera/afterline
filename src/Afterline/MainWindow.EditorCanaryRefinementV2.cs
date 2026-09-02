@@ -20,7 +20,8 @@ public partial class MainWindow
         Rect Crop,
         string OutputWidth,
         string OutputHeight,
-        string Description);
+        string Description,
+        long Sequence);
 
     private sealed record CanarySavedFilter(
         string Name,
@@ -149,6 +150,7 @@ public partial class MainWindow
                     "colors" => "Line Colors",
                     "effects" => "Text Effects",
                     "image" => "Image & Canvas",
+                    "collage" => "Collage Maker",
                     "layer-paint" => "Layer Paint & Erase",
                     "selection" => "Selection",
                     "filters" => "Filters & Adjustments",
@@ -615,16 +617,18 @@ public partial class MainWindow
         ModifierKeys modifiers = Keyboard.Modifiers;
         bool ctrl = (modifiers & ModifierKeys.Control) != 0;
         bool shift = (modifiers & ModifierKeys.Shift) != 0;
-        if (!ctrl || e.Key != Key.Z) return;
+        bool undo = ctrl && e.Key == Key.Z && !shift;
+        bool redo = ctrl && ((e.Key == Key.Z && shift) || e.Key == Key.Y);
+        if (!undo && !redo) return;
 
-        UndoActiveEditorHistoryV080(redo: shift);
+        UndoActiveEditorHistoryV080(redo);
         e.Handled = true;
     }
 
     private void PushEditorHistoryCanaryV2(string description)
     {
         if (_editorHistoryRestoringCanaryV2) return;
-        CanaryEditorImageSnapshot snapshot = CaptureEditorHistoryCanaryV2(description);
+        CanaryEditorImageSnapshot snapshot = CaptureEditorHistoryCanaryV2(description, NextEditorHistorySequenceV081());
         _editorUndoCanaryV2.Push(snapshot);
         while (_editorUndoCanaryV2.Count > CanaryEditorHistoryLimitV2)
         {
@@ -632,10 +636,10 @@ public partial class MainWindow
             _editorUndoCanaryV2.Clear();
             foreach (CanaryEditorImageSnapshot entry in keep) _editorUndoCanaryV2.Push(entry);
         }
-        _editorRedoCanaryV2.Clear();
+        ClearAllEditorRedoV081();
     }
 
-    private CanaryEditorImageSnapshot CaptureEditorHistoryCanaryV2(string description)
+    private CanaryEditorImageSnapshot CaptureEditorHistoryCanaryV2(string description, long? sequence = null)
     {
         BitmapSource? source = _editorFilterCommittedCanary ?? _editorBaseOriginal;
         BitmapSource? image = source is null || EditorHasAnimatedGifV060 ? null : CloneBitmapCanary(source);
@@ -649,7 +653,8 @@ public partial class MainWindow
             _editorCropNormalizedV060,
             _editorOutputWidthBox?.Text ?? string.Empty,
             _editorOutputHeightBox?.Text ?? string.Empty,
-            description);
+            description,
+            sequence ?? _editorHistorySequenceV081);
     }
 
     private void UndoEditorHistoryCanaryV2()
@@ -659,8 +664,8 @@ public partial class MainWindow
             SetEditorStatus("Nothing to undo.");
             return;
         }
-        CanaryEditorImageSnapshot current = CaptureEditorHistoryCanaryV2("Redo state");
         CanaryEditorImageSnapshot previous = _editorUndoCanaryV2.Pop();
+        CanaryEditorImageSnapshot current = CaptureEditorHistoryCanaryV2("Redo state", previous.Sequence);
         _editorRedoCanaryV2.Push(current);
         RestoreEditorHistoryCanaryV2(previous);
         SetEditorStatus($"Undid {previous.Description}. Ctrl+Shift+Z redoes it.");
@@ -673,8 +678,8 @@ public partial class MainWindow
             SetEditorStatus("Nothing to redo.");
             return;
         }
-        CanaryEditorImageSnapshot current = CaptureEditorHistoryCanaryV2("Undo state");
         CanaryEditorImageSnapshot next = _editorRedoCanaryV2.Pop();
+        CanaryEditorImageSnapshot current = CaptureEditorHistoryCanaryV2("Undo state", next.Sequence);
         _editorUndoCanaryV2.Push(current);
         RestoreEditorHistoryCanaryV2(next);
         SetEditorStatus("Redid the last Editor change.");

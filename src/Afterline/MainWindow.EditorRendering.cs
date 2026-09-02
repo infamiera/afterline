@@ -149,6 +149,7 @@ public partial class MainWindow
             bitmap.EndInit();
             if (bitmap.CanFreeze) bitmap.Freeze();
 
+            _editorSyntheticBaseV081 = false;
             _editorBaseOriginal = bitmap;
             if (_editorRemoveImageButton is not null) _editorRemoveImageButton.IsEnabled = true;
             ResetEditorAdjustmentSliders();
@@ -341,9 +342,10 @@ public partial class MainWindow
         _editorInkCanvas.Width = width;
         _editorInkCanvas.Height = height;
         _editorChatImage.Margin = new Thickness(chatX, chatY, 0, 0);
-        _editorComposition.Background = string.Equals(_editorBackgroundBox?.SelectedItem?.ToString(), "Transparent", StringComparison.Ordinal)
-            ? Brushes.Transparent
-            : Brushes.Black;
+        // Background choice is represented by the Base Image itself. Keeping the
+        // composition transparent prevents WPF from flattening genuine PNG alpha
+        // during preview, clipboard capture, or export.
+        _editorComposition.Background = Brushes.Transparent;
     }
 
     private void EditorResetEdits_Click(object sender, RoutedEventArgs e)

@@ -52,37 +52,6 @@ internal sealed class AboutWindow : Window
 
         body.Children.Add(CreateProjectCard());
 
-        var contactCard = new Border
-        {
-            Style = (Style)FindResource("CardStyle"),
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        var contactStack = new StackPanel();
-        contactStack.Children.Add(new TextBlock
-        {
-            Text = "Contact",
-            FontSize = 17,
-            FontWeight = FontWeights.SemiBold
-        });
-        contactStack.Children.Add(new TextBlock
-        {
-            Text = "Issues, feature requests and release information are available through the official GitHub project.",
-            Foreground = (Brush)FindResource("MutedText"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 5, 0, 10)
-        });
-        var projectButton = new Button
-        {
-            Content = "Open GitHub Project",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 7, 12, 7),
-            ToolTip = "Open the official Afterline GitHub project in your default browser."
-        };
-        projectButton.Click += (_, _) => OpenUrl(ProjectUrl);
-        contactStack.Children.Add(projectButton);
-        contactCard.Child = contactStack;
-        body.Children.Add(contactCard);
-
         var disclaimer = new Border
         {
             Style = (Style)FindResource("CardStyle"),

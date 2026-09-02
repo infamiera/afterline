@@ -136,11 +136,14 @@ public partial class MainWindow
         content.Children.Add(imageButtons);
 
         _editorBackgroundBox = new ComboBox { Height = 34 };
-        _editorBackgroundBox.Items.Add("Black");
         _editorBackgroundBox.Items.Add("Transparent");
+        _editorBackgroundBox.Items.Add("Black");
+        _editorBackgroundBox.Items.Add("White");
         _editorBackgroundBox.SelectedIndex = 0;
-        _editorBackgroundBox.SelectionChanged += (_, _) => UpdateEditorCanvasSize();
-        content.Children.Add(CreateEditorField("Canvas background", _editorBackgroundBox));
+        _editorBackgroundBox.SelectionChanged += (_, _) => EditorProjectBackgroundChangedV081();
+        content.Children.Add(CreateEditorField("New project background", _editorBackgroundBox));
+        content.Children.Add(EditorSubtleNote(
+            "Transparent preserves PNG alpha. This choice is used whenever the Editor opens without an active project or creates a new project."));
 
         var x = CreateEditorV041Slider("Chat horizontal position", 0, 600, 0, 5);
         _editorChatXSlider = x.Slider;

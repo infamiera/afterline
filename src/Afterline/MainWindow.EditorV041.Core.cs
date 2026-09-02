@@ -297,7 +297,7 @@ public partial class MainWindow
         fontContent.Children.Add(EditorSubtleNote(
             "Font stacks use the first installed Windows font and fall back safely. Server webfonts such as Raleway or Mukta render exactly when that font is installed locally."));
 
-        var fontSize = CreateEditorV041Slider("Font size", 12, 32, 18);
+        var fontSize = CreateEditorV041Slider("Font size", 12, 100, 18);
         _editorFontSizeSlider = fontSize.Slider;
         _editorFontSizeSlider.ValueChanged += (_, _) => ScheduleEditorChatRender();
         fontContent.Children.Add(fontSize.Panel);
@@ -307,7 +307,7 @@ public partial class MainWindow
         _editorLineSpacingSlider.ValueChanged += (_, _) => ScheduleEditorChatRender();
         fontContent.Children.Add(spacing.Panel);
 
-        var width = CreateEditorV041Slider("Chat width", 320, 1200, 900, 10);
+        var width = CreateEditorV041Slider("Chat width", 320, 1500, 900, 10);
         _editorChatWidthSlider = width.Slider;
         _editorChatWidthSlider.ValueChanged += (_, _) => ScheduleEditorChatRender();
         fontContent.Children.Add(width.Panel);

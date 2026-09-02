@@ -75,7 +75,7 @@ public partial class MainWindow
             ChatWidth = _editorChatWidthSlider?.Value ?? 900,
             ChatTextAlignment = _editorChatTextAlignmentV063.ToString(),
             ShowTimestamps = _editorShowTimestampsCheck?.IsChecked == true,
-            CanvasBackground = _editorBackgroundBox?.SelectedItem?.ToString() ?? "Black",
+            CanvasBackground = _editorBackgroundBox?.SelectedItem?.ToString() ?? "Transparent",
             ChatHorizontalPosition = _editorChatXSlider?.Value ?? 0,
             ChatVerticalPosition = _editorChatYSlider?.Value ?? 0,
             ExportKeybind = _settings.Editor.ExportKeybind,
@@ -119,7 +119,7 @@ public partial class MainWindow
         RefreshEditorTextAlignmentButtonsV063();
         if (_editorShowTimestampsCheck is not null) _editorShowTimestampsCheck.IsChecked = preferences.ShowTimestamps;
 
-        SetEditorComboSelection(_editorBackgroundBox, preferences.CanvasBackground, "Black");
+        SetEditorComboSelection(_editorBackgroundBox, preferences.CanvasBackground, "Transparent");
         SetEditorSlider(_editorChatXSlider, preferences.ChatHorizontalPosition);
         SetEditorSlider(_editorChatYSlider, preferences.ChatVerticalPosition);
 

@@ -34,7 +34,13 @@ public partial class MainWindow
         bool Locked = false,
         double? Width = null,
         double? Height = null,
-        double CornerRadius = 0);
+        double CornerRadius = 0,
+        bool IsCollageFrame = false,
+        string? CollagePresetId = null,
+        int CollageSlotIndex = -1,
+        string? CollageSourceEntry = null,
+        double CollageOffsetX = 0,
+        double CollageOffsetY = 0);
 
     private sealed record EditorProjectChatLayerDataV067(
         string Text,
@@ -83,7 +89,9 @@ public partial class MainWindow
         IReadOnlyList<EditorProjectChatLayerDataV067> ExtraChats,
         IReadOnlyList<EditorProjectExactChatLineV068>? ExactChatColors = null,
         IReadOnlyList<EditorProjectLineColorV071>? LineColors = null,
-        IReadOnlyList<EditorProjectTextColorV071>? TextColors = null);
+        IReadOnlyList<EditorProjectTextColorV071>? TextColors = null,
+        string? CanvasBackground = null,
+        bool SyntheticBase = false);
 
     private enum NewProjectChoiceV067
     {
@@ -93,7 +101,7 @@ public partial class MainWindow
     }
 
     private bool HasEditorProjectContentV067()
-        => _editorBaseOriginal is not null ||
+        => (_editorBaseOriginal is not null && !_editorSyntheticBaseV081) ||
            !string.IsNullOrWhiteSpace(_editorInput?.Text) ||
            _editorImageLayersV067.Count > 0 ||
            _editorExtraChatsCanary.Count > 0 ||
@@ -251,7 +259,13 @@ public partial class MainWindow
                     layer.IsLocked,
                     layer.Width,
                     layer.Height,
-                    layer.CornerRadius)).ToArray(),
+                    layer.CornerRadius,
+                    layer.IsCollageFrame,
+                    layer.CollagePresetId,
+                    layer.CollageSlotIndex,
+                    layer.CollageSource is null ? null : $"collage/{index:D3}-source.png",
+                    layer.CollageOffsetX,
+                    layer.CollageOffsetY)).ToArray(),
             _editorExtraChatsCanary.Select(layer =>
                 new EditorProjectChatLayerDataV067(layer.Text, layer.X, layer.Y)).ToArray(),
             _editorExactChatColorsV068.Select(pair =>
@@ -275,7 +289,9 @@ public partial class MainWindow
                     value.Color.A,
                     value.Color.R,
                     value.Color.G,
-                    value.Color.B)).ToArray());
+                    value.Color.B)).ToArray(),
+            ResolveProjectBackgroundV081(),
+            _editorSyntheticBaseV081);
 
         try
         {
@@ -295,7 +311,11 @@ public partial class MainWindow
                     WriteBitmapToProjectV067(archive, baseEntry, baseImage);
 
                 for (int i = 0; i < _editorImageLayersV067.Count; i++)
+                {
                     WriteBitmapToProjectV067(archive, $"layers/{i:D3}.png", _editorImageLayersV067[i].Bitmap);
+                    if (_editorImageLayersV067[i].CollageSource is BitmapSource collageSource)
+                        WriteBitmapToProjectV067(archive, $"collage/{i:D3}-source.png", collageSource);
+                }
 
                 if (_editorSelectionMaskCanary is not null &&
                     selectionEntry is not null &&
@@ -338,6 +358,8 @@ public partial class MainWindow
             throw new InvalidDataException($"Unsupported project format version {manifest.FormatVersion}.");
 
         ResetEditorProjectV067();
+        if (!string.IsNullOrWhiteSpace(manifest.CanvasBackground))
+            SetBackgroundSelectionV081(manifest.CanvasBackground);
 
         BitmapSource? baseImage = null;
         if (!string.IsNullOrWhiteSpace(manifest.BaseImageEntry))
@@ -349,6 +371,7 @@ public partial class MainWindow
 
         if (baseImage is not null)
         {
+            _editorSyntheticBaseV081 = manifest.SyntheticBase;
             _editorBaseOriginal = baseImage;
             _editorFilterCommittedCanary = CloneBitmapCanary(baseImage);
             _editorFilterPreviewCanary = null;
@@ -360,6 +383,13 @@ public partial class MainWindow
             ZipArchiveEntry layerEntry = archive.GetEntry(layerData.Entry)
                 ?? throw new InvalidDataException($"Image layer ‘{layerData.Name}’ is missing.");
             BitmapSource bitmap = ReadBitmapFromProjectV067(layerEntry);
+            BitmapSource? collageSource = null;
+            if (!string.IsNullOrWhiteSpace(layerData.CollageSourceEntry))
+            {
+                ZipArchiveEntry sourceEntry = archive.GetEntry(layerData.CollageSourceEntry)
+                    ?? throw new InvalidDataException($"Collage source for ‘{layerData.Name}’ is missing.");
+                collageSource = ReadBitmapFromProjectV067(sourceEntry);
+            }
             AddImageLayerFromBitmapV067(
                 bitmap,
                 layerData.Name,
@@ -372,7 +402,13 @@ public partial class MainWindow
                 layerData.Width,
                 layerData.Height,
                 refresh: false,
-                cornerRadius: layerData.CornerRadius);
+                cornerRadius: layerData.CornerRadius,
+                isCollageFrame: layerData.IsCollageFrame,
+                collagePresetId: layerData.CollagePresetId,
+                collageSlotIndex: layerData.CollageSlotIndex,
+                collageSource: collageSource,
+                collageOffsetX: layerData.CollageOffsetX,
+                collageOffsetY: layerData.CollageOffsetY);
         }
 
         _editorExactChatColorsV068 = (manifest.ExactChatColors ?? Array.Empty<EditorProjectExactChatLineV068>())
@@ -558,8 +594,11 @@ public partial class MainWindow
 
         _editorUndoCanaryV2.Clear();
         _editorRedoCanaryV2.Clear();
+        ClearEditorDocumentHistoryV081();
         _editorProjectPathV067 = null;
         UpdateProjectLabelV067();
+
+        CreateDefaultProjectBaseV081();
 
         RenderEditorChatOverlay();
         RenderExtraChatLayersCanary();

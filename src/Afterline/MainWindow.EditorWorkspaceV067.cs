@@ -27,6 +27,13 @@ public partial class MainWindow
         public double CornerRadius { get; set; }
         public bool IsVisible { get; set; } = true;
         public bool IsLocked { get; set; }
+        public bool IsCollageFrame { get; set; }
+        public string? CollagePresetId { get; set; }
+        public int CollageSlotIndex { get; set; } = -1;
+        public BitmapSource? CollageSource { get; set; }
+        public double CollageOffsetX { get; set; }
+        public double CollageOffsetY { get; set; }
+        public Border? CollagePlaceholderOverlay { get; set; }
     }
 
     private bool _editorWorkspaceV067Initialized;
@@ -65,6 +72,7 @@ public partial class MainWindow
         ConfigureEditorLayerPresentationV080();
         ConfigureRightSidebarV067(editorBody);
         ConfigureAdvancedImageLayersV068(editorBody);
+        ConfigureEditorCreativeToolsV081(editorBody);
         ConfigureFilterPresetGalleryV067();
         ConfigureSelectionPersistenceV067();
         RebuildEditorTaskbarV067();
@@ -462,6 +470,7 @@ public partial class MainWindow
         var opacity = CreateEditorV041Slider("Opacity", 0, 100, 100, 1);
         _editorLayerOpacityV067 = opacity.Slider;
         _editorLayerOpacityV067.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+        ConfigureReversibleLayerSliderV081(_editorLayerOpacityV067, "layer opacity");
 
         _editorBaseOutlineCheckV080 = new CheckBox
         {
@@ -478,6 +487,7 @@ public partial class MainWindow
         var cornerRadius = CreateEditorV041Slider("Corner radius", 0, 200, 0, 1);
         _editorLayerCornerRadiusV080 = cornerRadius.Slider;
         _editorLayerCornerRadiusV080.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+        ConfigureReversibleLayerSliderV081(_editorLayerCornerRadiusV080, "layer corner radius");
         controls.Children.Add(cornerRadius.Panel);
 
         controls.Children.Add(EditorSubtleNote(
@@ -871,6 +881,8 @@ public partial class MainWindow
         if (dialog.ShowDialog(this) != true)
             return;
 
+        PushEditorDocumentHistoryV081("add image layer");
+
         foreach (string path in dialog.FileNames)
         {
             try
@@ -915,7 +927,14 @@ public partial class MainWindow
         double? width = null,
         double? height = null,
         bool refresh = true,
-        double cornerRadius = 0)
+        double cornerRadius = 0,
+        string? id = null,
+        bool isCollageFrame = false,
+        string? collagePresetId = null,
+        int collageSlotIndex = -1,
+        BitmapSource? collageSource = null,
+        double collageOffsetX = 0,
+        double collageOffsetY = 0)
     {
         if (_editorComposition is null)
             throw new InvalidOperationException("Editor canvas is not available.");
@@ -941,6 +960,7 @@ public partial class MainWindow
 
         var layer = new EditorImageLayerV067
         {
+            Id = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id,
             Name = string.IsNullOrWhiteSpace(name) ? "Image Layer" : name,
             Bitmap = bitmap,
             Image = image,
@@ -952,7 +972,13 @@ public partial class MainWindow
             Opacity = Math.Clamp(opacity, 0, 1),
             CornerRadius = Math.Clamp(cornerRadius, 0, 200),
             IsVisible = visible,
-            IsLocked = locked
+            IsLocked = locked,
+            IsCollageFrame = isCollageFrame,
+            CollagePresetId = collagePresetId,
+            CollageSlotIndex = collageSlotIndex,
+            CollageSource = collageSource,
+            CollageOffsetX = Math.Clamp(collageOffsetX, -1, 1),
+            CollageOffsetY = Math.Clamp(collageOffsetY, -1, 1)
         };
         _editorImageLayersV067.Add(layer);
         _editorComposition.Children.Add(image);
@@ -979,6 +1005,7 @@ public partial class MainWindow
         layer.Image.Opacity = layer.Opacity;
         layer.Image.Visibility = layer.IsVisible ? Visibility.Visible : Visibility.Collapsed;
         UpdateImageLayerPasteboardPresentationV080(layer);
+        UpdateCollageFrameVisualV081(layer);
     }
 
     private void UpdateEditorLayerZOrderV067()
@@ -987,6 +1014,8 @@ public partial class MainWindow
         {
             Panel.SetZIndex(_editorImageLayersV067[i].Image, 10 + i);
             Panel.SetZIndex(_editorImageLayersV067[i].PasteboardImage, 10 + i);
+            if (_editorImageLayersV067[i].CollagePlaceholderOverlay is Border placeholder)
+                Panel.SetZIndex(placeholder, 200 + i);
         }
 
         if (_editorChatImage is not null)
@@ -1015,6 +1044,8 @@ public partial class MainWindow
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Padding = new Thickness(3)
             };
+            item.PreviewMouseRightButtonDown += (_, _) => SelectImageLayerV068(layer);
+            item.ContextMenu = CreateImageLayerContextMenuV068(layer);
 
             var row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -1033,12 +1064,14 @@ public partial class MainWindow
             };
             visible.Checked += (_, _) =>
             {
+                PushLayerEditHistoryV068(layer, "layer visibility");
                 layer.IsVisible = true;
                 UpdateImageLayerVisualV067(layer);
                 RefreshSelectedLayerAdornerV068();
             };
             visible.Unchecked += (_, _) =>
             {
+                PushLayerEditHistoryV068(layer, "layer visibility");
                 layer.IsVisible = false;
                 UpdateImageLayerVisualV067(layer);
                 RefreshSelectedLayerAdornerV068();
@@ -1206,9 +1239,11 @@ public partial class MainWindow
         if (layer is null || _editorComposition is null)
             return;
 
+        PushEditorDocumentHistoryV081("remove image layer");
         ResetLayerFilterTargetV071(restoreVisual: false);
         _editorComposition.Children.Remove(layer.Image);
         _editorGuideHostCanary?.Children.Remove(layer.PasteboardImage);
+        RemoveCollagePlaceholderV081(layer);
         _editorImageLayersV067.Remove(layer);
         _editorSelectedImageLayerV067 = null;
         UpdateFilterTargetLabelV071();
@@ -1231,13 +1266,14 @@ public partial class MainWindow
         if (target == index)
             return;
 
+        PushEditorDocumentHistoryV081("reorder image layer");
         _editorImageLayersV067.RemoveAt(index);
         _editorImageLayersV067.Insert(target, layer);
         UpdateEditorLayerZOrderV067();
         RefreshLayerListV067(layer);
     }
 
-    private void ClearImageLayersV067()
+    private void ClearImageLayersV067(bool clearHistory = true)
     {
         ResetLayerFilterTargetV071(restoreVisual: false);
         if (_editorComposition is not null)
@@ -1245,12 +1281,14 @@ public partial class MainWindow
             {
                 _editorComposition.Children.Remove(layer.Image);
                 _editorGuideHostCanary?.Children.Remove(layer.PasteboardImage);
+                RemoveCollagePlaceholderV081(layer);
             }
 
         _editorImageLayersV067.Clear();
         _editorSelectedImageLayerV067 = null;
         UpdateFilterTargetLabelV071();
-        ClearLayerEditHistoryV068();
+        if (clearHistory)
+            ClearLayerEditHistoryV068();
         RefreshSelectedLayerAdornerV068();
         RefreshLayerListV067();
     }
@@ -1319,6 +1357,8 @@ public partial class MainWindow
 
         menus.Children.Add(CreateEditorMenuButtonCanaryV4("File",
             ("New Project…", NewEditorProjectV067),
+            ("Undo", () => UndoActiveEditorHistoryV080(redo: false)),
+            ("Redo", () => UndoActiveEditorHistoryV080(redo: true)),
             ("Save Current Project…", () => SaveCurrentEditorProjectV067()),
             ("Load Project…", LoadEditorProjectV067),
             ("Open Image / GIF…", () =>
