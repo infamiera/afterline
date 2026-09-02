@@ -1042,13 +1042,16 @@ public partial class MainWindow
 
     private void UpdateImageLayerVisualV067(EditorImageLayerV067 layer)
     {
+        Stretch layerStretch = IsCollageLogoSlotV086(layer) ? Stretch.Uniform : Stretch.Fill;
         layer.Image.Source = layer.Bitmap;
+        layer.Image.Stretch = layerStretch;
         layer.Image.Width = Math.Max(1, layer.Width);
         layer.Image.Height = Math.Max(1, layer.Height);
         layer.Image.Margin = new Thickness(0);
         layer.Image.RenderTransform = new TranslateTransform(layer.X, layer.Y);
         layer.Image.Opacity = layer.Opacity;
         layer.Image.Visibility = layer.IsVisible ? Visibility.Visible : Visibility.Collapsed;
+        layer.PasteboardImage.Stretch = layerStretch;
         UpdateImageLayerPasteboardPresentationV080(layer);
         UpdateCollageFrameVisualV081(layer);
     }
