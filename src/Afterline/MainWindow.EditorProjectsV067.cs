@@ -33,7 +33,8 @@ public partial class MainWindow
         bool Visible,
         bool Locked = false,
         double? Width = null,
-        double? Height = null);
+        double? Height = null,
+        double CornerRadius = 0);
 
     private sealed record EditorProjectChatLayerDataV067(
         string Text,
@@ -249,7 +250,8 @@ public partial class MainWindow
                     layer.IsVisible,
                     layer.IsLocked,
                     layer.Width,
-                    layer.Height)).ToArray(),
+                    layer.Height,
+                    layer.CornerRadius)).ToArray(),
             _editorExtraChatsCanary.Select(layer =>
                 new EditorProjectChatLayerDataV067(layer.Text, layer.X, layer.Y)).ToArray(),
             _editorExactChatColorsV068.Select(pair =>
@@ -369,7 +371,8 @@ public partial class MainWindow
                 layerData.Locked,
                 layerData.Width,
                 layerData.Height,
-                refresh: false);
+                refresh: false,
+                cornerRadius: layerData.CornerRadius);
         }
 
         _editorExactChatColorsV068 = (manifest.ExactChatColors ?? Array.Empty<EditorProjectExactChatLineV068>())

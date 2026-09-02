@@ -387,6 +387,23 @@ public partial class MainWindow
                             "Proportional corner resize geometry did not retain the image aspect ratio.");
                     }
 
+                    var (widePointerResize, _, _) = CalculateLayerResizeBoundsV071(
+                        new Rect(10, 10, 160, 90),
+                        EditorLayerResizeHandleV071.SouthEast,
+                        160,
+                        0,
+                        640,
+                        360,
+                        snap: false,
+                        snapThreshold: 10,
+                        preserveAspectRatio: true);
+                    if (Math.Abs(widePointerResize.Width - 320) > 0.01 ||
+                        Math.Abs(widePointerResize.Height - 180) > 0.01)
+                    {
+                        throw new InvalidOperationException(
+                            "Wide image corner resizing did not follow the dominant pointer axis.");
+                    }
+
                     BitmapSource smokeBase = _editorBaseOriginal
                         ?? throw new InvalidOperationException("The Editor smoke-test Base Image was lost.");
                     int layerCountBeforeDrop = _editorImageLayersV067.Count;
@@ -420,16 +437,58 @@ public partial class MainWindow
                     double baseCanvasHeight = _editorComposition.Height;
                     filteredLayer.X = -18;
                     filteredLayer.Y = -12;
+                    filteredLayer.CornerRadius = 24;
                     UpdateImageLayerVisualV067(filteredLayer);
                     EnsureLayerCanvasExtentV067();
                     if (_editorComposition.Width != baseCanvasWidth ||
                         _editorComposition.Height != baseCanvasHeight ||
                         filteredLayer.Image.RenderTransform is not TranslateTransform layerTransform ||
-                        layerTransform.X != -18 || layerTransform.Y != -12)
+                        layerTransform.X != -18 || layerTransform.Y != -12 ||
+                        filteredLayer.Image.Clip is not RectangleGeometry roundedLayer ||
+                        Math.Abs(roundedLayer.RadiusX - 24) > 0.01 ||
+                        filteredLayer.PasteboardImage.Visibility != Visibility.Visible ||
+                        filteredLayer.PasteboardImage.Clip is null)
                     {
                         throw new InvalidOperationException(
-                            "An off-canvas image layer changed the Base Image export boundary or lost its coordinates.");
+                            "Off-canvas image-layer overflow or rounded-corner presentation failed.");
                     }
+                    if (_editorBaseOutlineCheckV080 is null || _editorBaseOutlineV080 is null)
+                        throw new InvalidOperationException("The Base Image outline control was not initialized.");
+                    bool? previousOutline = _editorBaseOutlineCheckV080.IsChecked;
+                    _editorBaseOutlineCheckV080.IsChecked = true;
+                    RefreshBaseImageOutlineV080();
+                    if (_editorBaseOutlineV080.Visibility != Visibility.Visible ||
+                        Math.Abs(_editorBaseOutlineV080.Width - baseCanvasWidth) > 0.5 ||
+                        Math.Abs(_editorBaseOutlineV080.Height - baseCanvasHeight) > 0.5)
+                    {
+                        throw new InvalidOperationException(
+                            "The preview-only Base Image outline did not match the export boundary.");
+                    }
+                    _editorBaseOutlineCheckV080.IsChecked = previousOutline;
+
+                    double undoWidth = filteredLayer.Width;
+                    double undoHeight = filteredLayer.Height;
+                    PushLayerEditHistoryV068(filteredLayer, "smoke resize");
+                    filteredLayer.Width += 37;
+                    filteredLayer.Height += 21;
+                    UpdateImageLayerVisualV067(filteredLayer);
+                    UndoActiveEditorHistoryV080(redo: false);
+                    if (Math.Abs(filteredLayer.Width - undoWidth) > 0.01 ||
+                        Math.Abs(filteredLayer.Height - undoHeight) > 0.01)
+                    {
+                        throw new InvalidOperationException(
+                            "The configured Editor Undo route did not restore an image-layer resize.");
+                    }
+                    UndoActiveEditorHistoryV080(redo: true);
+                    if (Math.Abs(filteredLayer.Width - (undoWidth + 37)) > 0.01 ||
+                        Math.Abs(filteredLayer.Height - (undoHeight + 21)) > 0.01)
+                    {
+                        throw new InvalidOperationException(
+                            "The configured Editor Redo route did not restore an image-layer resize.");
+                    }
+                    UndoActiveEditorHistoryV080(redo: false);
+                    ClearLayerEditHistoryV068();
+
                     if (_editorFilterBrightnessCanary is not null)
                         _editorFilterBrightnessCanary.Value = 25;
                     _editorFilterTimerCanary?.Stop();
@@ -474,6 +533,8 @@ public partial class MainWindow
                     if (_editorImageLayersV067.Count != 1 ||
                         _editorImageLayersV067[0].X != -18 ||
                         _editorImageLayersV067[0].Y != -12 ||
+                        Math.Abs(_editorImageLayersV067[0].CornerRadius - 24) > 0.01 ||
+                        _editorImageLayersV067[0].PasteboardImage.Visibility != Visibility.Visible ||
                         !_editorTextColorOverridesV071.Any(value =>
                             value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
                     {

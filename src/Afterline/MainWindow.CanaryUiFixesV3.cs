@@ -164,13 +164,13 @@ public partial class MainWindow
         bool editorVisible = _editorPage?.Visibility == Visibility.Visible;
         if (editorVisible && ShortcutMatchesCanaryV3(_settings.Editor.UndoKeybind, e))
         {
-            UndoEditorHistoryCanaryV2();
+            UndoActiveEditorHistoryV080(redo: false);
             e.Handled = true;
             return;
         }
         if (editorVisible && ShortcutMatchesCanaryV3(_settings.Editor.RedoKeybind, e))
         {
-            RedoEditorHistoryCanaryV2();
+            UndoActiveEditorHistoryV080(redo: true);
             e.Handled = true;
             return;
         }
