@@ -91,7 +91,11 @@ public partial class MainWindow
         IReadOnlyList<EditorProjectLineColorV071>? LineColors = null,
         IReadOnlyList<EditorProjectTextColorV071>? TextColors = null,
         string? CanvasBackground = null,
-        bool SyntheticBase = false);
+        bool SyntheticBase = false,
+        double? ContentBoundaryX = null,
+        double? ContentBoundaryY = null,
+        double? ContentBoundaryWidth = null,
+        double? ContentBoundaryHeight = null);
 
     private enum NewProjectChoiceV067
     {
@@ -105,7 +109,8 @@ public partial class MainWindow
            !string.IsNullOrWhiteSpace(_editorInput?.Text) ||
            _editorImageLayersV067.Count > 0 ||
            _editorExtraChatsCanary.Count > 0 ||
-           _editorSelectionMaskCanary is not null;
+           _editorSelectionMaskCanary is not null ||
+           _editorContentBoundaryV083 is not null;
 
     private void NewEditorProjectV067()
     {
@@ -291,7 +296,11 @@ public partial class MainWindow
                     value.Color.G,
                     value.Color.B)).ToArray(),
             ResolveProjectBackgroundV081(),
-            _editorSyntheticBaseV081);
+            _editorSyntheticBaseV081,
+            _editorContentBoundaryV083?.X,
+            _editorContentBoundaryV083?.Y,
+            _editorContentBoundaryV083?.Width,
+            _editorContentBoundaryV083?.Height);
 
         try
         {
@@ -377,6 +386,13 @@ public partial class MainWindow
             _editorFilterPreviewCanary = null;
             _editorFilterTrackedMediaCanary = null;
         }
+
+        _editorContentBoundaryV083 = manifest.ContentBoundaryX is double boundaryX &&
+            manifest.ContentBoundaryY is double boundaryY &&
+            manifest.ContentBoundaryWidth is double boundaryWidth && boundaryWidth > 0 &&
+            manifest.ContentBoundaryHeight is double boundaryHeight && boundaryHeight > 0
+                ? new Rect(boundaryX, boundaryY, boundaryWidth, boundaryHeight)
+                : null;
 
         foreach (EditorProjectImageLayerDataV067 layerData in manifest.ImageLayers ?? Array.Empty<EditorProjectImageLayerDataV067>())
         {
@@ -515,6 +531,8 @@ public partial class MainWindow
         UpdateEditorLayerZOrderV067();
         RefreshLayerListV067();
         RefreshFilterPresetGalleryV067();
+        SyncCollageGapControlV082();
+        ApplyEditorContentBoundaryV083();
 
         if (_editorFitZoom)
             Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
@@ -560,6 +578,7 @@ public partial class MainWindow
         _editorGifCompletedLoops = 0;
         _editorGifFrameIndex = 0;
         _editorLoadedMediaPath = null;
+        ClearEditorContentBoundaryV083();
 
         _editorFilterTimerCanary?.Stop();
         _editorFilterCommittedCanary = null;

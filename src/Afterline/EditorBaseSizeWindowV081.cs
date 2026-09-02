@@ -7,10 +7,34 @@ namespace Afterline;
 
 internal sealed class EditorBaseSizeWindowV081 : Window
 {
+    internal const int MinimumBaseWidth = 1920;
+    internal const int MinimumBaseHeight = 1080;
+    private const int MaximumBaseDimension = 12000;
+
+    private sealed record BaseSizePreset(string Name, int Width, int Height)
+    {
+        public override string ToString() => $"{Name} · {Width:N0} × {Height:N0}";
+    }
+
+    private static readonly BaseSizePreset[] CommonMonitorSizes =
+    {
+        new("Full HD (1080p)", 1920, 1080),
+        new("UltraWide Full HD", 2560, 1080),
+        new("QHD (1440p)", 2560, 1440),
+        new("QHD 16:10", 2560, 1600),
+        new("UltraWide QHD", 3440, 1440),
+        new("4K UHD", 3840, 2160),
+        new("Super UltraWide QHD", 5120, 1440),
+        new("5K", 5120, 2880),
+        new("8K UHD", 7680, 4320)
+    };
+
     private readonly int _currentWidth;
     private readonly int _currentHeight;
     private readonly RadioButton _current;
+    private readonly RadioButton _preset;
     private readonly RadioButton _custom;
+    private readonly ComboBox _presetBox;
     private readonly TextBox _width;
     private readonly TextBox _height;
     private readonly TextBlock _validation;
@@ -22,12 +46,11 @@ internal sealed class EditorBaseSizeWindowV081 : Window
     {
         Owner = owner;
         Title = "Set as Base Image";
-        Width = 480;
-        Height = 360;
+        Width = 520;
+        Height = 475;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        _currentWidth = Math.Clamp((int)Math.Round(currentWidth), 1, 12000);
-        _currentHeight = Math.Clamp((int)Math.Round(currentHeight), 1, 12000);
+        (_currentWidth, _currentHeight) = NormalizeCurrentSize(currentWidth, currentHeight);
 
         var root = new StackPanel { Margin = new Thickness(20) };
         root.Children.Add(new TextBlock
@@ -38,7 +61,7 @@ internal sealed class EditorBaseSizeWindowV081 : Window
         });
         root.Children.Add(new TextBlock
         {
-            Text = "The selected layer becomes the new export boundary. The previous Base Image is preserved as an ordinary layer.",
+            Text = "The selected layer becomes the new export boundary. Base Images are at least 1,920 × 1,080px; smaller layers are scaled proportionally. The previous Base Image is preserved as an ordinary layer.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 5, 0, 16)
@@ -46,12 +69,22 @@ internal sealed class EditorBaseSizeWindowV081 : Window
 
         _current = new RadioButton
         {
-            Content = $"Use current displayed size · {_currentWidth:N0} × {_currentHeight:N0}px",
+            Content = $"Use current proportions · {_currentWidth:N0} × {_currentHeight:N0}px",
             IsChecked = true,
             Margin = new Thickness(0, 0, 0, 10)
         };
+        _preset = new RadioButton { Content = "Use a common monitor size", Margin = new Thickness(0, 0, 0, 7) };
+        _presetBox = new ComboBox
+        {
+            ItemsSource = CommonMonitorSizes,
+            SelectedIndex = 0,
+            Height = 34,
+            Margin = new Thickness(22, 0, 0, 12)
+        };
         _custom = new RadioButton { Content = "Use a specific pixel size" };
         root.Children.Add(_current);
+        root.Children.Add(_preset);
+        root.Children.Add(_presetBox);
         root.Children.Add(_custom);
 
         var dimensions = new Grid { Margin = new Thickness(22, 9, 0, 0) };
@@ -74,6 +107,7 @@ internal sealed class EditorBaseSizeWindowV081 : Window
             TextWrapping = TextWrapping.Wrap
         };
         root.Children.Add(_validation);
+        _presetBox.SelectionChanged += (_, _) => _validation.Text = string.Empty;
 
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
         var cancel = new Button { Content = "Cancel", Padding = new Thickness(13, 7, 13, 7) };
@@ -91,6 +125,7 @@ internal sealed class EditorBaseSizeWindowV081 : Window
         root.Children.Add(actions);
 
         _current.Checked += (_, _) => UpdateFields();
+        _preset.Checked += (_, _) => UpdateFields();
         _custom.Checked += (_, _) => UpdateFields();
         _width.TextChanged += (_, _) => _validation.Text = string.Empty;
         _height.TextChanged += (_, _) => _validation.Text = string.Empty;
@@ -109,11 +144,20 @@ internal sealed class EditorBaseSizeWindowV081 : Window
             return;
         }
 
+        if (_preset.IsChecked == true && _presetBox.SelectedItem is BaseSizePreset preset)
+        {
+            ImageWidth = preset.Width;
+            ImageHeight = preset.Height;
+            DialogResult = true;
+            return;
+        }
+
         if (!int.TryParse(_width.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int width) ||
             !int.TryParse(_height.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int height) ||
-            width is < 1 or > 12000 || height is < 1 or > 12000)
+            width is < MinimumBaseWidth or > MaximumBaseDimension ||
+            height is < MinimumBaseHeight or > MaximumBaseDimension)
         {
-            _validation.Text = "Enter whole pixel dimensions from 1 to 12,000.";
+            _validation.Text = "Enter a width from 1,920 to 12,000 and a height from 1,080 to 12,000 pixels.";
             return;
         }
         ImageWidth = width;
@@ -123,9 +167,22 @@ internal sealed class EditorBaseSizeWindowV081 : Window
 
     private void UpdateFields()
     {
-        bool enabled = _custom.IsChecked == true;
-        _width.IsEnabled = enabled;
-        _height.IsEnabled = enabled;
+        bool customEnabled = _custom.IsChecked == true;
+        _presetBox.IsEnabled = _preset.IsChecked == true;
+        _width.IsEnabled = customEnabled;
+        _height.IsEnabled = customEnabled;
+    }
+
+    private static (int Width, int Height) NormalizeCurrentSize(double width, double height)
+    {
+        double sourceWidth = Math.Clamp(width, 1, MaximumBaseDimension);
+        double sourceHeight = Math.Clamp(height, 1, MaximumBaseDimension);
+        double scale = Math.Max(1, Math.Max(
+            MinimumBaseWidth / sourceWidth,
+            MinimumBaseHeight / sourceHeight));
+        int normalizedWidth = Math.Clamp((int)Math.Round(sourceWidth * scale), MinimumBaseWidth, MaximumBaseDimension);
+        int normalizedHeight = Math.Clamp((int)Math.Round(sourceHeight * scale), MinimumBaseHeight, MaximumBaseDimension);
+        return (normalizedWidth, normalizedHeight);
     }
 
     private static TextBox CreateDimensionBox(int value)

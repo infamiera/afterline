@@ -105,6 +105,7 @@ public partial class MainWindow
             _editorGifCompletedLoops = 0;
             _editorGifFrameIndex = 0;
             _editorLoadedMediaPath = path;
+            ClearEditorContentBoundaryV083();
             _editorSyntheticBaseV081 = false;
 
             string extension = Path.GetExtension(path);
@@ -180,6 +181,7 @@ public partial class MainWindow
         _editorGifCompletedLoops = 0;
         _editorGifFrameIndex = 0;
         _editorLoadedMediaPath = null;
+        ClearEditorContentBoundaryV083();
         _editorBaseOriginal = null;
         _editorCropNormalizedV060 = new Rect(0, 0, 1, 1);
 
