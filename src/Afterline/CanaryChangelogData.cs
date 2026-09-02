@@ -8,6 +8,12 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "02/SEP/2026", new[]
         {
+            "Collage layouts — Adds five logo-focused compositions, including an eight-photo brand mosaic with an optional center logo.",
+            "Layout preview — Shows the selected composition, canvas shape and live frame spacing before creating a collage.",
+            "Live Chat filtering — Extends OOC coverage for additional gameplay notices while keeping login and disconnect events visible."
+        }, ChangelogChannel.Canary, 212),
+        new("0.7.0", "02/SEP/2026", new[]
+        {
             "Transactional updates — Stages and verifies updates before atomically replacing Afterline.exe, with hash-verified recovery after locks or interrupted restarts.",
             "Continuous Canary publishing — Keeps the previous download valid until the new executable, checksum and manifest are all available."
         }, ChangelogChannel.Canary, 209),

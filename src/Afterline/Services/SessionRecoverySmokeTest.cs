@@ -138,7 +138,19 @@ internal static class SessionRecoverySmokeTest
             "[16:21:09] You have loaded Toffee their settings.",
             "[23:46:32] [INFO]: [17/JUL/2026] Doors are unlocked via fingerprint scanner. Only the Owners and CEO have access.",
             "[23:47:09] [INFO]: You are not the owner of this property. Please be aware that inactivity can affect it.",
-            "[00:01:28] [Character kill] Jose Sandoval has been killed."
+            "[00:01:28] [Character kill] Jose Sandoval has been killed.",
+            "[10:51:54] ⚠⚠⚠ You have 1 pending notification(s). Use /notifications to view them. ⚠⚠⚠",
+            "[10:51:54] ⚠ These notification are extremely important for your leases and other PM requests.",
+            "[10:51:57] Chief Executive Officer Bianca Yurei",
+            "[10:51:57] Chief Operating Officer Mina Guillebeaux (AFK)",
+            "[11:23:50] Content Creator Roxie Lynn",
+            "[10:51:59] --- Your Notifications ---",
+            "[10:51:59] 3006245: Your property Veloura alarm has been renewed by the security company.",
+            "[10:51:59] --- End of Notifications ---",
+            "[10:59:00] This is your first weekly payment. If you are part of multiple factions, you'll only receive the higher payment.",
+            "[11:23:57] You unlocked the door lock.",
+            "[11:23:58] You locked the door lock.",
+            "[11:24:18] Trucking rank: Junior Trucker ((120/250))"
         };
         foreach (string line in filteredLines)
         {
@@ -149,6 +161,17 @@ internal static class SessionRecoverySmokeTest
         const string roleplay = "[15:59:00] Bianca says: This is an in-character line.";
         if (new ChatEntry(DateTime.Now, roleplay).IsOocLine)
             throw new InvalidOperationException("The gameplay/OOC filter hid an ordinary roleplay line.");
+
+        string[] visibleSessionBoundaries =
+        {
+            "==================== [NEW LOGIN] - 10:17:54 ====================",
+            "==================== [DISCONNECTED] - 12:28:22 ===================="
+        };
+        foreach (string line in visibleSessionBoundaries)
+        {
+            if (new ChatEntry(DateTime.Now, line).IsOocLine)
+                throw new InvalidOperationException($"The gameplay/OOC filter hid a session boundary: {line}");
+        }
     }
 
     private static void VerifyTimestampProvenance()

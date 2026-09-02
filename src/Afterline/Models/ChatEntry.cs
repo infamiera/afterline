@@ -29,7 +29,7 @@ public sealed class ChatEntry
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex OocStandaloneStatus = new(
-        @"^(?:WARNING:|Welcome to GTA World\.?|Weather forecast:|Temperature:|Wind:|Online faction members:|Faction Members (?:Online|On-Duty):|Number:\s*\d|Costs:\s*Initialize Call:|Commands:\s*/payphonecall|You (?:unlocked|locked) the property door\.?|Stats for\s+|Wallet:\s*|Health\s*\||Organization:\s*|Business\s+\d+:|Bank Account Routing:|Current job:|Time\s*\||Properties:\s*Owned:|Custom Number:|Monthly remaining|Premium:|World Points:|Panda Points:|Current Time:|Time spent online|Time remaining on vacation:|You can only tackle one person every\s+\d+\s+seconds!?|You were missclicked, your health \(and/or armour\) has been restored\.?|Your vehicle has been teleported to your location\..*|The door is locked\.?|Vehicle has been flipped!?|Vehicle parked\.?|We've placed a blip on your map to help you locate your vehicle\.?|.*:\s*Press Y to browse (?:ammunation|ammunition)\.?|.*:\s*Press Y to open store\.?|.* changed their character and quit this one\.?|Type /ar \[id\] to handle a report or /tr \[id\] to trash a report\.?|\*\s*\(A\)\s+.*|\*\s*You have de-spawned your pet\.?|You have loaded .+ their settings\.?|\[\(\d{1,2}:\d{2}:\d{2}\)\s+id:\s*\d+\s*,\s*by:\s*\(\d+\).*\]:|.*\bhas gone on admin duty\.?|\|\s+\S|={8,})",
+        @"^(?:WARNING:|Welcome to GTA World\.?|Weather forecast:|Temperature:|Wind:|Online faction members:|Faction Members (?:Online|On-Duty):|Number:\s*\d|Costs:\s*Initialize Call:|Commands:\s*/payphonecall|⚠+\s*You have\s+\d+\s+pending notification(?:s|\(s\))?\.|⚠+\s*These notifications? are extremely important\b|---\s*(?:Your Notifications|End of Notifications)\s*---|\d{5,}:\s+Your property\b|This is your first weekly payment\.|(?:Chief Executive Officer|Chief Operating Officer|Content Creator)\s+\S+(?:\s+\S+)+(?:\s+\(AFK\))?$|You (?:unlocked|locked) the (?:property door|door lock)\.?|Trucking rank:\s+.+\(\(\d+/\d+\)\)$|Stats for\s+|Wallet:\s*|Health\s*\||Organization:\s*|Business\s+\d+:|Bank Account Routing:|Current job:|Time\s*\||Properties:\s*Owned:|Custom Number:|Monthly remaining|Premium:|World Points:|Panda Points:|Current Time:|Time spent online|Time remaining on vacation:|You can only tackle one person every\s+\d+\s+seconds!?|You were missclicked, your health \(and/or armour\) has been restored\.?|Your vehicle has been teleported to your location\..*|The door is locked\.?|Vehicle has been flipped!?|Vehicle parked\.?|We've placed a blip on your map to help you locate your vehicle\.?|.*:\s*Press Y to browse (?:ammunation|ammunition)\.?|.*:\s*Press Y to open store\.?|.* changed their character and quit this one\.?|Type /ar \[id\] to handle a report or /tr \[id\] to trash a report\.?|\*\s*\(A\)\s+.*|\*\s*You have de-spawned your pet\.?|You have loaded .+ their settings\.?|\[\(\d{1,2}:\d{2}:\d{2}\)\s+id:\s*\d+\s*,\s*by:\s*\(\d+\).*\]:|.*\bhas gone on admin duty\.?|\|\s+\S|={8,})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
@@ -71,9 +71,9 @@ public sealed class ChatEntry
         {
             if (IsSystemMessage) return false;
             string content = ContentWithoutTimestamp.TrimStart();
+            if (IsSessionBoundary(content)) return false;
             return OocStatusPrefix.IsMatch(content) ||
                    OocStandaloneStatus.IsMatch(content) ||
-                   content.Contains("[NEW LOGIN]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains("[Admin Alert]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains("[Ticket]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains("[AdmREPORT]", StringComparison.OrdinalIgnoreCase) ||
@@ -94,6 +94,13 @@ public sealed class ChatEntry
     }
 
     public bool IsOocLine => IsPrivateMessage || IsOocChatLine || IsInfoLine;
+
+    private static bool IsSessionBoundary(string content)
+        => content.Contains("[NEW LOGIN]", StringComparison.OrdinalIgnoreCase) ||
+           content.Contains("[DISCONNECTED]", StringComparison.OrdinalIgnoreCase) ||
+           content.Contains("[DAY ENDED]", StringComparison.OrdinalIgnoreCase) ||
+           content.Contains("[DATE ROLLOVER]", StringComparison.OrdinalIgnoreCase) ||
+           content.Contains("[LOGOUT]", StringComparison.OrdinalIgnoreCase);
 
     public string Display
     {
