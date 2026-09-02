@@ -150,7 +150,12 @@ internal static class SessionRecoverySmokeTest
             "[10:59:00] This is your first weekly payment. If you are part of multiple factions, you'll only receive the higher payment.",
             "[11:23:57] You unlocked the door lock.",
             "[11:23:58] You locked the door lock.",
-            "[11:24:18] Trucking rank: Junior Trucker ((120/250))"
+            "[11:24:18] Trucking rank: Junior Trucker ((120/250))",
+            "[20:09:02] You unlocked the door. This door will automatically close in 10 seconds.",
+            "[21:03:24] Bianca Yurei is now furnishing the property (build mode). Report any abuse with /report.",
+            "[21:24:44] Admin Rohan. Rockstar banned Goldie Mack for reason: [R19 - repeated trolling] for 60 days",
+            "[21:33:05] Admin Sebz permanently Rockstar banned Larry Beleck for reason: [Not up to server standards.]",
+            "[21:53:21] You have set the action gradients status to ENABLED"
         };
         foreach (string line in filteredLines)
         {
@@ -161,6 +166,10 @@ internal static class SessionRecoverySmokeTest
         const string roleplay = "[15:59:00] Bianca says: This is an in-character line.";
         if (new ChatEntry(DateTime.Now, roleplay).IsOocLine)
             throw new InvalidOperationException("The gameplay/OOC filter hid an ordinary roleplay line.");
+
+        const string adminRoleplay = "[21:25:00] Admin Rohan says: We should discuss the report in character.";
+        if (new ChatEntry(DateTime.Now, adminRoleplay).IsOocLine)
+            throw new InvalidOperationException("The admin-punishment filter hid an ordinary player chat line.");
 
         string[] visibleSessionBoundaries =
         {
