@@ -229,30 +229,48 @@ public sealed class CanaryUpdateService
         string? commitSha = null;
         string? exeName = null;
 
+        var identifiedCandidates = new List<(int Run, string Version, string AssetSha, string Name)>();
         foreach (string name in assetUrls.Keys)
         {
             Match match = CanaryExeRegex.Match(name);
-            if (match.Success)
+            if (match.Success &&
+                int.TryParse(match.Groups["run"].Value, out int parsedRun) &&
+                assetUrls.ContainsKey(name + ".sha256"))
             {
+                identifiedCandidates.Add((
+                    parsedRun,
+                    match.Groups["version"].Value,
+                    match.Groups["build"].Value.ToLowerInvariant(),
+                    name));
+            }
+        }
+
+        if (identifiedCandidates.Count > 0)
+        {
+            (int run, string version, string assetSha, string name) = identifiedCandidates
+                .OrderByDescending(candidate => candidate.Run)
+                .First();
+            latestVersion = version;
+            buildNumber = run;
+            commitSha = releaseCommit is not null &&
+                        releaseCommit.StartsWith(assetSha, StringComparison.OrdinalIgnoreCase)
+                ? releaseCommit
+                : assetSha;
+            buildId = $"{run}.{commitSha}";
+            exeName = name;
+        }
+        else
+        {
+            foreach (string name in assetUrls.Keys)
+            {
+                Match match = LegacyCanaryExeRegex.Match(name);
+                if (!match.Success || !assetUrls.ContainsKey(name + ".sha256")) continue;
                 latestVersion = match.Groups["version"].Value;
-                string assetSha = match.Groups["build"].Value.ToLowerInvariant();
-                commitSha = releaseCommit ?? assetSha;
-                if (int.TryParse(match.Groups["run"].Value, out int parsedRun))
-                    buildNumber = parsedRun;
-                buildId = buildNumber is int identityRun
-                    ? $"{identityRun}.{commitSha}"
-                    : commitSha;
+                commitSha = releaseCommit ?? match.Groups["build"].Value.ToLowerInvariant();
+                buildId = commitSha;
                 exeName = name;
                 break;
             }
-
-            match = LegacyCanaryExeRegex.Match(name);
-            if (!match.Success) continue;
-            latestVersion = match.Groups["version"].Value;
-            commitSha = releaseCommit ?? match.Groups["build"].Value.ToLowerInvariant();
-            buildId = commitSha;
-            exeName = name;
-            break;
         }
 
         string? downloadUrl = exeName is not null && assetUrls.TryGetValue(exeName, out string? exeUrl)

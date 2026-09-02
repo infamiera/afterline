@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: afterline-canary-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: windows-latest
@@ -165,6 +169,27 @@ jobs:
             Get-Content $log | Select-String "Archive stress test passed"
           }
 
+      - name: Smoke test transactional updater
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $testRoot = Join-Path $env:RUNNER_TEMP "afterline-updater-transaction"
+          $log = Join-Path $env:LOCALAPPDATA "Afterline/Logs/afterline.log"
+          $updateTest = Start-Process -FilePath $exe `
+            -ArgumentList @("--afterline-smoke-update-transaction", "`"$testRoot`"") `
+            -PassThru
+          if (-not $updateTest.WaitForExit(45000)) {
+            Stop-Process -Id $updateTest.Id -Force -ErrorAction SilentlyContinue
+            throw "Afterline did not finish the transactional updater smoke test within 45 seconds."
+          }
+          if ($updateTest.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host "--- Afterline diagnostic log ---"
+              Get-Content $log
+            }
+            throw "Afterline failed the transactional updater smoke test with code $($updateTest.ExitCode)."
+          }
+
       - name: Prepare uniquely identified Canary assets
         shell: pwsh
         run: |
@@ -235,20 +260,60 @@ jobs:
           $run = $env:GITHUB_RUN_NUMBER
           $exeName = "Afterline-v$version-Canary-$run-$shortSha-Windows-x64.exe"
 
+          $notes = "Automated Afterline Canary build #$run from commit $sha.`n`nBuild identity: $run.$sha`n`nWarning: Canary builds are experimental, may update frequently, and can contain unfinished or broken changes."
           gh release view canary *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release delete canary --yes --cleanup-tag
-            if ($LASTEXITCODE -ne 0) {
-              throw "Unable to replace the previous Canary prerelease."
-            }
+          $releaseExists = $LASTEXITCODE -eq 0
+          if (-not $releaseExists) {
+            gh release create canary `
+              "release/$exeName" `
+              "release/$exeName.sha256" `
+              "release/afterline-canary-update.json" `
+              --target "$env:GITHUB_SHA" `
+              --title "Afterline $version Canary #$run · $shortSha" `
+              --notes "$notes" `
+              --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Unable to create the Canary prerelease." }
+            exit 0
           }
 
-          $notes = "Automated Afterline Canary build #$run from commit $sha.`n`nBuild identity: $run.$sha`n`nWarning: Canary builds are experimental, may update frequently, and can contain unfinished or broken changes."
-          gh release create canary `
-            "release/$exeName" `
-            "release/$exeName.sha256" `
-            "release/afterline-canary-update.json" `
-            --target "$env:GITHUB_SHA" `
+          # Keep the old manifest and its assets valid until the complete new pair
+          # exists. The fixed manifest is switched last, avoiding a release blackout.
+          gh release upload canary "release/$exeName" "release/$exeName.sha256" --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Unable to upload the identified Canary assets." }
+          gh release upload canary "release/afterline-canary-update.json" --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Unable to switch the Canary update manifest." }
+
+          gh api --method PATCH `
+            "repos/$env:GITHUB_REPOSITORY/git/refs/tags/canary" `
+            -f "sha=$sha" -F "force=true" *> $null
+          if ($LASTEXITCODE -ne 0) { throw "Unable to move the Canary tag to the published commit." }
+
+          gh release edit canary `
+            --target "$sha" `
             --title "Afterline $version Canary #$run · $shortSha" `
             --notes "$notes" `
             --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "Unable to update the Canary prerelease details." }
+
+          # Retain the current and immediately previous executable/checksum pairs.
+          # Cached old manifests and downloads therefore remain valid across a publish.
+          $release = gh release view canary --json assets | ConvertFrom-Json
+          $identified = @($release.assets | ForEach-Object {
+            $match = [regex]::Match($_.name, '^Afterline-v.+-Canary-(\d+)-[0-9a-f]+-Windows-x64\.exe$')
+            if ($match.Success) {
+              [pscustomobject]@{ Name = $_.name; Run = [int]$match.Groups[1].Value }
+            }
+          } | Sort-Object Run -Descending)
+          $keep = @($identified | Select-Object -First 2 | ForEach-Object { $_.Name })
+          $keepChecksums = @($keep | ForEach-Object { "${_}.sha256" })
+          foreach ($asset in $release.assets) {
+            if ($asset.name -eq 'afterline-canary-update.json' -or
+                $keep -contains $asset.name -or
+                $keepChecksums -contains $asset.name) {
+              continue
+            }
+            if ($asset.name -match '^Afterline-v.+-Canary-\d+-[0-9a-f]+-Windows-x64\.exe(?:\.sha256)?$') {
+              gh release delete-asset canary $asset.name --yes
+              if ($LASTEXITCODE -ne 0) { throw "Unable to remove stale Canary asset $($asset.name)." }
+            }
+          }
