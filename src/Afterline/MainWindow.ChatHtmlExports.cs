@@ -7,48 +7,60 @@ namespace Afterline;
 
 public partial class MainWindow
 {
-    private async void ExportVisibleLiveChatHtml_Click(object sender, RoutedEventArgs e)
+    private async Task<string> ExportVisibleLiveChatHtmlAsync(CancellationToken cancellationToken)
     {
-        Button? actionButton = sender as Button;
-        if (actionButton is not null) actionButton.IsEnabled = false;
+        ChatEntry[] visibleEntries = LiveMessages
+            .Where(ShouldShowLiveChatEntryV076)
+            .ToArray();
+        if (visibleEntries.Length == 0)
+            throw new InvalidOperationException("There are no visible Live Chat lines to export yet.");
 
-        try
-        {
-            ChatEntry[] visibleEntries = LiveMessages
-                .Where(ShouldShowLiveChatEntryV076)
-                .ToArray();
-            if (visibleEntries.Length == 0)
-                throw new InvalidOperationException("There are no visible Live Chat lines to export yet.");
+        DateTime now = DateTime.Now;
+        string serverName = GetCurrentServerDisplayName();
+        string destination = GetUniqueLiveExportPath(GetDownloadsFolder(), now, ".html");
+        ChatHtmlExportItem[] lines = visibleEntries
+            .Select(entry => new ChatHtmlExportItem(entry, GetDisplayedChatText(entry)))
+            .ToArray();
 
-            DateTime now = DateTime.Now;
-            string serverName = GetCurrentServerDisplayName();
-            string downloads = GetDownloadsFolder();
-            string destination = GetUniqueLiveExportPath(downloads, now, ".html");
-            ChatHtmlExportItem[] lines = visibleEntries
-                .Select(entry => new ChatHtmlExportItem(entry, GetDisplayedChatText(entry)))
-                .ToArray();
+        await ChatHtmlExportService.ExportAsync(
+            destination,
+            $"Afterline Live Chat — {serverName}",
+            "Current visible view · IC/OOC and timestamp settings applied",
+            lines,
+            _settings.ColorizeRoleplayLines,
+            now,
+            cancellationToken);
+        return destination;
+    }
 
-            await ChatHtmlExportService.ExportAsync(
-                destination,
-                $"Afterline Live Chat — {serverName}",
-                "Current visible view · IC/OOC and timestamp settings applied",
-                lines,
-                _settings.ColorizeRoleplayLines,
-                now,
-                CancellationToken.None);
+    private async Task<string> ExportCompleteLiveChatHtmlAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> capturedLines = await _journal.ReadCurrentSessionLinesAsync(
+            _settings.ArchiveRoot,
+            cancellationToken);
+        if (capturedLines.Count == 0)
+            throw new InvalidOperationException("The current captured session contains no chat lines.");
 
-            SetLiveActionStatus($"Saved {Path.GetFileName(destination)} to Downloads.");
-            ShowExportSuccessNotification(destination);
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Error("Unable to export visible Live Chat as HTML.", ex);
-            SetLiveActionStatus("Unable to export Live Chat HTML: " + ex.Message);
-        }
-        finally
-        {
-            if (actionButton is not null) actionButton.IsEnabled = true;
-        }
+        DateTime now = DateTime.Now;
+        string serverName = GetCurrentServerDisplayName();
+        string destination = GetUniqueLiveExportPath(GetDownloadsFolder(), now, ".html");
+        ChatHtmlExportItem[] lines = capturedLines
+            .Select((line, index) =>
+            {
+                var entry = new ChatEntry(now, line);
+                return new ChatHtmlExportItem(entry, line, index + 1);
+            })
+            .ToArray();
+
+        await ChatHtmlExportService.ExportAsync(
+            destination,
+            $"Afterline Live Chat — {serverName}",
+            "Complete captured session · Live Chat display filters ignored",
+            lines,
+            _settings.ColorizeRoleplayLines,
+            now,
+            cancellationToken);
+        return destination;
     }
 
     private async void ExportLogReaderHtml_Click(object sender, RoutedEventArgs e)
