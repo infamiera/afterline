@@ -287,6 +287,7 @@ public partial class MainWindow
         if (_editorZoomText is not null)
             _editorZoomText.Text = $"{Math.Round(_editorZoomScale * 100):0}%";
         RefreshSelectedLayerAdornerV068();
+        RefreshBaseImageOutlineV080();
         RefreshEditorRulersV068();
     }
 

@@ -37,6 +37,7 @@ public partial class MainWindow
         double Width,
         double Height,
         double Opacity,
+        double CornerRadius,
         bool Visible,
         bool Locked,
         string Description);
@@ -236,14 +237,15 @@ public partial class MainWindow
         _editorLayerSelectionOutlineV068 = new Rectangle
         {
             Fill = Brushes.Transparent,
-            Stroke = (Brush)FindResource("Accent"),
-            StrokeThickness = 0.75,
+            Stroke = Brushes.White,
+            StrokeThickness = 0.45,
+            Opacity = 0.82,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
             Visibility = Visibility.Collapsed
         };
-        Panel.SetZIndex(_editorLayerSelectionOutlineV068, 20);
+        Panel.SetZIndex(_editorLayerSelectionOutlineV068, 1000);
         host.Children.Add(_editorLayerSelectionOutlineV068);
 
         foreach (EditorLayerResizeHandleV071 handle in Enum.GetValues<EditorLayerResizeHandleV071>())
@@ -261,14 +263,14 @@ public partial class MainWindow
                     ? Brushes.Transparent
                     : (Brush)FindResource("Accent"),
                 BorderBrush = horizontalEdge || verticalEdge ? Brushes.Transparent : Brushes.White,
-                BorderThickness = horizontalEdge || verticalEdge ? new Thickness(0) : new Thickness(0.75),
+                BorderThickness = horizontalEdge || verticalEdge ? new Thickness(0) : new Thickness(0.4),
                 Tag = handle,
                 ToolTip = "Drag to resize. Corners preserve proportions; hold Shift for a free transform."
             };
             thumb.DragStarted += LayerResizeStartedV068;
             thumb.DragDelta += LayerResizeDeltaV068;
             thumb.DragCompleted += LayerResizeCompletedV068;
-            Panel.SetZIndex(thumb, 22);
+            Panel.SetZIndex(thumb, 1002);
             host.Children.Add(thumb);
             _editorLayerResizeThumbsV071[handle] = thumb;
         }
@@ -297,7 +299,7 @@ public partial class MainWindow
             RefreshSelectedLayerAdornerV068();
             SetEditorStatus($"Unlocked image layer ‘{layer.Name}’.");
         };
-        Panel.SetZIndex(_editorLayerLockBadgeV068, 23);
+        Panel.SetZIndex(_editorLayerLockBadgeV068, 1003);
         host.Children.Add(_editorLayerLockBadgeV068);
         ApplyPasteboardOffsetToEditorOverlaysV078();
         RefreshSelectedLayerAdornerV068();
@@ -317,10 +319,10 @@ public partial class MainWindow
                 _editorLayerSelectionOutlineV068.Height = layer.Height;
                 _editorLayerSelectionOutlineV068.Margin = new Thickness(layer.X, layer.Y, 0, 0);
                 _editorLayerSelectionOutlineV068.StrokeThickness =
-                    0.85 / Math.Max(0.1, _editorZoomScale);
+                    0.45 / Math.Max(0.1, _editorZoomScale);
                 _editorLayerSelectionOutlineV068.Stroke = layer.IsLocked
                     ? (Brush)FindResource("MutedText")
-                    : (Brush)FindResource("Accent");
+                    : Brushes.White;
             }
         }
 
@@ -580,6 +582,7 @@ public partial class MainWindow
             EditorLayerResizeHandleV071.NorthEast or
             EditorLayerResizeHandleV071.SouthEast or
             EditorLayerResizeHandleV071.SouthWest;
+        bool preserveAspectRatio = corner && (Keyboard.Modifiers & ModifierKeys.Shift) == 0;
         (double baseWidth, double baseHeight) = GetBaseImageBoundsV068();
         (Rect bounds, double? guideX, double? guideY) = CalculateLayerResizeBoundsV071(
             new Rect(
@@ -592,9 +595,9 @@ public partial class MainWindow
             pointerDelta.Y,
             baseWidth,
             baseHeight,
-            _editorSnapCheckCanary?.IsChecked == true,
+            _editorSnapCheckCanary?.IsChecked == true && !preserveAspectRatio,
             10 / zoom,
-            preserveAspectRatio: corner && (Keyboard.Modifiers & ModifierKeys.Shift) == 0);
+            preserveAspectRatio);
 
         layer.X = bounds.X;
         layer.Y = bounds.Y;
@@ -631,8 +634,8 @@ public partial class MainWindow
         bool horizontalEdge = handle is EditorLayerResizeHandleV071.North or EditorLayerResizeHandleV071.South;
         bool verticalEdge = handle is EditorLayerResizeHandleV071.East or EditorLayerResizeHandleV071.West;
         double zoom = Math.Max(0.1, _editorZoomScale);
-        double cornerSize = 8 / zoom;
-        double edgeThickness = 6 / zoom;
+        double cornerSize = 7 / zoom;
+        double edgeThickness = 5 / zoom;
         if (horizontalEdge)
         {
             thumb.Width = Math.Max(16 / zoom, layer.Width - cornerSize * 2);
@@ -647,7 +650,7 @@ public partial class MainWindow
         {
             thumb.Width = cornerSize;
             thumb.Height = cornerSize;
-            thumb.BorderThickness = new Thickness(0.75 / zoom);
+            thumb.BorderThickness = new Thickness(0.4 / zoom);
         }
 
         double left = handle switch
@@ -692,12 +695,16 @@ public partial class MainWindow
         {
             double widthDelta = moveLeft ? -deltaX : deltaX;
             double heightDelta = moveTop ? -deltaY : deltaY;
-            double denominator = start.Width * start.Width + start.Height * start.Height;
-            double projectedScale = denominator <= 0
-                ? 1
-                : 1 + (widthDelta * start.Width + heightDelta * start.Height) / denominator;
+            double widthScale = 1 + widthDelta / Math.Max(1, start.Width);
+            double heightScale = 1 + heightDelta / Math.Max(1, start.Height);
+            // Follow the pointer on the axis that moved furthest proportionally.
+            // Vector projection under-reacts on wide or tall layers and made the
+            // corner handle appear to resize only part of the requested distance.
+            double pointerScale = Math.Abs(widthScale - 1) >= Math.Abs(heightScale - 1)
+                ? widthScale
+                : heightScale;
             double minimumScale = Math.Max(minimum / start.Width, minimum / start.Height);
-            double scale = Math.Max(minimumScale, projectedScale);
+            double scale = Math.Max(minimumScale, pointerScale);
             double proportionalWidth = start.Width * scale;
             double proportionalHeight = start.Height * scale;
             deltaX = moveLeft
@@ -979,6 +986,7 @@ public partial class MainWindow
             layer.Width,
             layer.Height,
             layer.Opacity,
+            layer.CornerRadius,
             layer.IsVisible,
             layer.IsLocked,
             description);
@@ -1015,6 +1023,25 @@ public partial class MainWindow
         SetEditorStatus($"Redid the last edit on ‘{layer.Name}’.");
     }
 
+    private void UndoActiveEditorHistoryV080(bool redo)
+    {
+        bool useLayerHistory = _editorSelectedImageLayerV067 is not null &&
+            (redo ? _editorLayerRedoV068.Count > 0 : _editorLayerUndoV068.Count > 0);
+        if (useLayerHistory)
+        {
+            if (redo)
+                RedoLayerEditV068();
+            else
+                UndoLayerEditV068();
+            return;
+        }
+
+        if (redo)
+            RedoEditorHistoryCanaryV2();
+        else
+            UndoEditorHistoryCanaryV2();
+    }
+
     private void RestoreLayerStateV068(EditorImageLayerV067 layer, EditorLayerStateV068 state)
     {
         ResetLayerFilterTargetV071(restoreVisual: false);
@@ -1024,6 +1051,7 @@ public partial class MainWindow
         layer.Width = state.Width;
         layer.Height = state.Height;
         layer.Opacity = state.Opacity;
+        layer.CornerRadius = state.CornerRadius;
         layer.IsVisible = state.Visible;
         layer.IsLocked = state.Locked;
         UpdateImageLayerVisualV067(layer);

@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 
 namespace Afterline;
@@ -17,11 +18,13 @@ public partial class MainWindow
         public string Name { get; set; } = "Image Layer";
         public required BitmapSource Bitmap { get; set; }
         public required Image Image { get; init; }
+        public required Image PasteboardImage { get; init; }
         public double X { get; set; }
         public double Y { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
         public double Opacity { get; set; } = 1.0;
+        public double CornerRadius { get; set; }
         public bool IsVisible { get; set; } = true;
         public bool IsLocked { get; set; }
     }
@@ -33,6 +36,9 @@ public partial class MainWindow
     private TextBlock? _editorProjectLabelV067;
     private TextBlock? _editorSelectedLayerLabelV067;
     private Slider? _editorLayerOpacityV067;
+    private Slider? _editorLayerCornerRadiusV080;
+    private CheckBox? _editorBaseOutlineCheckV080;
+    private Rectangle? _editorBaseOutlineV080;
     private Button? _editorLayerRemoveV067;
     private Button? _editorLayerUpV067;
     private Button? _editorLayerDownV067;
@@ -56,6 +62,7 @@ public partial class MainWindow
         _editorWorkspaceV067Initialized = true;
 
         ConfigurePersistentSelectionHighlightV067();
+        ConfigureEditorLayerPresentationV080();
         ConfigureRightSidebarV067(editorBody);
         ConfigureAdvancedImageLayersV068(editorBody);
         ConfigureFilterPresetGalleryV067();
@@ -455,7 +462,23 @@ public partial class MainWindow
         var opacity = CreateEditorV041Slider("Opacity", 0, 100, 100, 1);
         _editorLayerOpacityV067 = opacity.Slider;
         _editorLayerOpacityV067.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+
+        _editorBaseOutlineCheckV080 = new CheckBox
+        {
+            Content = "Show Base Image outline",
+            IsChecked = false,
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Show a thin pink preview boundary around the Base Image. The outline is never exported."
+        };
+        _editorBaseOutlineCheckV080.Checked += (_, _) => RefreshBaseImageOutlineV080();
+        _editorBaseOutlineCheckV080.Unchecked += (_, _) => RefreshBaseImageOutlineV080();
+        controls.Children.Add(_editorBaseOutlineCheckV080);
         controls.Children.Add(opacity.Panel);
+
+        var cornerRadius = CreateEditorV041Slider("Corner radius", 0, 200, 0, 1);
+        _editorLayerCornerRadiusV080 = cornerRadius.Slider;
+        _editorLayerCornerRadiusV080.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
+        controls.Children.Add(cornerRadius.Panel);
 
         controls.Children.Add(EditorSubtleNote(
             "Drag the selected image anywhere across the canvas or pasteboard. Corners keep its proportions; hold Shift for a free resize, or right-click for exact sizing and layer controls."));
@@ -853,7 +876,7 @@ public partial class MainWindow
             try
             {
                 BitmapSource bitmap = LoadBitmapFileV067(path);
-                AddImageLayerFromBitmapV067(bitmap, Path.GetFileName(path), refresh: false);
+                AddImageLayerFromBitmapV067(bitmap, System.IO.Path.GetFileName(path), refresh: false);
             }
             catch (Exception ex)
             {
@@ -891,12 +914,22 @@ public partial class MainWindow
         bool locked = false,
         double? width = null,
         double? height = null,
-        bool refresh = true)
+        bool refresh = true,
+        double cornerRadius = 0)
     {
         if (_editorComposition is null)
             throw new InvalidOperationException("Editor canvas is not available.");
 
         var image = new Image
+        {
+            Source = bitmap,
+            Stretch = Stretch.Fill,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            SnapsToDevicePixels = true,
+            IsHitTestVisible = false
+        };
+        var pasteboardImage = new Image
         {
             Source = bitmap,
             Stretch = Stretch.Fill,
@@ -911,16 +944,19 @@ public partial class MainWindow
             Name = string.IsNullOrWhiteSpace(name) ? "Image Layer" : name,
             Bitmap = bitmap,
             Image = image,
+            PasteboardImage = pasteboardImage,
             X = x,
             Y = y,
             Width = Math.Max(1, width ?? bitmap.PixelWidth * Math.Clamp(scale, 0.1, 3.0)),
             Height = Math.Max(1, height ?? bitmap.PixelHeight * Math.Clamp(scale, 0.1, 3.0)),
             Opacity = Math.Clamp(opacity, 0, 1),
+            CornerRadius = Math.Clamp(cornerRadius, 0, 200),
             IsVisible = visible,
             IsLocked = locked
         };
         _editorImageLayersV067.Add(layer);
         _editorComposition.Children.Add(image);
+        _editorGuideHostCanary?.Children.Add(pasteboardImage);
         UpdateImageLayerVisualV067(layer);
         UpdateEditorLayerZOrderV067();
 
@@ -942,12 +978,16 @@ public partial class MainWindow
         layer.Image.RenderTransform = new TranslateTransform(layer.X, layer.Y);
         layer.Image.Opacity = layer.Opacity;
         layer.Image.Visibility = layer.IsVisible ? Visibility.Visible : Visibility.Collapsed;
+        UpdateImageLayerPasteboardPresentationV080(layer);
     }
 
     private void UpdateEditorLayerZOrderV067()
     {
         for (int i = 0; i < _editorImageLayersV067.Count; i++)
+        {
             Panel.SetZIndex(_editorImageLayersV067[i].Image, 10 + i);
+            Panel.SetZIndex(_editorImageLayersV067[i].PasteboardImage, 10 + i);
+        }
 
         if (_editorChatImage is not null)
             Panel.SetZIndex(_editorChatImage, 500);
@@ -1132,6 +1172,11 @@ public partial class MainWindow
                 _editorLayerOpacityV067.IsEnabled = enabled;
                 _editorLayerOpacityV067.Value = enabled ? layer!.Opacity * 100 : 100;
             }
+            if (_editorLayerCornerRadiusV080 is not null)
+            {
+                _editorLayerCornerRadiusV080.IsEnabled = enabled;
+                _editorLayerCornerRadiusV080.Value = enabled ? layer!.CornerRadius : 0;
+            }
             if (_editorLayerRemoveV067 is not null) _editorLayerRemoveV067.IsEnabled = enabled;
             if (_editorLayerUpV067 is not null) _editorLayerUpV067.IsEnabled = enabled;
             if (_editorLayerDownV067 is not null) _editorLayerDownV067.IsEnabled = enabled;
@@ -1149,6 +1194,7 @@ public partial class MainWindow
 
         EditorImageLayerV067 layer = _editorSelectedImageLayerV067;
         layer.Opacity = Math.Clamp((_editorLayerOpacityV067?.Value ?? 100) / 100.0, 0, 1);
+        layer.CornerRadius = Math.Clamp(_editorLayerCornerRadiusV080?.Value ?? 0, 0, 200);
         UpdateImageLayerVisualV067(layer);
         EnsureLayerCanvasExtentV067();
         RefreshSelectedLayerAdornerV068();
@@ -1162,6 +1208,7 @@ public partial class MainWindow
 
         ResetLayerFilterTargetV071(restoreVisual: false);
         _editorComposition.Children.Remove(layer.Image);
+        _editorGuideHostCanary?.Children.Remove(layer.PasteboardImage);
         _editorImageLayersV067.Remove(layer);
         _editorSelectedImageLayerV067 = null;
         UpdateFilterTargetLabelV071();
@@ -1195,7 +1242,10 @@ public partial class MainWindow
         ResetLayerFilterTargetV071(restoreVisual: false);
         if (_editorComposition is not null)
             foreach (EditorImageLayerV067 layer in _editorImageLayersV067)
+            {
                 _editorComposition.Children.Remove(layer.Image);
+                _editorGuideHostCanary?.Children.Remove(layer.PasteboardImage);
+            }
 
         _editorImageLayersV067.Clear();
         _editorSelectedImageLayerV067 = null;
@@ -1358,7 +1408,7 @@ public partial class MainWindow
 
         string name = string.IsNullOrWhiteSpace(_editorProjectPathV067)
             ? "Untitled"
-            : Path.GetFileNameWithoutExtension(_editorProjectPathV067);
+            : System.IO.Path.GetFileNameWithoutExtension(_editorProjectPathV067);
         _editorProjectLabelV067.Text = "Project · " + name;
         _editorProjectLabelV067.ToolTip = _editorProjectPathV067 ?? "This project has not been saved yet.";
     }

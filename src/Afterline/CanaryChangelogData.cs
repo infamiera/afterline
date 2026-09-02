@@ -6,6 +6,14 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "02/SEP/2026", new[]
+        {
+            "Layer presentation — Keeps image pixels visible across the pasteboard without changing the Base Image or exported canvas.",
+            "Layer corners — Adds a per-layer corner-radius control that persists through project saves and undo history.",
+            "Transform controls — Improves proportional resizing and uses thinner selection borders and handles.",
+            "Base Image guide — Adds an optional thin pink preview boundary that is never exported.",
+            "Editor undo — Routes configured Undo and Redo shortcuts through image-layer resize and position history when applicable."
+        }, ChangelogChannel.Canary, 199),
         new("0.7.0", "01/SEP/2026", new[]
         {
             "Editor image drops — Adds Explorer images as new layers whenever a rendered Base Image already exists, without changing the Base Image or export dimensions.",

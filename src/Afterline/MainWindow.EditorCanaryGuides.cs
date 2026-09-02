@@ -87,6 +87,7 @@ public partial class MainWindow
         _editorComposition.Margin = new Thickness(0);
 
         ApplyPasteboardOffsetToEditorOverlaysV078();
+        RefreshBaseImageOutlineV080();
 
         if (_editorSelectionOverlayCanary is not null)
         {
