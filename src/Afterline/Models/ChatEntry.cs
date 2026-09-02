@@ -24,6 +24,14 @@ public sealed class ChatEntry
         @"^/b(?:\s|$)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex AdminPunishmentNotice = new(
+        @"^Admin\s+.+?\s+(?:(?:permanently|temporarily)\s+)?(?:Rockstar\s+)?(?:banned|kicked|jailed|muted|warned)\s+.+?\s+for reason:\s*",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex GameplayNotificationNotice = new(
+        @"^(?:You (?:unlocked|locked) the door\. This door will automatically close in \d+ seconds\.?|.+ is now furnishing the property \(build mode\)\. Report any abuse with /report\.?|You have set the action gradients status to (?:ENABLED|DISABLED)\.?)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly Regex OocStatusPrefix = new(
         @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM|ANTI-FALL|FRIEND|PAYPHONE|AFK\s+CHECK|CHARACTER\s+KILL)\]\s*:?(?:\s|$)|INFO:\s*)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -74,6 +82,8 @@ public sealed class ChatEntry
             if (IsSessionBoundary(content)) return false;
             return OocStatusPrefix.IsMatch(content) ||
                    OocStandaloneStatus.IsMatch(content) ||
+                   GameplayNotificationNotice.IsMatch(content) ||
+                   AdminPunishmentNotice.IsMatch(content) ||
                    content.Contains("[Admin Alert]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains("[Ticket]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains("[AdmREPORT]", StringComparison.OrdinalIgnoreCase) ||

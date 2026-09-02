@@ -57,6 +57,60 @@ public partial class MainWindow
             new Rect(1.0 / 3, 0, 1.0 / 3, 1),
             new Rect(2.0 / 3, 0, 1.0 / 3, 1)
         }),
+        new("grid-6", "Six image grid", new[]
+        {
+            new Rect(0, 0, 1.0 / 3, 0.5),
+            new Rect(1.0 / 3, 0, 1.0 / 3, 0.5),
+            new Rect(2.0 / 3, 0, 1.0 / 3, 0.5),
+            new Rect(0, 0.5, 1.0 / 3, 0.5),
+            new Rect(1.0 / 3, 0.5, 1.0 / 3, 0.5),
+            new Rect(2.0 / 3, 0.5, 1.0 / 3, 0.5)
+        }),
+        new("grid-9", "Nine image grid", new[]
+        {
+            new Rect(0, 0, 1.0 / 3, 1.0 / 3),
+            new Rect(1.0 / 3, 0, 1.0 / 3, 1.0 / 3),
+            new Rect(2.0 / 3, 0, 1.0 / 3, 1.0 / 3),
+            new Rect(0, 1.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(1.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(2.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(0, 2.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(1.0 / 3, 2.0 / 3, 1.0 / 3, 1.0 / 3),
+            new Rect(2.0 / 3, 2.0 / 3, 1.0 / 3, 1.0 / 3)
+        }),
+        new("feature-center-5", "Center feature + four", new[]
+        {
+            new Rect(0, 0, 0.25, 0.5),
+            new Rect(0, 0.5, 0.25, 0.5),
+            new Rect(0.25, 0, 0.5, 1),
+            new Rect(0.75, 0, 0.25, 0.5),
+            new Rect(0.75, 0.5, 0.25, 0.5)
+        }),
+        new("panorama-4", "Panorama + three", new[]
+        {
+            new Rect(0, 0, 1, 0.55),
+            new Rect(0, 0.55, 1.0 / 3, 0.45),
+            new Rect(1.0 / 3, 0.55, 1.0 / 3, 0.45),
+            new Rect(2.0 / 3, 0.55, 1.0 / 3, 0.45)
+        }),
+        new("feature-7", "Feature + six", new[]
+        {
+            new Rect(0, 0, 0.5, 0.65),
+            new Rect(0.5, 0, 0.5, 0.325),
+            new Rect(0.5, 0.325, 0.5, 0.325),
+            new Rect(0, 0.65, 0.25, 0.35),
+            new Rect(0.25, 0.65, 0.25, 0.35),
+            new Rect(0.5, 0.65, 0.25, 0.35),
+            new Rect(0.75, 0.65, 0.25, 0.35)
+        }),
+        new("editorial-5", "Editorial five", new[]
+        {
+            new Rect(0, 0, 0.6, 0.55),
+            new Rect(0.6, 0, 0.4, 0.3),
+            new Rect(0.6, 0.3, 0.4, 0.25),
+            new Rect(0, 0.55, 0.35, 0.45),
+            new Rect(0.35, 0.55, 0.65, 0.45)
+        }),
         new("brand-mosaic-8", "Brand mosaic · 8 + logo", new[]
         {
             new Rect(0, 0, 1.0 / 3, 0.20),
@@ -203,7 +257,7 @@ public partial class MainWindow
         create.Click += (_, _) => CreateCollageV081();
         content.Children.Add(create);
         content.Children.Add(EditorSubtleNote(
-            "Frame borders and drop labels are preview guides only. Empty frames remain transparent in exported PNG files. Logo slots keep the complete logo visible."));
+            "Frame borders and drop labels are preview guides only. Empty frames remain transparent in exported PNG files. Every filled frame can be dragged to reposition its crop."));
 
         content.Children.Add(new TextBlock
         {
@@ -481,6 +535,21 @@ public partial class MainWindow
                 "Live collage gap geometry changed the canvas boundary or failed to expand frames into removed spacing.");
         }
 
+        Int32Rect cropLeft = CalculateCollageCropRectV087(400, 200, 200, 200, -1, 0);
+        Int32Rect cropRight = CalculateCollageCropRectV087(400, 200, 200, 200, 1, 0);
+        Int32Rect cropTop = CalculateCollageCropRectV087(200, 400, 200, 200, 0, -1);
+        Int32Rect cropBottom = CalculateCollageCropRectV087(200, 400, 200, 200, 0, 1);
+        if (cropLeft != new Int32Rect(0, 0, 200, 200) ||
+            cropRight != new Int32Rect(200, 0, 200, 200) ||
+            cropTop != new Int32Rect(0, 0, 200, 200) ||
+            cropBottom != new Int32Rect(0, 200, 200, 200))
+        {
+            throw new InvalidOperationException("Collage fill or drag-to-reposition crop geometry regressed.");
+        }
+
+        if (EditorCollagePresetsV081.Count(preset => preset.LogoSlotIndex < 0) < 12)
+            throw new InvalidOperationException("The non-logo collage layout set is incomplete.");
+
         foreach (EditorCollagePresetV081 preset in EditorCollagePresetsV081)
         {
             if (preset.LogoSlotIndex >= preset.Slots.Count || preset.LogoSlotIndex < -1 ||
@@ -488,6 +557,22 @@ public partial class MainWindow
                     slot.Right > 1.0001 || slot.Bottom > 1.0001))
             {
                 throw new InvalidOperationException($"Collage preset '{preset.Id}' contains invalid frame geometry.");
+            }
+
+            for (int first = 0; first < preset.Slots.Count; first++)
+            {
+                for (int second = first + 1; second < preset.Slots.Count; second++)
+                {
+                    Rect a = preset.Slots[first];
+                    Rect b = preset.Slots[second];
+                    double overlapWidth = Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left);
+                    double overlapHeight = Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top);
+                    if (overlapWidth > 0.0001 && overlapHeight > 0.0001)
+                    {
+                        throw new InvalidOperationException(
+                            $"Collage preset '{preset.Id}' contains overlapping frame definitions.");
+                    }
+                }
             }
         }
     }
@@ -553,36 +638,50 @@ public partial class MainWindow
             return;
         }
 
-        if (IsCollageLogoSlotV086(layer))
-        {
-            layer.Bitmap = layer.CollageSource;
-            return;
-        }
-
         BitmapSource source = layer.CollageSource;
-        double targetAspect = Math.Max(0.001, layer.Width / Math.Max(1, layer.Height));
-        double sourceAspect = source.PixelWidth / (double)Math.Max(1, source.PixelHeight);
-        int cropWidth = source.PixelWidth;
-        int cropHeight = source.PixelHeight;
+        Int32Rect crop = CalculateCollageCropRectV087(
+            source.PixelWidth,
+            source.PixelHeight,
+            layer.Width,
+            layer.Height,
+            layer.CollageOffsetX,
+            layer.CollageOffsetY);
+        var cropped = new CroppedBitmap(source, crop);
+        cropped.Freeze();
+        layer.Bitmap = cropped;
+    }
+
+    private static Int32Rect CalculateCollageCropRectV087(
+        int sourceWidth,
+        int sourceHeight,
+        double targetWidth,
+        double targetHeight,
+        double offsetX,
+        double offsetY)
+    {
+        sourceWidth = Math.Max(1, sourceWidth);
+        sourceHeight = Math.Max(1, sourceHeight);
+        double targetAspect = Math.Max(0.001, targetWidth / Math.Max(1, targetHeight));
+        double sourceAspect = sourceWidth / (double)sourceHeight;
+        int cropWidth = sourceWidth;
+        int cropHeight = sourceHeight;
         int x = 0;
         int y = 0;
         if (sourceAspect > targetAspect)
         {
-            cropWidth = Math.Clamp((int)Math.Round(source.PixelHeight * targetAspect), 1, source.PixelWidth);
-            int available = source.PixelWidth - cropWidth;
-            x = (int)Math.Round(available * (Math.Clamp(layer.CollageOffsetX, -1, 1) + 1) / 2);
+            cropWidth = Math.Clamp((int)Math.Round(sourceHeight * targetAspect), 1, sourceWidth);
+            int available = sourceWidth - cropWidth;
+            x = (int)Math.Round(available * (Math.Clamp(offsetX, -1, 1) + 1) / 2);
         }
         else if (sourceAspect < targetAspect)
         {
-            cropHeight = Math.Clamp((int)Math.Round(source.PixelWidth / targetAspect), 1, source.PixelHeight);
-            int available = source.PixelHeight - cropHeight;
-            y = (int)Math.Round(available * (Math.Clamp(layer.CollageOffsetY, -1, 1) + 1) / 2);
+            cropHeight = Math.Clamp((int)Math.Round(sourceWidth / targetAspect), 1, sourceHeight);
+            int available = sourceHeight - cropHeight;
+            y = (int)Math.Round(available * (Math.Clamp(offsetY, -1, 1) + 1) / 2);
         }
-        x = Math.Clamp(x, 0, Math.Max(0, source.PixelWidth - cropWidth));
-        y = Math.Clamp(y, 0, Math.Max(0, source.PixelHeight - cropHeight));
-        var cropped = new CroppedBitmap(source, new Int32Rect(x, y, cropWidth, cropHeight));
-        cropped.Freeze();
-        layer.Bitmap = cropped;
+        x = Math.Clamp(x, 0, Math.Max(0, sourceWidth - cropWidth));
+        y = Math.Clamp(y, 0, Math.Max(0, sourceHeight - cropHeight));
+        return new Int32Rect(x, y, cropWidth, cropHeight);
     }
 
     private void UpdateCollageFrameVisualV081(EditorImageLayerV067 layer)
