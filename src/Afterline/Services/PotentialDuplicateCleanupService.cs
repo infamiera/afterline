@@ -56,12 +56,6 @@ public static class PotentialDuplicateCleanupService
         }
 
         string[] retained = lines.Where((_, index) => !removals.Contains(index)).ToArray();
-        IReadOnlyDictionary<int, ChatColorLineRecord> retainedColors =
-            await ChatColorSidecarService.MatchLinesAsync(
-                journalPath,
-                retained,
-                cancellationToken);
-
         Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
         string stem = Path.GetFileNameWithoutExtension(journalPath);
         string backupPath = UniquePath(
@@ -69,7 +63,6 @@ public static class PotentialDuplicateCleanupService
             $"Duplicate Review Backup [{DateTime.Now:yyyy-MM-dd - HH-mm-ss}] {stem}",
             ".txt");
         File.Copy(journalPath, backupPath, false);
-        ChatColorSidecarService.CopyForTextFile(journalPath, backupPath, false);
 
         string temporary = journalPath + $".{Environment.ProcessId}.duplicate-review.tmp";
         try
@@ -84,33 +77,11 @@ public static class PotentialDuplicateCleanupService
                 cancellationToken);
             File.Move(temporary, journalPath, true);
 
-            try
-            {
-                ChatColorSidecarService.DeleteForTextFile(journalPath);
-                foreach ((int lineIndex, ChatColorLineRecord record) in retainedColors.OrderBy(pair => pair.Key))
-                {
-                    await ChatColorSidecarService.AppendAsync(
-                        journalPath,
-                        retained[lineIndex],
-                        record.ColorRuns,
-                        CancellationToken.None);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Exact-color metadata is optional. The authoritative text and
-                // its complete backup have already been written successfully.
-                DiagnosticLogger.Error(
-                    "The reviewed chatlog was updated, but optional exact-color metadata could not be rebuilt.",
-                    ex);
-            }
-
             return new PotentialDuplicateCleanupResult(removals.Count, backupPath);
         }
         catch
         {
-            // The untouched backup is deliberately retained even if replacement
-            // or optional color-sidecar reconstruction fails.
+            // The untouched backup is deliberately retained if replacement fails.
             throw;
         }
         finally
