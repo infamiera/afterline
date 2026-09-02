@@ -322,7 +322,9 @@ public partial class MainWindow
 
         if (_editorLayerSelectionOutlineV068 is not null)
         {
-            _editorLayerSelectionOutlineV068.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            _editorLayerSelectionOutlineV068.Visibility = show && _editorSelectedOutlineCheckV083?.IsChecked != false
+                ? Visibility.Visible
+                : Visibility.Collapsed;
             if (show)
             {
                 _editorLayerSelectionOutlineV068.Width = layer!.Width;

@@ -56,14 +56,16 @@ public partial class MainWindow
     private static readonly EditorCollageCanvasV081[] EditorCollageCanvasesV081 =
     {
         new("HD landscape", 1920, 1080),
-        new("Square", 1080, 1080),
-        new("Portrait", 1080, 1350),
+        new("Square", 1920, 1920),
+        new("Portrait", 1920, 2400),
         new("4K landscape", 3840, 2160)
     };
 
     private ComboBox? _editorCollagePresetV081;
     private ComboBox? _editorCollageCanvasV081;
     private Slider? _editorCollageGapV081;
+    private bool _editorCollageGapUiUpdatingV082;
+    private bool _editorCollageGapHistoryCapturedV082;
     private bool _editorCollagePanningV081;
     private EditorImageLayerV067? _editorCollagePanLayerV081;
     private Point _editorCollagePanStartV081;
@@ -111,7 +113,19 @@ public partial class MainWindow
 
         var gap = CreateEditorV041Slider("Frame gap", 0, 80, 12, 1);
         _editorCollageGapV081 = gap.Slider;
+        _editorCollageGapV081.PreviewMouseLeftButtonDown += (_, _) => BeginLiveCollageGapEditV082();
+        _editorCollageGapV081.PreviewMouseLeftButtonUp += (_, _) => EndLiveCollageGapEditV082();
+        _editorCollageGapV081.LostMouseCapture += (_, _) => EndLiveCollageGapEditV082();
+        _editorCollageGapV081.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.PageUp or Key.PageDown or Key.Home or Key.End)
+                BeginLiveCollageGapEditV082();
+        };
+        _editorCollageGapV081.PreviewKeyUp += (_, _) => EndLiveCollageGapEditV082();
+        _editorCollageGapV081.ValueChanged += (_, _) => ApplyLiveCollageGapV082();
         content.Children.Add(gap.Panel);
+        content.Children.Add(EditorSubtleNote(
+            "Adjust this at any time. The Base Image and export size stay fixed while the collage frames expand or contract inside it."));
 
         var create = new Button
         {
@@ -138,6 +152,7 @@ public partial class MainWindow
         double gap = Math.Clamp(_editorCollageGapV081?.Value ?? 12, 0, 80);
 
         PushEditorDocumentHistoryV081("collage creation");
+        ClearEditorContentBoundaryV083();
         ClearImageLayersV067(clearHistory: false);
         ClearSelectionCanarySilently();
         _editorSyntheticBaseV081 = true;
@@ -153,17 +168,14 @@ public partial class MainWindow
         for (int index = 0; index < preset.Slots.Count; index++)
         {
             Rect slot = preset.Slots[index];
-            double left = slot.X * canvas.Width + gap / 2;
-            double top = slot.Y * canvas.Height + gap / 2;
-            double width = Math.Max(16, slot.Width * canvas.Width - gap);
-            double height = Math.Max(16, slot.Height * canvas.Height - gap);
+            Rect bounds = CalculateCollageFrameBoundsV082(slot, canvas.Width, canvas.Height, gap);
             AddImageLayerFromBitmapV067(
                 empty,
                 $"Collage Slot {index + 1}",
-                left,
-                top,
-                width: width,
-                height: height,
+                bounds.X,
+                bounds.Y,
+                width: bounds.Width,
+                height: bounds.Height,
                 refresh: false,
                 isCollageFrame: true,
                 collagePresetId: preset.Id,
@@ -177,6 +189,134 @@ public partial class MainWindow
         _editorFitZoom = true;
         Dispatcher.BeginInvoke(new Action(FitEditorPreviewToWindow));
         SetEditorStatus($"Created {preset.Name.ToLowerInvariant()} collage · {canvas.Width:N0} × {canvas.Height:N0}px. Drop images onto the numbered frames.");
+    }
+
+    private void BeginLiveCollageGapEditV082()
+    {
+        if (_editorCollageGapHistoryCapturedV082 || _editorCollageGapUiUpdatingV082 ||
+            !_editorImageLayersV067.Any(layer => layer.IsCollageFrame))
+        {
+            return;
+        }
+
+        PushEditorDocumentHistoryV081("collage frame gap");
+        _editorCollageGapHistoryCapturedV082 = true;
+    }
+
+    private void EndLiveCollageGapEditV082()
+        => _editorCollageGapHistoryCapturedV082 = false;
+
+    private void ApplyLiveCollageGapV082()
+    {
+        if (_editorCollageGapUiUpdatingV082 || _editorCollageGapV081 is null || _editorComposition is null)
+            return;
+
+        List<EditorImageLayerV067> frames = GetActiveCollageFramesV082();
+        if (frames.Count == 0)
+            return;
+
+        string? presetId = frames[0].CollagePresetId;
+        EditorCollagePresetV081? preset = EditorCollagePresetsV081.FirstOrDefault(item =>
+            string.Equals(item.Id, presetId, StringComparison.Ordinal));
+        if (preset is null)
+            return;
+
+        double gap = Math.Clamp(_editorCollageGapV081.Value, 0, 80);
+        double canvasWidth = Math.Max(1, _editorComposition.Width);
+        double canvasHeight = Math.Max(1, _editorComposition.Height);
+        foreach (EditorImageLayerV067 frame in frames)
+        {
+            if (frame.CollageSlotIndex < 0 || frame.CollageSlotIndex >= preset.Slots.Count)
+                continue;
+
+            Rect bounds = CalculateCollageFrameBoundsV082(
+                preset.Slots[frame.CollageSlotIndex],
+                canvasWidth,
+                canvasHeight,
+                gap);
+            frame.X = bounds.X;
+            frame.Y = bounds.Y;
+            frame.Width = bounds.Width;
+            frame.Height = bounds.Height;
+            RefreshCollageFrameBitmapV081(frame);
+            UpdateImageLayerVisualV067(frame);
+        }
+
+        EnsureLayerCanvasExtentV067();
+        RefreshSelectedLayerAdornerV068();
+        SyncCanaryGuideHostSize();
+        SetEditorStatus($"Collage frame gap updated to {gap:0}px. Undo restores the previous spacing.");
+    }
+
+    private List<EditorImageLayerV067> GetActiveCollageFramesV082()
+    {
+        string? selectedPreset = _editorSelectedImageLayerV067 is { IsCollageFrame: true } selected
+            ? selected.CollagePresetId
+            : _editorImageLayersV067.FirstOrDefault(layer => layer.IsCollageFrame)?.CollagePresetId;
+        return _editorImageLayersV067
+            .Where(layer => layer.IsCollageFrame &&
+                string.Equals(layer.CollagePresetId, selectedPreset, StringComparison.Ordinal))
+            .OrderBy(layer => layer.CollageSlotIndex)
+            .ToList();
+    }
+
+    private void SyncCollageGapControlV082()
+    {
+        if (_editorCollageGapV081 is null || _editorComposition is null)
+            return;
+
+        List<EditorImageLayerV067> frames = GetActiveCollageFramesV082();
+        if (frames.Count == 0)
+            return;
+
+        EditorImageLayerV067 frame = frames[0];
+        EditorCollagePresetV081? preset = EditorCollagePresetsV081.FirstOrDefault(item =>
+            string.Equals(item.Id, frame.CollagePresetId, StringComparison.Ordinal));
+        if (preset is null || frame.CollageSlotIndex < 0 || frame.CollageSlotIndex >= preset.Slots.Count)
+            return;
+
+        Rect slot = preset.Slots[frame.CollageSlotIndex];
+        double inferredGap = Math.Clamp(
+            slot.Width * Math.Max(1, _editorComposition.Width) - frame.Width,
+            0,
+            80);
+        _editorCollageGapUiUpdatingV082 = true;
+        try
+        {
+            _editorCollageGapV081.Value = Math.Round(inferredGap);
+        }
+        finally
+        {
+            _editorCollageGapUiUpdatingV082 = false;
+        }
+    }
+
+    private static Rect CalculateCollageFrameBoundsV082(
+        Rect slot,
+        double canvasWidth,
+        double canvasHeight,
+        double gap)
+        => new(
+            slot.X * canvasWidth + gap / 2,
+            slot.Y * canvasHeight + gap / 2,
+            Math.Max(16, slot.Width * canvasWidth - gap),
+            Math.Max(16, slot.Height * canvasHeight - gap));
+
+    private static void VerifyLiveCollageGapGeometryV082()
+    {
+        var leftSlot = new Rect(0, 0, 0.5, 1);
+        var rightSlot = new Rect(0.5, 0, 0.5, 1);
+        Rect spacedLeft = CalculateCollageFrameBoundsV082(leftSlot, 1920, 1080, 40);
+        Rect spacedRight = CalculateCollageFrameBoundsV082(rightSlot, 1920, 1080, 40);
+        Rect filledLeft = CalculateCollageFrameBoundsV082(leftSlot, 1920, 1080, 0);
+        Rect filledRight = CalculateCollageFrameBoundsV082(rightSlot, 1920, 1080, 0);
+        if (filledLeft.Width <= spacedLeft.Width || filledRight.Width <= spacedRight.Width ||
+            filledLeft.X != 0 || filledRight.Right != 1920 ||
+            Math.Abs(spacedRight.Left - spacedLeft.Right - 40) > 0.01)
+        {
+            throw new InvalidOperationException(
+                "Live collage gap geometry changed the canvas boundary or failed to expand frames into removed spacing.");
+        }
     }
 
     private bool TryAssignDroppedImagesToCollageFrameV081(IReadOnlyList<string> paths, Point dropPoint)

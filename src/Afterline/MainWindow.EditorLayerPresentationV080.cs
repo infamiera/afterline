@@ -68,7 +68,8 @@ public partial class MainWindow
             _editorPasteboardOffsetXV078,
             _editorPasteboardOffsetYV078);
 
-        if (!layer.IsVisible || !EditorHasRenderedBaseImageV079() || _editorComposition is null)
+        if (!layer.IsVisible || !EditorHasRenderedBaseImageV079() || _editorComposition is null ||
+            _editorContentBoundaryV083 is not null)
         {
             preview.Visibility = Visibility.Collapsed;
             preview.Clip = null;

@@ -46,6 +46,9 @@ public partial class MainWindow
     private Slider? _editorLayerCornerRadiusV080;
     private CheckBox? _editorBaseOutlineCheckV080;
     private Rectangle? _editorBaseOutlineV080;
+    private CheckBox? _editorSelectedOutlineCheckV083;
+    private Button? _editorTrimToSelectedBoundsButtonV083;
+    private Button? _editorClearContentBoundaryButtonV083;
     private Button? _editorLayerRemoveV067;
     private Button? _editorLayerUpV067;
     private Button? _editorLayerDownV067;
@@ -482,6 +485,40 @@ public partial class MainWindow
         _editorBaseOutlineCheckV080.Checked += (_, _) => RefreshBaseImageOutlineV080();
         _editorBaseOutlineCheckV080.Unchecked += (_, _) => RefreshBaseImageOutlineV080();
         controls.Children.Add(_editorBaseOutlineCheckV080);
+
+        _editorSelectedOutlineCheckV083 = new CheckBox
+        {
+            Content = "Show selected layer outline",
+            IsChecked = true,
+            Margin = new Thickness(0, 0, 0, 8),
+            ToolTip = "Show the thin transform outline around the currently selected image layer. The outline is never exported."
+        };
+        _editorSelectedOutlineCheckV083.Checked += (_, _) => RefreshSelectedLayerAdornerV068();
+        _editorSelectedOutlineCheckV083.Unchecked += (_, _) => RefreshSelectedLayerAdornerV068();
+        controls.Children.Add(_editorSelectedOutlineCheckV083);
+
+        _editorTrimToSelectedBoundsButtonV083 = new Button
+        {
+            Content = "Trim Outside Selected Outline",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(8, 6, 8, 6),
+            Margin = new Thickness(0, 0, 0, 9),
+            ToolTip = "Hide all document content outside the selected layer’s current outline without changing the Base Image or export dimensions. Undo restores it."
+        };
+        _editorTrimToSelectedBoundsButtonV083.Click += (_, _) => TrimContentToSelectedLayerV083();
+        controls.Children.Add(_editorTrimToSelectedBoundsButtonV083);
+
+        _editorClearContentBoundaryButtonV083 = new Button
+        {
+            Content = "Clear Content Trim",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(8, 6, 8, 6),
+            Margin = new Thickness(0, 0, 0, 9),
+            IsEnabled = false,
+            ToolTip = "Remove the saved content boundary and show the full document again. This action is also reversible."
+        };
+        _editorClearContentBoundaryButtonV083.Click += (_, _) => RemoveEditorContentBoundaryV083();
+        controls.Children.Add(_editorClearContentBoundaryButtonV083);
         controls.Children.Add(opacity.Panel);
 
         var cornerRadius = CreateEditorV041Slider("Corner radius", 0, 200, 0, 1);
@@ -1210,6 +1247,10 @@ public partial class MainWindow
                 _editorLayerCornerRadiusV080.IsEnabled = enabled;
                 _editorLayerCornerRadiusV080.Value = enabled ? layer!.CornerRadius : 0;
             }
+            if (_editorSelectedOutlineCheckV083 is not null)
+                _editorSelectedOutlineCheckV083.IsEnabled = enabled;
+            if (_editorTrimToSelectedBoundsButtonV083 is not null)
+                _editorTrimToSelectedBoundsButtonV083.IsEnabled = enabled;
             if (_editorLayerRemoveV067 is not null) _editorLayerRemoveV067.IsEnabled = enabled;
             if (_editorLayerUpV067 is not null) _editorLayerUpV067.IsEnabled = enabled;
             if (_editorLayerDownV067 is not null) _editorLayerDownV067.IsEnabled = enabled;

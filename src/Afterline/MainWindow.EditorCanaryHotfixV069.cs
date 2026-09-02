@@ -550,6 +550,15 @@ public partial class MainWindow
                             "Selecting a whole line retained a stale text-range color target.");
                     }
 
+                    _editorContentBoundaryV083 = new Rect(4, 5, 40, 45);
+                    ApplyEditorContentBoundaryV083();
+                    if (_editorComposition.Clip is not RectangleGeometry smokeBoundary ||
+                        smokeBoundary.Rect != new Rect(4, 5, 40, 45))
+                    {
+                        throw new InvalidOperationException(
+                            "The selected-layer content boundary did not attach to the fixed export canvas.");
+                    }
+
                     SaveEditorProjectToPathV067(projectPath);
                     if (!File.Exists(projectPath) || new FileInfo(projectPath).Length == 0)
                         throw new InvalidOperationException("The Editor project was not written.");
@@ -567,12 +576,15 @@ public partial class MainWindow
                         restoredFiltered.X != -18 ||
                         restoredFiltered.Y != -12 ||
                         Math.Abs(restoredFiltered.CornerRadius - 24) > 0.01 ||
-                        restoredFiltered.PasteboardImage.Visibility != Visibility.Visible ||
+                        restoredFiltered.PasteboardImage.Visibility != Visibility.Collapsed ||
                         restoredCollage is null ||
                         restoredCollage.CollageSource is null ||
                         restoredCollage.CollagePresetId != "smoke" ||
                         Math.Abs(restoredCollage.CollageOffsetX - 0.5) > 0.01 ||
                         Math.Abs(restoredCollage.CollageOffsetY + 0.25) > 0.01 ||
+                        _editorContentBoundaryV083 != new Rect(4, 5, 40, 45) ||
+                        _editorComposition.Clip is not RectangleGeometry restoredBoundary ||
+                        restoredBoundary.Rect != new Rect(4, 5, 40, 45) ||
                         !_editorTextColorOverridesV071.Any(value =>
                             value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
                     {

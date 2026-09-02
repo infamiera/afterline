@@ -38,6 +38,7 @@ public partial class MainWindow
         string Background,
         IReadOnlyList<EditorDocumentLayerSnapshotV081> Layers,
         string? SelectedLayerId,
+        Rect? ContentBoundary,
         string Description,
         long Sequence);
 
@@ -216,6 +217,7 @@ public partial class MainWindow
             return;
 
         PushEditorDocumentHistoryV081("set image layer as Base Image");
+        ClearEditorContentBoundaryV083();
         BitmapSource oldBase = CloneBitmapCanary(_editorFilterCommittedCanary ?? _editorBaseOriginal
             ?? CreateProjectBackgroundBitmapV081(DefaultEditorCanvasWidthV081, DefaultEditorCanvasHeightV081, "Transparent"));
         bool preserveOldBase = !_editorSyntheticBaseV081;
@@ -335,6 +337,7 @@ public partial class MainWindow
             _editorActiveProjectBackgroundV081,
             layers,
             _editorSelectedImageLayerV067?.Id,
+            _editorContentBoundaryV083,
             description,
             sequence);
     }
@@ -368,6 +371,7 @@ public partial class MainWindow
             _editorFilterCommittedCanary = _editorBaseOriginal is null ? null : CloneBitmapCanary(_editorBaseOriginal);
             _editorFilterPreviewCanary = null;
             _editorFilterTrackedMediaCanary = null;
+            _editorContentBoundaryV083 = snapshot.ContentBoundary;
             SetBackgroundSelectionV081(snapshot.Background);
 
             EditorImageLayerV067? selected = null;
@@ -406,6 +410,8 @@ public partial class MainWindow
             if (selected is not null) SelectImageLayerV068(selected);
             RefreshSelectedLayerAdornerV068();
             SyncCanaryGuideHostSize();
+            SyncCollageGapControlV082();
+            ApplyEditorContentBoundaryV083();
         }
         finally
         {
@@ -504,6 +510,16 @@ public partial class MainWindow
 
     private void VerifyEditorCreativeToolPrimitivesV081()
     {
+        VerifyLiveCollageGapGeometryV082();
+        VerifyEditorContentBoundaryGeometryV083();
+        if (DefaultEditorCanvasWidthV081 < EditorBaseSizeWindowV081.MinimumBaseWidth ||
+            DefaultEditorCanvasHeightV081 < EditorBaseSizeWindowV081.MinimumBaseHeight ||
+            EditorCollageCanvasesV081.Any(canvas =>
+                canvas.Width < EditorBaseSizeWindowV081.MinimumBaseWidth ||
+                canvas.Height < EditorBaseSizeWindowV081.MinimumBaseHeight))
+        {
+            throw new InvalidOperationException("An Editor Base Image preset is smaller than 1,920 × 1,080px.");
+        }
         if (_editorFontSizeSlider is null || _editorFontSizeSlider.Maximum < 100 ||
             _editorChatWidthSlider is null || _editorChatWidthSlider.Maximum < 1500)
         {

@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "02/SEP/2026", new[]
         {
+            "Live collage spacing — Lets Frame gap expand or contract an existing collage without changing its Base Image or export dimensions.",
+            "Base Image sizing — Enforces a Full HD minimum and adds common monitor-resolution presets when promoting an image layer.",
+            "Selected layer guide — Adds an optional outline for the currently selected image layer alongside the existing Base Image guide.",
+            "Content trim — Hides everything outside the selected layer outline while preserving the fixed canvas, project layers and Undo or Redo history."
+        }, ChangelogChannel.Canary, 205),
+        new("0.7.0", "02/SEP/2026", new[]
+        {
             "Transparent projects — Starts new Editor projects with a real transparent Base Image, with optional black or white defaults and alpha-safe PNG export.",
             "Background removal — Adds a non-destructive preview for removing edge-connected backgrounds from the Base Image or selected image layer.",
             "Set as Base Image — Promotes an image layer to the Base Image using its displayed dimensions or a custom pixel size.",
