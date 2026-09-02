@@ -248,6 +248,14 @@ public partial class MainWindow
         actions.Children.Add(CreateSmallEditorButton("Invert", (_, _) => InvertSelectionCanary()));
         actions.Children.Add(CreateSmallEditorButton("Clear", (_, _) => ClearSelectionCanary()));
         content.Children.Add(actions);
+
+        var removeBackground = CreateSmallEditorButton("Remove Background…", (_, _) => OpenBackgroundRemovalV081());
+        removeBackground.HorizontalAlignment = HorizontalAlignment.Stretch;
+        removeBackground.Margin = new Thickness(0, 9, 0, 0);
+        removeBackground.ToolTip = "Preview and remove an edge-connected background from the selected image layer or Base Image.";
+        content.Children.Add(removeBackground);
+        content.Children.Add(EditorSubtleNote(
+            "The preview is non-destructive. Base Images can output transparent, black or white; added layers remain transparent where the background is removed."));
         content.Children.Add(EditorSubtleNote(
             "Selection borders and snapping guides are editor-only overlays and are never included in exported screenshots."));
 
@@ -289,6 +297,9 @@ public partial class MainWindow
         var content = new StackPanel();
         content.Children.Add(EditorHelpText(
             "Editor settings are stored locally. Image-specific selections and edits are not saved as defaults."));
+
+        content.Children.Add(BuildEditorNewProjectBackgroundSettingsV081());
+        content.Children.Add(CreateEditorDivider());
 
         content.Children.Add(new TextBlock
         {

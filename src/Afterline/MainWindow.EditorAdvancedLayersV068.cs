@@ -40,7 +40,14 @@ public partial class MainWindow
         double CornerRadius,
         bool Visible,
         bool Locked,
-        string Description);
+        bool IsCollageFrame,
+        string? CollagePresetId,
+        int CollageSlotIndex,
+        BitmapSource? CollageSource,
+        double CollageOffsetX,
+        double CollageOffsetY,
+        string Description,
+        long Sequence);
 
     private bool _editorAdvancedLayersV068Initialized;
     private Expander? _editorFilterAdjustmentsExpanderV068;
@@ -310,6 +317,9 @@ public partial class MainWindow
         EditorImageLayerV067? layer = _editorSelectedImageLayerV067;
         bool show = layer is not null && layer.IsVisible && _editorPage?.Visibility == Visibility.Visible;
 
+        foreach (EditorImageLayerV067 imageLayer in _editorImageLayersV067.Where(item => item.IsCollageFrame))
+            UpdateCollageFrameVisualV081(imageLayer);
+
         if (_editorLayerSelectionOutlineV068 is not null)
         {
             _editorLayerSelectionOutlineV068.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
@@ -328,7 +338,7 @@ public partial class MainWindow
 
         foreach ((EditorLayerResizeHandleV071 handle, Thumb thumb) in _editorLayerResizeThumbsV071)
         {
-            thumb.Visibility = show && layer is not null && !layer.IsLocked
+            thumb.Visibility = show && layer is not null && !layer.IsLocked && !layer.IsCollageFrame
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             if (show && layer is not null)
@@ -403,6 +413,12 @@ public partial class MainWindow
             return;
         }
 
+        if (BeginCollagePanV081(hit, point, sender))
+        {
+            e.Handled = true;
+            return;
+        }
+
         PushLayerEditHistoryV068(hit, "layer position");
         _editorLayerDraggingV068 = true;
         _editorLayerDragTargetV068 = hit;
@@ -422,6 +438,12 @@ public partial class MainWindow
         if (_editorComposition is null)
             return;
         Point point = e.GetPosition(_editorComposition);
+
+        if (ContinueCollagePanV081(point, e))
+        {
+            e.Handled = true;
+            return;
+        }
 
         if (_editorLayerStrokeActiveV068)
         {
@@ -458,7 +480,7 @@ public partial class MainWindow
 
     private void LayerPointerUpV068(object sender, MouseButtonEventArgs e)
     {
-        if (!_editorLayerDraggingV068 && !_editorLayerStrokeActiveV068)
+        if (!_editorLayerDraggingV068 && !_editorLayerStrokeActiveV068 && !_editorCollagePanningV081)
             return;
         EndLayerPointerInteractionV068();
         e.Handled = true;
@@ -469,6 +491,7 @@ public partial class MainWindow
         bool wasStroke = _editorLayerStrokeActiveV068;
         _editorLayerDraggingV068 = false;
         _editorLayerDragTargetV068 = null;
+        EndCollagePanV081();
         _editorLayerStrokeActiveV068 = false;
         _editorLayerStrokeBitmapV068 = null;
         _editorLayerStrokePixelsV068 = null;
@@ -515,6 +538,13 @@ public partial class MainWindow
             SetEditorStatus($"{(layer.IsLocked ? "Locked" : "Unlocked")} image layer ‘{layer.Name}’.");
         }));
         menu.Items.Add(CreateAfterlineContextMenuSeparator());
+        menu.Items.Add(CreateAfterlineContextMenuItem("Set as Base Image…", (_, _) => SetSelectedLayerAsBaseV081(layer)));
+        if (layer.IsCollageFrame)
+        {
+            menu.Items.Add(CreateAfterlineContextMenuItem("Replace Collage Image…", (_, _) => ReplaceCollageFrameImageV081(layer)));
+            menu.Items.Add(CreateAfterlineContextMenuItem("Clear Collage Slot", (_, _) => ClearCollageFrameV081(layer)));
+            return menu;
+        }
         menu.Items.Add(CreateAfterlineContextMenuItem("Set Exact Size…", (_, _) => SetExactLayerSizeV068(layer)));
         menu.Items.Add(CreateAfterlineContextMenuItem("Reset to Original Size", (_, _) =>
         {
@@ -966,7 +996,7 @@ public partial class MainWindow
 
     private void PushLayerEditHistoryV068(EditorImageLayerV067 layer, string description)
     {
-        _editorLayerUndoV068.Push(CaptureLayerStateV068(layer, description));
+        _editorLayerUndoV068.Push(CaptureLayerStateV068(layer, description, NextEditorHistorySequenceV081()));
         while (_editorLayerUndoV068.Count > EditorLayerHistoryLimitV068)
         {
             EditorLayerStateV068[] keep = _editorLayerUndoV068.Take(EditorLayerHistoryLimitV068).Reverse().ToArray();
@@ -974,10 +1004,10 @@ public partial class MainWindow
             foreach (EditorLayerStateV068 entry in keep)
                 _editorLayerUndoV068.Push(entry);
         }
-        _editorLayerRedoV068.Clear();
+        ClearAllEditorRedoV081();
     }
 
-    private EditorLayerStateV068 CaptureLayerStateV068(EditorImageLayerV067 layer, string description)
+    private EditorLayerStateV068 CaptureLayerStateV068(EditorImageLayerV067 layer, string description, long? sequence = null)
         => new(
             layer.Id,
             CloneBitmapCanary(layer.Bitmap),
@@ -989,7 +1019,14 @@ public partial class MainWindow
             layer.CornerRadius,
             layer.IsVisible,
             layer.IsLocked,
-            description);
+            layer.IsCollageFrame,
+            layer.CollagePresetId,
+            layer.CollageSlotIndex,
+            layer.CollageSource is null ? null : CloneBitmapCanary(layer.CollageSource),
+            layer.CollageOffsetX,
+            layer.CollageOffsetY,
+            description,
+            sequence ?? _editorHistorySequenceV081);
 
     private void UndoLayerEditV068()
     {
@@ -1002,7 +1039,7 @@ public partial class MainWindow
         EditorImageLayerV067? layer = _editorImageLayersV067.FirstOrDefault(item => item.Id == previous.LayerId);
         if (layer is null)
             return;
-        _editorLayerRedoV068.Push(CaptureLayerStateV068(layer, "redo layer edit"));
+        _editorLayerRedoV068.Push(CaptureLayerStateV068(layer, "redo layer edit", previous.Sequence));
         RestoreLayerStateV068(layer, previous);
         SetEditorStatus($"Undid {previous.Description} on ‘{layer.Name}’.");
     }
@@ -1018,28 +1055,38 @@ public partial class MainWindow
         EditorImageLayerV067? layer = _editorImageLayersV067.FirstOrDefault(item => item.Id == next.LayerId);
         if (layer is null)
             return;
-        _editorLayerUndoV068.Push(CaptureLayerStateV068(layer, "undo layer edit"));
+        _editorLayerUndoV068.Push(CaptureLayerStateV068(layer, "undo layer edit", next.Sequence));
         RestoreLayerStateV068(layer, next);
         SetEditorStatus($"Redid the last edit on ‘{layer.Name}’.");
     }
 
     private void UndoActiveEditorHistoryV080(bool redo)
     {
-        bool useLayerHistory = _editorSelectedImageLayerV067 is not null &&
-            (redo ? _editorLayerRedoV068.Count > 0 : _editorLayerUndoV068.Count > 0);
-        if (useLayerHistory)
+        long documentSequence = redo
+            ? (_editorDocumentRedoV081.Count > 0 ? _editorDocumentRedoV081.Peek().Sequence : long.MaxValue)
+            : (_editorDocumentUndoV081.Count > 0 ? _editorDocumentUndoV081.Peek().Sequence : long.MinValue);
+        long layerSequence = redo
+            ? (_editorLayerRedoV068.Count > 0 ? _editorLayerRedoV068.Peek().Sequence : long.MaxValue)
+            : (_editorLayerUndoV068.Count > 0 ? _editorLayerUndoV068.Peek().Sequence : long.MinValue);
+        long imageSequence = redo
+            ? (_editorRedoCanaryV2.Count > 0 ? _editorRedoCanaryV2.Peek().Sequence : long.MaxValue)
+            : (_editorUndoCanaryV2.Count > 0 ? _editorUndoCanaryV2.Peek().Sequence : long.MinValue);
+
+        if (redo)
         {
-            if (redo)
-                RedoLayerEditV068();
-            else
-                UndoLayerEditV068();
+            long next = Math.Min(documentSequence, Math.Min(layerSequence, imageSequence));
+            if (next == long.MaxValue) { SetEditorStatus("Nothing to redo."); return; }
+            if (next == documentSequence) RedoEditorDocumentV081();
+            else if (next == layerSequence) RedoLayerEditV068();
+            else RedoEditorHistoryCanaryV2();
             return;
         }
 
-        if (redo)
-            RedoEditorHistoryCanaryV2();
-        else
-            UndoEditorHistoryCanaryV2();
+        long latest = Math.Max(documentSequence, Math.Max(layerSequence, imageSequence));
+        if (latest == long.MinValue) { SetEditorStatus("Nothing to undo."); return; }
+        if (latest == documentSequence) UndoEditorDocumentV081();
+        else if (latest == layerSequence) UndoLayerEditV068();
+        else UndoEditorHistoryCanaryV2();
     }
 
     private void RestoreLayerStateV068(EditorImageLayerV067 layer, EditorLayerStateV068 state)
@@ -1054,6 +1101,14 @@ public partial class MainWindow
         layer.CornerRadius = state.CornerRadius;
         layer.IsVisible = state.Visible;
         layer.IsLocked = state.Locked;
+        layer.IsCollageFrame = state.IsCollageFrame;
+        layer.CollagePresetId = state.CollagePresetId;
+        layer.CollageSlotIndex = state.CollageSlotIndex;
+        layer.CollageSource = state.CollageSource is null ? null : CloneBitmapCanary(state.CollageSource);
+        layer.CollageOffsetX = state.CollageOffsetX;
+        layer.CollageOffsetY = state.CollageOffsetY;
+        if (layer.IsCollageFrame)
+            RefreshCollageFrameBitmapV081(layer);
         UpdateImageLayerVisualV067(layer);
         EnsureLayerCanvasExtentV067();
         RefreshLayerListV067(layer);

@@ -341,6 +341,7 @@ public partial class MainWindow
                     {
                         throw new InvalidOperationException("The expanded Editor font catalog was not initialized.");
                     }
+                    VerifyEditorCreativeToolPrimitivesV081();
 
                     var (resized, _, _) = CalculateLayerResizeBoundsV071(
                         new Rect(20, 20, 40, 40),
@@ -499,6 +500,35 @@ public partial class MainWindow
                     if (filteredPixel[1] == 0)
                         throw new InvalidOperationException("Filters & Adjustments did not commit to the selected image layer.");
 
+                    BitmapSource collageSource = LoadBitmapFileV067(path);
+                    EditorImageLayerV067 collageFrame = AddImageLayerFromBitmapV067(
+                        CreateProjectBackgroundBitmapV081(1, 1, "Transparent"),
+                        "Collage Slot 1",
+                        40,
+                        45,
+                        width: 320,
+                        height: 240,
+                        refresh: false,
+                        isCollageFrame: true,
+                        collagePresetId: "smoke",
+                        collageSlotIndex: 0,
+                        collageSource: collageSource,
+                        collageOffsetX: 0.5,
+                        collageOffsetY: -0.25);
+                    RefreshCollageFrameBitmapV081(collageFrame);
+                    UpdateImageLayerVisualV067(collageFrame);
+                    if (collageFrame.Bitmap.PixelWidth <= 0 || collageFrame.Bitmap.PixelHeight <= 0 ||
+                        collageFrame.CollagePlaceholderOverlay is not Border collageGuide ||
+                        collageGuide.Parent is not Grid ||
+                        _editorComposition.Children.Contains(collageGuide))
+                    {
+                        throw new InvalidOperationException(
+                            "Collage crop or preview-only placeholder presentation failed.");
+                    }
+                    BitmapSource promotedSmoke = RenderLayerBitmapAtSizeV081(collageFrame, 640, 480);
+                    if (promotedSmoke.PixelWidth != 640 || promotedSmoke.PixelHeight != 480)
+                        throw new InvalidOperationException("Set-as-Base sizing did not produce the requested pixel dimensions.");
+
                     const string selectedText = "[17:38:23] Bianca Yurei says [low]: /quietly amused/.";
                     int selectedStart = selectedText.IndexOf("Bianca Yurei", StringComparison.Ordinal);
                     editorInput.Text = selectedText;
@@ -530,11 +560,19 @@ public partial class MainWindow
                     _editorComposition.UpdateLayout();
                     if (_editorBaseOriginal is null || _editorBaseImage.Source is null)
                         throw new InvalidOperationException("The saved Editor project did not restore its Base Image.");
-                    if (_editorImageLayersV067.Count != 1 ||
-                        _editorImageLayersV067[0].X != -18 ||
-                        _editorImageLayersV067[0].Y != -12 ||
-                        Math.Abs(_editorImageLayersV067[0].CornerRadius - 24) > 0.01 ||
-                        _editorImageLayersV067[0].PasteboardImage.Visibility != Visibility.Visible ||
+                    EditorImageLayerV067? restoredFiltered = _editorImageLayersV067.FirstOrDefault(layer => !layer.IsCollageFrame);
+                    EditorImageLayerV067? restoredCollage = _editorImageLayersV067.FirstOrDefault(layer => layer.IsCollageFrame);
+                    if (_editorImageLayersV067.Count != 2 ||
+                        restoredFiltered is null ||
+                        restoredFiltered.X != -18 ||
+                        restoredFiltered.Y != -12 ||
+                        Math.Abs(restoredFiltered.CornerRadius - 24) > 0.01 ||
+                        restoredFiltered.PasteboardImage.Visibility != Visibility.Visible ||
+                        restoredCollage is null ||
+                        restoredCollage.CollageSource is null ||
+                        restoredCollage.CollagePresetId != "smoke" ||
+                        Math.Abs(restoredCollage.CollageOffsetX - 0.5) > 0.01 ||
+                        Math.Abs(restoredCollage.CollageOffsetY + 0.25) > 0.01 ||
                         !_editorTextColorOverridesV071.Any(value =>
                             value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
                     {

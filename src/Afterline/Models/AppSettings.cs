@@ -67,6 +67,7 @@ public sealed class EditorPreferences
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "Afterline Projects");
     public int ProjectAutosaveMinutes { get; set; } = 5;
+    public int? NewProjectBackgroundVersion { get; set; }
 
     public string Font { get; set; } = "Arial Bold";
     public double FontSize { get; set; } = 18;
@@ -74,7 +75,7 @@ public sealed class EditorPreferences
     public double ChatWidth { get; set; } = 900;
     public string ChatTextAlignment { get; set; } = "Left";
     public bool ShowTimestamps { get; set; }
-    public string CanvasBackground { get; set; } = "Black";
+    public string CanvasBackground { get; set; } = "Transparent";
     public double ChatHorizontalPosition { get; set; }
     public double ChatVerticalPosition { get; set; }
 

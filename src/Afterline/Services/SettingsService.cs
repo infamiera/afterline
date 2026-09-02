@@ -16,7 +16,11 @@ public sealed class SettingsService
             // Existing settings files that predate FirstRunCompleted deserialize with
             // AppSettings' default value of true and are therefore left alone.
             if (!File.Exists(AppPaths.SettingsFile))
-                return new AppSettings { FirstRunCompleted = false, ArchiveLoadingPolicyVersion = 1 };
+            {
+                var initial = new AppSettings { FirstRunCompleted = false, ArchiveLoadingPolicyVersion = 1 };
+                initial.Editor.NewProjectBackgroundVersion = 1;
+                return initial;
+            }
 
             AppSettings settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(AppPaths.SettingsFile), _jsonOptions)
                                    ?? new AppSettings();
@@ -61,6 +65,7 @@ public sealed class SettingsService
             // Preserve ranges users deliberately changed, while migrating untouched
             // older installs away from an expensive startup/archive scan.
             bool archivePolicyChanged = false;
+            bool editorBackgroundPolicyChanged = false;
             if (settings.ArchiveLoadingPolicyVersion is null)
             {
                 if (settings.ArchiveFilterMode == "LastDays" && settings.ArchiveLastDays == 30)
@@ -69,6 +74,21 @@ public sealed class SettingsService
                 archivePolicyChanged = true;
             }
             settings.ArchiveLastDays = Math.Clamp(settings.ArchiveLastDays, 1, 3650);
+            if (settings.Editor.NewProjectBackgroundVersion is null)
+            {
+                // Earlier builds treated opaque black as the implicit default.
+                // Version 1 makes transparent the explicit safe default while
+                // preserving any choice made after this migration.
+                settings.Editor.CanvasBackground = "Transparent";
+                settings.Editor.NewProjectBackgroundVersion = 1;
+                editorBackgroundPolicyChanged = true;
+            }
+            settings.Editor.CanvasBackground = settings.Editor.CanvasBackground switch
+            {
+                "Black" => "Black",
+                "White" => "White",
+                _ => "Transparent"
+            };
             settings.Editor.ProjectAutosaveMinutes = settings.Editor.ProjectAutosaveMinutes switch
             {
                 0 or 1 or 5 or 10 or 15 or 30 => settings.Editor.ProjectAutosaveMinutes,
@@ -102,7 +122,7 @@ public sealed class SettingsService
                 }
             }
 
-            if (archivePolicyChanged)
+            if (archivePolicyChanged || editorBackgroundPolicyChanged)
             {
                 try
                 {

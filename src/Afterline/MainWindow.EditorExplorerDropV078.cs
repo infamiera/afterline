@@ -11,6 +11,11 @@ public partial class MainWindow
         if (paths.Count == 0 || _editorComposition is null)
             return;
 
+        if (TryAssignDroppedImagesToCollageFrameV081(paths, dropPoint))
+            return;
+
+        PushEditorDocumentHistoryV081("image drop");
+
         int next = 0;
         if (!EditorHasRenderedBaseImageV079())
         {
