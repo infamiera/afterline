@@ -35,6 +35,10 @@ internal static class SessionRecoverySmokeTest
         if (marker is null)
             throw new InvalidOperationException("The initial journal did not create its login marker.");
 
+        var liveReplayCache = new LastSessionCacheService();
+        await liveReplayCache.BeginAsync(server, startedAt, CancellationToken.None);
+        await liveReplayCache.AppendAsync(marker, CancellationToken.None);
+
         string firstLine = "[04:40:56] Welcome to the recovery smoke test.";
         string secondLine = "[04:41:13] Recovery checkpoint line.";
         var firstLineColors = new[]
@@ -47,12 +51,25 @@ internal static class SessionRecoverySmokeTest
             firstLine,
             capturedColorRuns: firstLineColors);
         await initial.AppendAsync(exactColorEntry, CancellationToken.None);
-        await initial.AppendAsync(
-            new ChatEntry(startedAt.AddMinutes(1).AddSeconds(13), secondLine),
-            CancellationToken.None);
+        await liveReplayCache.AppendAsync(exactColorEntry, CancellationToken.None);
+        var secondEntry = new ChatEntry(startedAt.AddMinutes(1).AddSeconds(13), secondLine);
+        await initial.AppendAsync(secondEntry, CancellationToken.None);
+        await liveReplayCache.AppendAsync(secondEntry, CancellationToken.None);
         await initial.UpdateVisibleSnapshotAsync(
             new[] { firstLine, secondLine },
             CancellationToken.None);
+
+        IReadOnlyList<ChatEntry> liveCacheBeforeRestart =
+            await new LastSessionCacheService().ReadAsync(CancellationToken.None);
+        ChatEntry? coloredReplay = liveCacheBeforeRestart.FirstOrDefault(entry =>
+            entry.Text.Contains(firstLine, StringComparison.Ordinal));
+        if (coloredReplay is null ||
+            !ChatColorData.HasCompleteCoverage(coloredReplay.Text, coloredReplay.CapturedColorRuns))
+        {
+            throw new InvalidOperationException(
+                "The private Live Chat replay cache did not preserve exact captured colors.");
+        }
+        VerifyNoAutomaticColorSidecar(initial.ActiveFile);
 
         // Simulate the replay cache being absent after a power interruption. The
         // resumed journal must reconstruct it from its write-through backup.
@@ -74,7 +91,7 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException("The last-session replay cache was not rebuilt from the journal backup.");
 
         VerifyHtmlChatExport(exactColorEntry, startedAt);
-        VerifyNoAutomaticColorSidecar(initial.ActiveFile, AppPaths.LastSessionCacheFile);
+        VerifyNoAutomaticColorSidecar(initial.ActiveFile);
 
         string plainTextExport = await resumed.ExportCurrentLogAsync(
             archiveRoot,
