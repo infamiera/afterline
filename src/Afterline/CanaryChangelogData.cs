@@ -8,6 +8,11 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "02/SEP/2026", new[]
         {
+            "Collage logo frames — Makes logo-designated slots fill their frame and respond to drag-to-reposition cropping like every image slot.",
+            "Collage layouts — Adds six non-logo grid, panorama, feature and editorial arrangements with live previews and gap controls."
+        }, ChangelogChannel.Canary, 215),
+        new("0.7.0", "02/SEP/2026", new[]
+        {
             "Collage layouts — Adds five logo-focused compositions, including an eight-photo brand mosaic with an optional center logo.",
             "Layout preview — Shows the selected layout, canvas shape and live frame spacing before creating a collage.",
             "Live Chat filtering — Extends OOC coverage for additional gameplay notices while keeping login and disconnect events visible."
