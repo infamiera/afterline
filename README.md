@@ -1,67 +1,130 @@
 # Afterline
 
-Afterline is an independent Windows utility for capturing, autosaving, archiving, searching and presenting text roleplay chat.
+Afterline is a Windows companion app for FiveM roleplay. It captures the chat already shown by the game, keeps it organised as readable text files, and gives you a practical set of tools for reviewing logs and creating roleplay screenshots.
 
-## Features
+Everything is designed to stay local. Afterline does not upload your chatlogs, screenshots, projects, or settings.
 
-- Automatic chat capture while FiveM is active and connected to a server.
-- Best-effort server detection, including a friendly server name when FiveM exposes enough connection metadata to resolve one.
-- Server-aware chatlog boundaries: leaving or switching servers immediately finalizes the current server log.
-- One readable chatlog per server per calendar day, stored as `Chatlog [Server Name] [21-August-2026].txt`.
-- Automatic daily rollover after midnight without interrupting the active server session.
-- Rejoining the same server later on the same day continues that server/day file with a `[NEW LOGIN]` divider.
-- `[DISCONNECTED]`, `[NEW LOGIN]`, day-end and date-rollover markers keep archive boundaries readable.
-- Continuous crash-safe session autosave with a second local recovery copy and pre-parse raw capture failsafe.
-- Automatic recovery of unfinished sessions after an unexpected shutdown.
-- Graceful shutdown finalization when the application is exited normally.
-- Custom chatlog storage directory with year and month organization.
-- Optional Live Chat display inside Afterline with timestamps, automatic RP colors, search and context tools.
-- Manual `Parse current chat` action for messages still retained by FiveM's current chat UI.
-- One-click export of the current captured server session to the user's Downloads folder.
-- Archive browsing, pinned/recent logs and multi-term text search.
-- Plain-text chatlogs that remain usable outside Afterline.
-- Optional launch at Windows sign-in while capture remains idle until FiveM is running.
-- RP Screenshot Editor with chat overlays, per-line color overrides, text effects, image tone controls and markup.
-- Static PNG/JPEG/BMP and animated GIF input in the Editor.
-- Animated GIF preview and export with the same chat, image adjustments, crop and markup applied to every frame.
-- Non-destructive crop framing with exact output dimensions and common presets such as 1920×1080, 1280×720, 1080×1080 and 1080×1350.
-- Reusable Editor settings for chat styling, image tone and output sizing.
-- In-app update checking through GitHub Releases with explicit `Update now` confirmation and SHA-256 verification before installation.
+[Download the latest Stable release](https://github.com/infamiera/afterline/releases/latest) · [Try the Canary build](https://github.com/infamiera/afterline/releases/tag/canary) · [Report an issue](https://github.com/infamiera/afterline/issues)
 
-## Chatlog layout
+## What Afterline does
 
-The folder structure remains organized by year and month:
+### Chat capture and archives
+
+- Captures chat while FiveM is running and connected to a server.
+- Keeps the timestamp supplied by the server whenever one is available.
+- Saves one plain-text chatlog per server and calendar day.
+- Adds clear login, disconnect, day-end, and date-rollover markers.
+- Continues the same daily file when you reconnect to the same server.
+- Organises logs into year and month folders automatically.
+- Maintains crash-safe recovery data without cluttering the chatlog folder.
+- Flags suspicious duplicate ranges for review instead of deleting lines automatically.
+
+Chatlogs remain ordinary `.txt` files, so they can always be opened without Afterline.
 
 ```text
 Afterline Chatlogs
 └── 2026
-    └── 08 - August
-        ├── Chatlog [Server A] [21-August-2026].txt
-        └── Chatlog [Server B] [21-August-2026].txt
+    └── 09 - September
+        ├── Chatlog [Server A] [03-September-2026].txt
+        └── Chatlog [Server B] [03-September-2026].txt
 ```
 
-A later login to the same server on the same date continues the existing file instead of creating another copy. Switching to a different server finalizes the current file and uses the other server's own daily file. A connection that remains active across midnight starts writing to the new day's file when the first post-midnight chat line arrives.
+### Live Chat and Log Reader
 
-Server names are sanitized automatically before being used in Windows filenames. If a friendly name cannot be resolved, Afterline falls back to `Unknown Server` while continuing to capture normally.
+- Shows captured chat inside Afterline with the exact rendered server colours when available.
+- Includes search, timestamps, bookmarks, notes, and quick context actions.
+- Lets you hide IC or OOC/system messages without changing the saved chatlog.
+- Opens archived files in a dedicated Log Reader with filtering and line numbers.
+- Exports either plain TXT or a self-contained coloured HTML file.
+- Keeps login and disconnect markers visible when chat filters are used.
 
-## Windows builds and releases
+Display filters affect what you see and what a *visible* export contains. They never rewrite the original archive.
 
-Development builds are produced by GitHub Actions as a self-contained Windows x64 application. The downloadable artifact contains only `Afterline.exe`; the .NET SDK is not required to run it.
+### Screenshot Editor
 
-Public releases are published from version tags such as `v0.6.0`. The release workflow publishes both the Windows executable and a matching `.sha256` checksum file. Afterline's in-app updater reads the latest public GitHub Release, downloads only after the user chooses `Update now`, verifies the executable against that checksum, safely replaces the running build and restarts the application. If replacement fails, the updater attempts to restore the previous executable.
+- Opens static images and animated GIFs.
+- Supports multiple image layers, drag-and-drop from Explorer, resizing, repositioning, locking, reordering, opacity, and rounded corners.
+- Allows layers to extend beyond the Base Image while keeping the Base Image as the export boundary.
+- Includes chat overlays, captured chat colours, text styling, rulers, snapping, image adjustments, paint, erasing, selections, and background removal.
+- Provides reusable collage layouts with live gap controls and independently repositioned frame crops.
+- Supports transparent projects and transparent PNG export.
+- Saves editable `.afterlineproj` projects with autosave and recent-project recovery.
+- Includes Undo and Redo for document and layer changes.
 
-## Data and privacy
+### Screen capture and Gallery
 
-Afterline stores chatlogs and application data locally. Chatlogs are ordinary text files in the directory selected by the user. Captured chat is not uploaded by Afterline, and the application does not include telemetry or cloud chat syncing.
+- Captures a verified FiveM/GTA window at its source resolution.
+- Supports a configurable global hotkey, optional sound, and optional Windows notification.
+- Shows only the latest 20 thumbnails in the Gallery to keep the app responsive.
+- Opens a capture directly in the Editor.
+- Stores captures locally in the default Documents folder or a path you choose.
+- Can be disabled completely, which hides the Gallery and unregisters capture resources.
 
-Update checks contact the public GitHub Releases API for this repository. No GitHub token is embedded in Afterline. An executable is downloaded only after the user explicitly chooses to install an available update.
+Afterline does not fall back to capturing the desktop or an unrelated application.
 
-## FiveM interaction and server rules
+## Stable and Canary
 
-Afterline is designed as a passive, read-only companion utility. It reads chat that has already been rendered by the local FiveM NUI and uses normal server information endpoints to resolve friendly server names. It does not send NUI callbacks, trigger gameplay or server events, inject resources, automate gameplay, modify game memory, or bypass anti-cheat systems.
+| Channel | Best for | What to expect |
+| --- | --- | --- |
+| **Stable** | Normal daily use | Tested releases with fewer updates. |
+| **Canary** | Trying new features and fixes early | Frequent experimental builds that may still need testing. |
 
-Users are responsible for checking and following the rules of each server or community before using external chat-logging or archival tools.
+You can switch update channels from Afterline's settings. Canary builds show both Stable and Canary changes; Stable builds show Stable changes only.
+
+## Installation
+
+1. Download `Afterline.exe` from the [official Releases page](https://github.com/infamiera/afterline/releases).
+2. Place it in a folder where it can remain between updates.
+3. Run it and complete the short first-time setup.
+4. Start FiveM. Afterline will remain idle until it finds a supported session.
+
+Afterline is published as a self-contained Windows x64 executable. You do not need to install the .NET runtime separately.
+
+Depending on your Windows security settings, SmartScreen or antivirus software may inspect a newly downloaded build. Only download Afterline from this repository and use the included SHA-256 checksum if you want to verify the executable.
+
+## Where files are stored
+
+- **Chatlogs:** the archive folder selected in Afterline.
+- **Screenshots:** `Documents\Afterline\Screenshots` by default, or a custom folder.
+- **Editor projects:** `Documents\Afterline Projects` by default, or a custom folder.
+- **Manual exports:** the Windows Downloads folder.
+- **Settings, cache, recovery, and diagnostics:** `%LocalAppData%\Afterline`.
+
+The private cache may include temporary metadata needed to restore Live Chat exactly after a restart. It is kept out of user-facing archive and export folders.
+
+## Recovery and performance
+
+Afterline keeps capture and journal writing separate from heavier interface work. The application shell opens first, recent dashboard data comes from a bounded index, and full archive rebuilding only runs when requested.
+
+Current release checks include packaged startup, Editor project round-trips, interrupted-session recovery, chat-colour replay, transactional updating, and a 10,000-chatlog archive stress test with simulated slow storage.
+
+If Afterline is force-closed or stops responding, the Error Logs window can recover diagnostics from the previous run. Raw capture and session backups are also kept locally so an interrupted session can be restored.
+
+## Updates
+
+Afterline checks this repository for releases. An update is downloaded only after you approve it, verified against its SHA-256 checksum, staged, and then installed. The previous executable is retained until the replacement has been confirmed healthy.
+
+Stable and Canary use separate release channels. Publishing a new Canary build does not replace the current download until its Windows build and validation workflow has passed.
+
+## FiveM interaction
+
+Afterline is a passive, read-only companion. It reads chat already rendered by the local FiveM interface and uses normal connection information when resolving a server name.
+
+It does **not** inject into the game, modify memory, send gameplay events, automate actions, install a FiveM resource, or bypass anti-cheat systems.
+
+Server rules differ. You are responsible for checking whether external chat logging or screenshot tools are allowed on the server you play.
+
+## Support and development
+
+- Use [GitHub Issues](https://github.com/infamiera/afterline/issues) for reproducible bugs and feature requests.
+- For diagnostic help, join the [Afterline Discord](https://discord.gg/At2znTygfV) and post exported Error Logs in the `#afterline` forum channel.
+
+To build Afterline yourself, use Windows with the .NET 8 SDK:
+
+```powershell
+dotnet publish src/Afterline/Afterline.csproj -c Release -r win-x64 --self-contained true
+```
 
 ## Independence
 
-Afterline is an independent third-party text roleplay chat parser and archive utility. It is not affiliated with, endorsed by, sponsored by, or approved by Rockstar Games, Cfx.re, FiveM, or any roleplay server or community. FiveM is referenced solely to describe compatibility.
+Afterline is an independent third-party project. It is not affiliated with, endorsed by, sponsored by, or approved by Rockstar Games, Cfx.re, FiveM, or any roleplay server or community. Their names are used only to explain compatibility.
