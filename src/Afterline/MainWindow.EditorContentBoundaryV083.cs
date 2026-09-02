@@ -7,27 +7,26 @@ public partial class MainWindow
 {
     private Rect? _editorContentBoundaryV083;
 
-    private void TrimContentToSelectedLayerV083()
+    private void TrimContentToBaseImageV084()
     {
-        if (_editorSelectedImageLayerV067 is not EditorImageLayerV067 layer || _editorComposition is null)
+        if (_editorComposition is null || !EditorHasRenderedBaseImageV079())
         {
-            SetEditorStatus("Select an image layer before trimming the document to its outline.");
+            SetEditorStatus("Load or create a Base Image before trimming overlapping layers to its borders.");
             return;
         }
 
         Rect canvas = new(0, 0, Math.Max(1, _editorComposition.Width), Math.Max(1, _editorComposition.Height));
-        Rect boundary = Rect.Intersect(canvas, new Rect(layer.X, layer.Y, layer.Width, layer.Height));
-        if (boundary.IsEmpty || boundary.Width < 1 || boundary.Height < 1)
+        if (_editorContentBoundaryV083 == canvas)
         {
-            SetEditorStatus("The selected layer does not overlap the Base Image, so it cannot define an export boundary.");
+            SetEditorStatus("Overlapping layers are already trimmed to the Base Image borders.");
             return;
         }
 
-        PushEditorDocumentHistoryV081("content boundary trim");
-        _editorContentBoundaryV083 = boundary;
+        PushEditorDocumentHistoryV081("Base Image boundary trim");
+        _editorContentBoundaryV083 = canvas;
         ApplyEditorContentBoundaryV083();
         SetEditorStatus(
-            $"Content trimmed to the selected {boundary.Width:N0} × {boundary.Height:N0}px outline. The {_editorComposition.Width:N0} × {_editorComposition.Height:N0}px canvas is unchanged; Undo restores the previous boundary.");
+            $"Overlapping layers are trimmed to the {_editorComposition.Width:N0} × {_editorComposition.Height:N0}px Base Image borders. Undo restores pasteboard overflow.");
     }
 
     private void ApplyEditorContentBoundaryV083()
@@ -35,28 +34,20 @@ public partial class MainWindow
         if (_editorComposition is null)
             return;
 
-        if (_editorContentBoundaryV083 is not Rect boundary || boundary.IsEmpty ||
-            boundary.Width < 1 || boundary.Height < 1)
+        if (_editorContentBoundaryV083 is null)
         {
             _editorComposition.Clip = null;
-            _editorContentBoundaryV083 = null;
         }
         else
         {
+            // A content boundary is an on/off document setting whose bounds are always
+            // the fixed Base Image canvas. Normalizing here also safely migrates projects
+            // written by Canary #205, which could persist a selected-layer rectangle.
             Rect canvas = new(0, 0, Math.Max(1, _editorComposition.Width), Math.Max(1, _editorComposition.Height));
-            Rect clipped = Rect.Intersect(canvas, boundary);
-            if (clipped.IsEmpty || clipped.Width < 1 || clipped.Height < 1)
-            {
-                _editorComposition.Clip = null;
-                _editorContentBoundaryV083 = null;
-            }
-            else
-            {
-                _editorContentBoundaryV083 = clipped;
-                var geometry = new RectangleGeometry(clipped);
-                geometry.Freeze();
-                _editorComposition.Clip = geometry;
-            }
+            _editorContentBoundaryV083 = canvas;
+            var geometry = new RectangleGeometry(canvas);
+            geometry.Freeze();
+            _editorComposition.Clip = geometry;
         }
 
         foreach (EditorImageLayerV067 imageLayer in _editorImageLayersV067)
@@ -74,7 +65,7 @@ public partial class MainWindow
         PushEditorDocumentHistoryV081("clear content boundary");
         ClearEditorContentBoundaryV083();
         ApplyEditorContentBoundaryV083();
-        SetEditorStatus("Content trim cleared. Undo restores the trimmed boundary.");
+        SetEditorStatus("Base Image trim cleared. Undo restores the trimmed borders.");
     }
 
     private void ClearEditorContentBoundaryV083()
@@ -89,12 +80,13 @@ public partial class MainWindow
     private static void VerifyEditorContentBoundaryGeometryV083()
     {
         Rect canvas = new(0, 0, 1920, 1080);
-        Rect boundary = Rect.Intersect(canvas, new Rect(-120, 100, 900, 700));
-        if (boundary.X != 0 || boundary.Y != 100 || boundary.Width != 780 || boundary.Height != 700 ||
-            canvas.Width != 1920 || canvas.Height != 1080)
+        Rect requestedLayerBounds = new(-120, 100, 900, 700);
+        Rect boundary = canvas;
+        if (boundary != canvas || requestedLayerBounds == boundary ||
+            boundary.Width != 1920 || boundary.Height != 1080)
         {
             throw new InvalidOperationException(
-                "The selected-layer content boundary did not clip to the fixed Base Image canvas.");
+                "The content boundary did not remain anchored to the full Base Image canvas.");
         }
     }
 }

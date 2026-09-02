@@ -8,10 +8,15 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "02/SEP/2026", new[]
         {
+            "Base Image trim — Clips overlapping image layers to the fixed Base Image borders and safely normalizes trim settings saved by Canary #205.",
+            "Editor sidebar — Uses a shorter Layers list, collapsed presets and compact controls so Opacity and Corner radius stay within easy reach."
+        }, ChangelogChannel.Canary, 207),
+        new("0.7.0", "02/SEP/2026", new[]
+        {
             "Live collage spacing — Lets Frame gap expand or contract an existing collage without changing its Base Image or export dimensions.",
             "Base Image sizing — Enforces a Full HD minimum and adds common monitor-resolution presets when promoting an image layer.",
             "Selected layer guide — Adds an optional outline for the currently selected image layer alongside the existing Base Image guide.",
-            "Content trim — Hides everything outside the selected layer outline while preserving the fixed canvas, project layers and Undo or Redo history."
+            "Content trim — Hides overlapping layer content outside the Base Image borders while preserving the fixed canvas, project layers and Undo or Redo history."
         }, ChangelogChannel.Canary, 205),
         new("0.7.0", "02/SEP/2026", new[]
         {
