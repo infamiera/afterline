@@ -32,6 +32,14 @@ public sealed class ChatEntry
         @"^(?:You (?:unlocked|locked) the door\. This door will automatically close in \d+ seconds\.?|.+ is now furnishing the property \(build mode\)\. Report any abuse with /report\.?|You have set the action gradients status to (?:ENABLED|DISABLED)\.?)$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex PosterManagementNotice = new(
+        @"^(?:\|-----\s*Posters\s*-----\||\|-+\||\d+:\s*Created at \d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} by .+ \(https?://[^)]+\))$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex PropertyInformationNotice = new(
+        @"^(?:\[PROPERTY\]\s+.+\s+info:|(?:Property ID|Interior ID|Market Price|Purchase Date|Furniture Worth|Business|Alarm|Security firm|Fire alarm installed|Lock Level|Home EV Charger):\s*.+|Leased by .+\.|Conditioned Property, cannot be sold - Contact LFM\.|https://ucp\.gta\.world/view/property/\d+|Furniture Amount:\s*\d+\s*\|\s*Furniture Worth:\s*\$?.+)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     private static readonly Regex OocStatusPrefix = new(
         @"^(?:\[(?:INFO|MAPPING|SUCCESS|ERROR|PM|ANTI-FALL|FRIEND|PAYPHONE|AFK\s+CHECK|CHARACTER\s+KILL)\]\s*:?(?:\s|$)|INFO:\s*)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
@@ -83,6 +91,8 @@ public sealed class ChatEntry
             return OocStatusPrefix.IsMatch(content) ||
                    OocStandaloneStatus.IsMatch(content) ||
                    GameplayNotificationNotice.IsMatch(content) ||
+                   PosterManagementNotice.IsMatch(content) ||
+                   PropertyInformationNotice.IsMatch(content) ||
                    AdminPunishmentNotice.IsMatch(content) ||
                    content.Contains("[Admin Alert]", StringComparison.OrdinalIgnoreCase) ||
                    content.Contains("[Ticket]", StringComparison.OrdinalIgnoreCase) ||

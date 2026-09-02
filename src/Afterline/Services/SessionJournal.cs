@@ -252,11 +252,6 @@ public sealed class SessionJournal
             try
             {
                 await AppendLineAsync(_activeFile, line, cancellationToken);
-                await AppendColorRunsBestEffortAsync(
-                    _activeFile,
-                    line,
-                    entry.GetColorRunsForText(line),
-                    cancellationToken);
             }
             catch
             {
@@ -265,11 +260,6 @@ public sealed class SessionJournal
                     try
                     {
                         await AppendLineAsync(_backupFile, line, cancellationToken);
-                        await AppendColorRunsBestEffortAsync(
-                            _backupFile,
-                            line,
-                            entry.GetColorRunsForText(line),
-                            cancellationToken);
                     }
                     catch { }
                 }
@@ -281,11 +271,6 @@ public sealed class SessionJournal
                 try
                 {
                     await AppendLineAsync(_backupFile, line, cancellationToken);
-                    await AppendColorRunsBestEffortAsync(
-                        _backupFile,
-                        line,
-                        entry.GetColorRunsForText(line),
-                        cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -364,8 +349,6 @@ public sealed class SessionJournal
                 downloadsFolder,
                 $"Chatlog Export [{now:dd-MMMM-yyyy - HH-mm-ss}]",
                 ".txt");
-            ChatColorSidecarService.DeleteForTextFile(destination);
-
             if (_state is not null &&
                 File.Exists(AppPaths.LastSessionCacheFile))
             {
@@ -381,10 +364,6 @@ public sealed class SessionJournal
                         now,
                         sessionLines,
                         cancellationToken);
-                    ChatColorSidecarService.CopyForTextFile(
-                        AppPaths.LastSessionCacheFile,
-                        destination,
-                        overwrite: true);
                     return destination;
                 }
             }
@@ -404,10 +383,6 @@ public sealed class SessionJournal
                     now,
                     sessionLines,
                     cancellationToken);
-                ChatColorSidecarService.CopyForTextFile(
-                    _backupFile,
-                    destination,
-                    overwrite: true);
                 return destination;
             }
 
@@ -417,8 +392,39 @@ public sealed class SessionJournal
                     "No captured chatlog is available to export yet.");
 
             File.Copy(latest, destination, false);
-            ChatColorSidecarService.CopyForTextFile(latest, destination, overwrite: true);
             return destination;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> ReadCurrentSessionLinesAsync(
+        string archiveRoot,
+        CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_state is not null && File.Exists(AppPaths.LastSessionCacheFile))
+            {
+                string[] cached = File.ReadLines(AppPaths.LastSessionCacheFile).Skip(1).ToArray();
+                if (cached.Length > 0) return cached;
+            }
+
+            if (_state is not null &&
+                !string.IsNullOrWhiteSpace(_backupFile) &&
+                File.Exists(_backupFile))
+            {
+                string[] backup = File.ReadLines(_backupFile).Skip(1).ToArray();
+                if (backup.Length > 0) return backup;
+            }
+
+            string? latest = FindLatestSameDayArchive(archiveRoot, DateTime.Now);
+            return latest is null
+                ? Array.Empty<string>()
+                : File.ReadLines(latest).Skip(1).ToArray();
         }
         finally
         {
@@ -678,12 +684,6 @@ public sealed class SessionJournal
         string[] allBackupLines = File.ReadAllLines(state.BackupFile);
         string[] backupLines = allBackupLines.Skip(1).ToArray();
         if (backupLines.Length == 0) return;
-        IReadOnlyDictionary<int, ChatColorLineRecord> backupColors =
-            await ChatColorSidecarService.MatchLinesAsync(
-                state.BackupFile,
-                allBackupLines,
-                cancellationToken);
-
         if (!File.Exists(archiveFile))
         {
             await WriteNewFileAsync(
@@ -691,19 +691,8 @@ public sealed class SessionJournal
                 $"[SERVER: {state.ServerName}]",
                 cancellationToken);
 
-            for (int index = 0; index < backupLines.Length; index++)
-            {
-                string line = backupLines[index];
+            foreach (string line in backupLines)
                 await AppendLineAsync(archiveFile, line, cancellationToken);
-                if (backupColors.TryGetValue(index + 1, out ChatColorLineRecord? exact))
-                {
-                    await AppendColorRunsBestEffortAsync(
-                        archiveFile,
-                        line,
-                        exact.ColorRuns,
-                        cancellationToken);
-                }
-            }
             return;
         }
 
@@ -713,18 +702,7 @@ public sealed class SessionJournal
         int overlap = FindOverlap(archiveTail, backupLines);
 
         for (int index = overlap; index < backupLines.Length; index++)
-        {
-            string line = backupLines[index];
-            await AppendLineAsync(archiveFile, line, cancellationToken);
-            if (backupColors.TryGetValue(index + 1, out ChatColorLineRecord? exact))
-            {
-                await AppendColorRunsBestEffortAsync(
-                    archiveFile,
-                    line,
-                    exact.ColorRuns,
-                    cancellationToken);
-            }
-        }
+            await AppendLineAsync(archiveFile, backupLines[index], cancellationToken);
     }
 
     private static async Task ReconcileLastSessionCacheAsync(
@@ -755,14 +733,6 @@ public sealed class SessionJournal
         foreach (string line in backupLines)
             await AppendLineAsync(temporaryCache, line, cancellationToken);
         File.Move(temporaryCache, AppPaths.LastSessionCacheFile, true);
-        if (File.Exists(ChatColorSidecarService.GetSidecarPath(state.BackupFile)))
-        {
-            ChatColorSidecarService.DeleteForTextFile(AppPaths.LastSessionCacheFile);
-            ChatColorSidecarService.CopyForTextFile(
-                state.BackupFile,
-                AppPaths.LastSessionCacheFile,
-                overwrite: true);
-        }
     }
 
     private async Task SaveStateAsync(CancellationToken cancellationToken)
@@ -834,28 +804,6 @@ public sealed class SessionJournal
         await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
         await stream.FlushAsync(cancellationToken);
-    }
-
-    private static async Task AppendColorRunsBestEffortAsync(
-        string path,
-        string line,
-        IEnumerable<ChatColorRun> colorRuns,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await ChatColorSidecarService.AppendAsync(
-                path,
-                line,
-                colorRuns,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Error(
-                $"Unable to persist exact chat colors for {Path.GetFileName(path)}.",
-                ex);
-        }
     }
 
     private static string GetArchivePath(

@@ -24,19 +24,24 @@ public partial class MainWindow
 
     private async void ExportFilteredLiveLog_Click(object sender, RoutedEventArgs e)
     {
+        ChatExportFormat? format = ChooseLiveChatExportFormat("the visible Live Chat lines");
+        if (format is null) return;
+
         Button? actionButton = sender as Button;
         if (actionButton is not null) actionButton.IsEnabled = false;
 
         try
         {
-            string downloads = GetDownloadsFolder();
-            string path = await ExportVisibleLiveChatAsync(downloads, CancellationToken.None);
+            string path = format == ChatExportFormat.Html
+                ? await ExportVisibleLiveChatHtmlAsync(CancellationToken.None)
+                : await ExportVisibleLiveChatAsync(GetDownloadsFolder(), CancellationToken.None);
             if (_liveActionStatus is not null)
                 _liveActionStatus.Text = $"Saved {Path.GetFileName(path)} to Downloads.";
             ShowExportSuccessNotification(path);
         }
         catch (Exception ex)
         {
+            DiagnosticLogger.Error("Unable to export the visible Live Chat view.", ex);
             if (_liveActionStatus is not null)
                 _liveActionStatus.Text = "Unable to save log copy: " + ex.Message;
         }
@@ -58,8 +63,6 @@ public partial class MainWindow
         Directory.CreateDirectory(downloadsFolder);
         DateTime now = DateTime.Now;
         string destination = GetUniqueLiveExportPath(downloadsFolder, now);
-        ChatColorSidecarService.DeleteForTextFile(destination);
-
         string serverName = GetCurrentServerDisplayName();
 
         await using FileStream stream = new(
@@ -83,18 +86,6 @@ public partial class MainWindow
                     ? $"[{entry.CapturedAt:HH:mm:ss}] {entry.ContentWithoutTimestamp}"
                     : entry.ContentWithoutTimestamp;
             await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
-            try
-            {
-                await ChatColorSidecarService.AppendAsync(
-                    destination,
-                    line,
-                    entry.GetColorRunsForText(line),
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                DiagnosticLogger.Error("Unable to preserve exact colors in the visible chat export.", ex);
-            }
         }
 
         await writer.FlushAsync(cancellationToken);

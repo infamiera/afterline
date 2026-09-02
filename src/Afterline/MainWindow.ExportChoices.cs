@@ -18,7 +18,7 @@ public partial class MainWindow
         if (visibleButton?.Parent is not Panel actions) return;
 
         visibleButton.Content = "Export visible";
-        visibleButton.ToolTip = "Exports exactly what is currently visible in Live Chat, including the current OOC/gameplay-status and timestamp settings.";
+        visibleButton.ToolTip = "Exports the current Live Chat view as plain TXT or self-contained colored HTML.";
 
         Button? completeButton = actions.Children.OfType<Button>()
             .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Export complete", StringComparison.Ordinal));
@@ -29,7 +29,7 @@ public partial class MainWindow
                 Content = "Export complete",
                 Padding = new Thickness(10, 6, 10, 6),
                 Margin = new Thickness(0, 0, 10, 6),
-                ToolTip = "Exports the complete current captured session, ignoring Live Chat display filters."
+                ToolTip = "Exports the complete captured session as plain TXT or self-contained colored HTML, ignoring display filters."
             };
             completeButton.Click += ExportCompleteLiveChat_Click;
 
@@ -37,51 +37,28 @@ public partial class MainWindow
             actions.Children.Insert(Math.Min(visibleIndex + 1, actions.Children.Count), completeButton);
         }
 
-        if (actions.Children.OfType<Button>().Any(button => string.Equals(button.Content?.ToString(), "Export HTML", StringComparison.Ordinal)))
-            return;
-
-        var htmlButton = new Button
-        {
-            Content = "Export HTML",
-            Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 10, 6),
-            ToolTip = "Exports the currently visible Live Chat as a self-contained HTML file with the displayed chat colors."
-        };
-        htmlButton.Click += ExportVisibleLiveChatHtml_Click;
-
-        int completeIndex = actions.Children.IndexOf(completeButton);
-        actions.Children.Insert(Math.Min(completeIndex + 1, actions.Children.Count), htmlButton);
+        Button? obsoleteHtmlButton = actions.Children.OfType<Button>()
+            .FirstOrDefault(button => string.Equals(button.Content?.ToString(), "Export HTML", StringComparison.Ordinal));
+        if (obsoleteHtmlButton is not null)
+            actions.Children.Remove(obsoleteHtmlButton);
     }
 
     private async void ExportCompleteLiveChat_Click(object sender, RoutedEventArgs e)
     {
+        ChatExportFormat? format = ChooseLiveChatExportFormat("the complete captured session");
+        if (format is null) return;
+
         Button? actionButton = sender as Button;
         if (actionButton is not null) actionButton.IsEnabled = false;
 
         try
         {
-            string downloads = GetDownloadsFolder();
-            string temporary = await _journal.ExportCurrentLogAsync(_settings.ArchiveRoot, downloads, CancellationToken.None);
-            string destination = GetUniqueLiveExportPath(downloads, DateTime.Now);
-
-            if (!string.Equals(Path.GetFullPath(temporary), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
-            {
-                ChatColorSidecarService.DeleteForTextFile(destination);
-                File.Move(temporary, destination, false);
-                try
-                {
-                    ChatColorSidecarService.MoveForTextFile(
-                        temporary,
-                        destination,
-                        overwrite: false);
-                }
-                catch (Exception ex)
-                {
-                    DiagnosticLogger.Error("Unable to move exact color metadata with the exported chatlog.", ex);
-                }
-            }
-            else
-                destination = temporary;
+            string destination = format == ChatExportFormat.Html
+                ? await ExportCompleteLiveChatHtmlAsync(CancellationToken.None)
+                : await _journal.ExportCurrentLogAsync(
+                    _settings.ArchiveRoot,
+                    GetDownloadsFolder(),
+                    CancellationToken.None);
 
             SetLiveActionStatus($"Saved {Path.GetFileName(destination)} to Downloads.");
             ShowExportSuccessNotification(destination);
@@ -95,5 +72,11 @@ public partial class MainWindow
         {
             if (actionButton is not null) actionButton.IsEnabled = true;
         }
+    }
+
+    private ChatExportFormat? ChooseLiveChatExportFormat(string scope)
+    {
+        var prompt = new ChatExportFormatWindow(scope) { Owner = this };
+        return prompt.ShowDialog() == true ? prompt.SelectedFormat : null;
     }
 }

@@ -74,11 +74,6 @@ public sealed class LastSessionCacheService
             await writer.WriteLineAsync(line.AsMemory(), cancellationToken);
             await writer.FlushAsync(cancellationToken);
             await stream.FlushAsync(cancellationToken);
-            await ChatColorSidecarService.AppendAsync(
-                AppPaths.LastSessionCacheFile,
-                line,
-                entry.GetColorRunsForText(line),
-                cancellationToken);
         }
         finally
         {
@@ -100,12 +95,6 @@ public sealed class LastSessionCacheService
 
             DateTime fallback = File.GetLastWriteTime(AppPaths.LastSessionCacheFile);
             var entries = new List<ChatEntry>();
-            IReadOnlyDictionary<int, ChatColorLineRecord> exactColors =
-                await ChatColorSidecarService.MatchLinesAsync(
-                    AppPaths.LastSessionCacheFile,
-                    lines,
-                    cancellationToken);
-
             for (int index = 0; index < lines.Length; index++)
             {
                 string rawLine = lines[index];
@@ -131,11 +120,7 @@ public sealed class LastSessionCacheService
                     continue;
                 }
 
-                exactColors.TryGetValue(index, out ChatColorLineRecord? exact);
-                entries.Add(new ChatEntry(
-                    fallback,
-                    line,
-                    capturedColorRuns: exact?.ColorRuns));
+                entries.Add(new ChatEntry(fallback, line));
             }
 
             return entries;

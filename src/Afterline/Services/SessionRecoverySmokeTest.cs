@@ -42,12 +42,11 @@ internal static class SessionRecoverySmokeTest
             new ChatColorRun(0, 10, 56, 150, 243),
             new ChatColorRun(10, firstLine.Length - 10, 255, 255, 255)
         };
-        await initial.AppendAsync(
-            new ChatEntry(
-                startedAt.AddSeconds(56),
-                firstLine,
-                capturedColorRuns: firstLineColors),
-            CancellationToken.None);
+        var exactColorEntry = new ChatEntry(
+            startedAt.AddSeconds(56),
+            firstLine,
+            capturedColorRuns: firstLineColors);
+        await initial.AppendAsync(exactColorEntry, CancellationToken.None);
         await initial.AppendAsync(
             new ChatEntry(startedAt.AddMinutes(1).AddSeconds(13), secondLine),
             CancellationToken.None);
@@ -71,12 +70,25 @@ internal static class SessionRecoverySmokeTest
         IReadOnlyList<ChatEntry> cached = await new LastSessionCacheService().ReadAsync(CancellationToken.None);
         ChatEntry? recoveredFirst = cached.FirstOrDefault(entry =>
             entry.Text.Contains(firstLine, StringComparison.Ordinal));
-        if (cached.Count != 3 ||
-            recoveredFirst is null ||
-            !ChatColorData.HasCompleteCoverage(recoveredFirst.Text, recoveredFirst.CapturedColorRuns))
+        if (cached.Count != 3 || recoveredFirst is null)
             throw new InvalidOperationException("The last-session replay cache was not rebuilt from the journal backup.");
 
-        VerifyHtmlChatExport(recoveredFirst, startedAt);
+        VerifyHtmlChatExport(exactColorEntry, startedAt);
+        VerifyNoAutomaticColorSidecar(initial.ActiveFile, AppPaths.LastSessionCacheFile);
+
+        string plainTextExport = await resumed.ExportCurrentLogAsync(
+            archiveRoot,
+            archiveRoot,
+            CancellationToken.None);
+        VerifyNoAutomaticColorSidecar(plainTextExport);
+        IReadOnlyList<string> completeSession = await resumed.ReadCurrentSessionLinesAsync(
+            archiveRoot,
+            CancellationToken.None);
+        if (!completeSession.Contains(firstLine, StringComparer.Ordinal) ||
+            !completeSession.Contains(secondLine, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("Complete-session export input did not retain captured chat lines.");
+        }
 
         string continuation = "[04:42:00] Continued after Afterline restarted.";
         await resumed.AppendAsync(
@@ -155,7 +167,26 @@ internal static class SessionRecoverySmokeTest
             "[21:03:24] Bianca Yurei is now furnishing the property (build mode). Report any abuse with /report.",
             "[21:24:44] Admin Rohan. Rockstar banned Goldie Mack for reason: [R19 - repeated trolling] for 60 days",
             "[21:33:05] Admin Sebz permanently Rockstar banned Larry Beleck for reason: [Not up to server standards.]",
-            "[21:53:21] You have set the action gradients status to ENABLED"
+            "[21:53:21] You have set the action gradients status to ENABLED",
+            "[21:56:00] |----- Posters -----|",
+            "[21:56:00] 34504: Created at 06/25/2026 00:00:00 by Bianca Yurei (https://i.ibb.co/example/poster.jpg)",
+            "[21:56:00] |------------------------|",
+            "[22:26:35] [PROPERTY] Veloura info:",
+            "[22:26:35] Property ID: 9421",
+            "[22:26:35] Interior ID: 200",
+            "[22:26:35] Market Price: $1",
+            "[22:26:35] Purchase Date: 01/01/0001 00:00:00",
+            "[22:26:35] Furniture Worth: $332478",
+            "[22:26:35] Business: 3272 (Veloura)",
+            "[22:26:35] Alarm: ThriftEX expiring Sunday, 01 November 2026",
+            "[22:26:35] Security firm: ProTech Security Solutions",
+            "[22:26:35] Fire alarm installed: Yes",
+            "[22:26:35] Lock Level: Standard",
+            "[22:26:35] Home EV Charger: None",
+            "[22:26:35] Leased by Bianca Yurei.",
+            "[22:26:35] Conditioned Property, cannot be sold - Contact LFM.",
+            "[22:26:35] https://ucp.gta.world/view/property/9421",
+            "[22:27:25] Furniture Amount: 1400 | Furniture Worth: $334,478"
         };
         foreach (string line in filteredLines)
         {
@@ -180,6 +211,16 @@ internal static class SessionRecoverySmokeTest
         {
             if (new ChatEntry(DateTime.Now, line).IsOocLine)
                 throw new InvalidOperationException($"The gameplay/OOC filter hid a session boundary: {line}");
+        }
+    }
+
+    private static void VerifyNoAutomaticColorSidecar(params string?[] textFiles)
+    {
+        foreach (string? textFile in textFiles.Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            string sidecar = ChatColorSidecarService.GetSidecarPath(textFile!);
+            if (File.Exists(sidecar))
+                throw new InvalidOperationException($"Automatic TXT persistence created an unwanted color sidecar: {sidecar}");
         }
     }
 

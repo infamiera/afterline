@@ -6,6 +6,12 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "03/SEP/2026", new[]
+        {
+            "Chat exports — Asks for TXT or HTML from either Live Chat export action, keeps colors self-contained in explicitly selected HTML, and stops creating color sidecars beside automatic or TXT chatlogs.",
+            "Live Chat toolbar — Removes the separate HTML action while retaining Log Reader's dedicated HTML export.",
+            "Chat filtering — Adds poster-management and property-information blocks to the OOC toggle without hiding login or disconnect markers."
+        }, ChangelogChannel.Canary, 219),
         new("0.7.0", "02/SEP/2026", new[]
         {
             "Collage logo frames — Makes logo-designated slots fill their frame and respond to drag-to-reposition cropping like every image slot.",
