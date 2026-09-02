@@ -54,6 +54,18 @@ internal static class SessionRecoverySmokeTest
             new[] { firstLine, secondLine },
             CancellationToken.None);
 
+        IReadOnlyList<ChatEntry> liveCacheBeforeRestart =
+            await new LastSessionCacheService().ReadAsync(CancellationToken.None);
+        ChatEntry? coloredReplay = liveCacheBeforeRestart.FirstOrDefault(entry =>
+            entry.Text.Contains(firstLine, StringComparison.Ordinal));
+        if (coloredReplay is null ||
+            !ChatColorData.HasCompleteCoverage(coloredReplay.Text, coloredReplay.CapturedColorRuns))
+        {
+            throw new InvalidOperationException(
+                "The private Live Chat replay cache did not preserve exact captured colors.");
+        }
+        VerifyNoAutomaticColorSidecar(initial.ActiveFile);
+
         // Simulate the replay cache being absent after a power interruption. The
         // resumed journal must reconstruct it from its write-through backup.
         if (File.Exists(AppPaths.LastSessionCacheFile))
@@ -74,7 +86,7 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException("The last-session replay cache was not rebuilt from the journal backup.");
 
         VerifyHtmlChatExport(exactColorEntry, startedAt);
-        VerifyNoAutomaticColorSidecar(initial.ActiveFile, AppPaths.LastSessionCacheFile);
+        VerifyNoAutomaticColorSidecar(initial.ActiveFile);
 
         string plainTextExport = await resumed.ExportCurrentLogAsync(
             archiveRoot,
