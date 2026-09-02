@@ -550,13 +550,21 @@ public partial class MainWindow
                             "Selecting a whole line retained a stale text-range color target.");
                     }
 
+                    Rect smokeBaseBoundary = new(
+                        0,
+                        0,
+                        Math.Max(1, _editorComposition.Width),
+                        Math.Max(1, _editorComposition.Height));
+                    // Simulate a project written by Canary #205. Applying its old
+                    // selected-layer rectangle must migrate to the full Base Image.
                     _editorContentBoundaryV083 = new Rect(4, 5, 40, 45);
                     ApplyEditorContentBoundaryV083();
                     if (_editorComposition.Clip is not RectangleGeometry smokeBoundary ||
-                        smokeBoundary.Rect != new Rect(4, 5, 40, 45))
+                        smokeBoundary.Rect != smokeBaseBoundary ||
+                        _editorContentBoundaryV083 != smokeBaseBoundary)
                     {
                         throw new InvalidOperationException(
-                            "The selected-layer content boundary did not attach to the fixed export canvas.");
+                            "The content boundary did not normalize to the full Base Image canvas.");
                     }
 
                     SaveEditorProjectToPathV067(projectPath);
@@ -582,14 +590,14 @@ public partial class MainWindow
                         restoredCollage.CollagePresetId != "smoke" ||
                         Math.Abs(restoredCollage.CollageOffsetX - 0.5) > 0.01 ||
                         Math.Abs(restoredCollage.CollageOffsetY + 0.25) > 0.01 ||
-                        _editorContentBoundaryV083 != new Rect(4, 5, 40, 45) ||
+                        _editorContentBoundaryV083 != smokeBaseBoundary ||
                         _editorComposition.Clip is not RectangleGeometry restoredBoundary ||
-                        restoredBoundary.Rect != new Rect(4, 5, 40, 45) ||
+                        restoredBoundary.Rect != smokeBaseBoundary ||
                         !_editorTextColorOverridesV071.Any(value =>
                             value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
                     {
                         throw new InvalidOperationException(
-                            "The saved Editor project did not restore its filtered image layer and selected-text color.");
+                            "The saved Editor project did not restore its filtered image layer, Base Image trim and selected-text color.");
                     }
                 }
 

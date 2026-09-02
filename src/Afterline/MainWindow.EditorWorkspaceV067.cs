@@ -47,7 +47,7 @@ public partial class MainWindow
     private CheckBox? _editorBaseOutlineCheckV080;
     private Rectangle? _editorBaseOutlineV080;
     private CheckBox? _editorSelectedOutlineCheckV083;
-    private Button? _editorTrimToSelectedBoundsButtonV083;
+    private Button? _editorTrimToBaseBoundsButtonV084;
     private Button? _editorClearContentBoundaryButtonV083;
     private Button? _editorLayerRemoveV067;
     private Button? _editorLayerUpV067;
@@ -328,7 +328,7 @@ public partial class MainWindow
         Expander presets = CreateEditorSidebarExpanderV068(
             "FILTER PRESETS",
             BuildFilterPresetPanelV067(),
-            expanded: true);
+            expanded: false);
         root.Children.Add(presets);
 
         if (_editorToolPanels.TryGetValue("filters", out FrameworkElement? adjustments))
@@ -367,7 +367,7 @@ public partial class MainWindow
             BorderBrush = (Brush)FindResource("Border"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8)
+            Padding = new Thickness(6)
         };
 
         var root = new StackPanel();
@@ -413,7 +413,7 @@ public partial class MainWindow
             BorderBrush = (Brush)FindResource("Border"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8)
+            Padding = new Thickness(6)
         };
 
         var root = new StackPanel();
@@ -429,8 +429,8 @@ public partial class MainWindow
 
         _editorLayerListV067 = new ListBox
         {
-            MinHeight = 270,
-            MaxHeight = 520,
+            MinHeight = 150,
+            MaxHeight = 300,
             HorizontalContentAlignment = HorizontalAlignment.Stretch
         };
         _editorLayerListV067.SelectionChanged += (_, _) =>
@@ -449,7 +449,7 @@ public partial class MainWindow
         ConfigureLayerListDragReorderV069();
         root.Children.Add(_editorLayerListV067);
 
-        var buttons = new WrapPanel { Margin = new Thickness(0, 6, 0, 4) };
+        var buttons = new WrapPanel { Margin = new Thickness(0, 4, 0, 2) };
         buttons.Children.Add(CreateSmallEditorButton("+ Image", (_, _) => AddImageLayerV067()));
         _editorLayerRemoveV067 = CreateSmallEditorButton("Remove", (_, _) => RemoveSelectedImageLayerV067());
         _editorLayerUpV067 = CreateSmallEditorButton("Up", (_, _) => MoveSelectedImageLayerV067(1));
@@ -459,14 +459,14 @@ public partial class MainWindow
         buttons.Children.Add(_editorLayerDownV067);
         root.Children.Add(buttons);
 
-        var controls = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var controls = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
         _editorSelectedLayerLabelV067 = new TextBlock
         {
             Text = "Select an image layer to edit it.",
             FontSize = 10,
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 6)
+            Margin = new Thickness(0, 0, 0, 4)
         };
         controls.Children.Add(_editorSelectedLayerLabelV067);
 
@@ -479,7 +479,7 @@ public partial class MainWindow
         {
             Content = "Show Base Image outline",
             IsChecked = false,
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, 4),
             ToolTip = "Show a thin pink preview boundary around the Base Image. The outline is never exported."
         };
         _editorBaseOutlineCheckV080.Checked += (_, _) => RefreshBaseImageOutlineV080();
@@ -490,45 +490,53 @@ public partial class MainWindow
         {
             Content = "Show selected layer outline",
             IsChecked = true,
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, 5),
             ToolTip = "Show the thin transform outline around the currently selected image layer. The outline is never exported."
         };
         _editorSelectedOutlineCheckV083.Checked += (_, _) => RefreshSelectedLayerAdornerV068();
         _editorSelectedOutlineCheckV083.Unchecked += (_, _) => RefreshSelectedLayerAdornerV068();
         controls.Children.Add(_editorSelectedOutlineCheckV083);
 
-        _editorTrimToSelectedBoundsButtonV083 = new Button
+        _editorTrimToBaseBoundsButtonV084 = new Button
         {
-            Content = "Trim Outside Selected Outline",
+            Content = "Trim to Base",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(0, 0, 0, 9),
-            ToolTip = "Hide all document content outside the selected layer’s current outline without changing the Base Image or export dimensions. Undo restores it."
+            Padding = new Thickness(6, 4, 6, 4),
+            ToolTip = "Hide parts of overlapping image layers that extend beyond the fixed Base Image borders. Undo restores the pasteboard overflow."
         };
-        _editorTrimToSelectedBoundsButtonV083.Click += (_, _) => TrimContentToSelectedLayerV083();
-        controls.Children.Add(_editorTrimToSelectedBoundsButtonV083);
+        _editorTrimToBaseBoundsButtonV084.Click += (_, _) => TrimContentToBaseImageV084();
 
         _editorClearContentBoundaryButtonV083 = new Button
         {
-            Content = "Clear Content Trim",
+            Content = "Clear Trim",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(0, 0, 0, 9),
+            Padding = new Thickness(6, 4, 6, 4),
             IsEnabled = false,
             ToolTip = "Remove the saved content boundary and show the full document again. This action is also reversible."
         };
         _editorClearContentBoundaryButtonV083.Click += (_, _) => RemoveEditorContentBoundaryV083();
-        controls.Children.Add(_editorClearContentBoundaryButtonV083);
+
+        var boundaryActions = new Grid { Margin = new Thickness(0, 0, 0, 5) };
+        boundaryActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        boundaryActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
+        boundaryActions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        boundaryActions.Children.Add(_editorTrimToBaseBoundsButtonV084);
+        Grid.SetColumn(_editorClearContentBoundaryButtonV083, 2);
+        boundaryActions.Children.Add(_editorClearContentBoundaryButtonV083);
+        controls.Children.Add(boundaryActions);
+
+        opacity.Panel.Margin = new Thickness(0, 0, 0, 5);
         controls.Children.Add(opacity.Panel);
 
         var cornerRadius = CreateEditorV041Slider("Corner radius", 0, 200, 0, 1);
         _editorLayerCornerRadiusV080 = cornerRadius.Slider;
         _editorLayerCornerRadiusV080.ValueChanged += (_, _) => ApplyLayerControlValuesV067();
         ConfigureReversibleLayerSliderV081(_editorLayerCornerRadiusV080, "layer corner radius");
+        cornerRadius.Panel.Margin = new Thickness(0, 0, 0, 4);
         controls.Children.Add(cornerRadius.Panel);
 
         controls.Children.Add(EditorSubtleNote(
-            "Drag the selected image anywhere across the canvas or pasteboard. Corners keep its proportions; hold Shift for a free resize, or right-click for exact sizing and layer controls."));
+            "Drag to move. Resize from corners; hold Shift for free resize. Right-click for exact controls."));
         root.Children.Add(controls);
 
         border.Child = root;
@@ -1249,8 +1257,8 @@ public partial class MainWindow
             }
             if (_editorSelectedOutlineCheckV083 is not null)
                 _editorSelectedOutlineCheckV083.IsEnabled = enabled;
-            if (_editorTrimToSelectedBoundsButtonV083 is not null)
-                _editorTrimToSelectedBoundsButtonV083.IsEnabled = enabled;
+            if (_editorTrimToBaseBoundsButtonV084 is not null)
+                _editorTrimToBaseBoundsButtonV084.IsEnabled = EditorHasRenderedBaseImageV079();
             if (_editorLayerRemoveV067 is not null) _editorLayerRemoveV067.IsEnabled = enabled;
             if (_editorLayerUpV067 is not null) _editorLayerUpV067.IsEnabled = enabled;
             if (_editorLayerDownV067 is not null) _editorLayerDownV067.IsEnabled = enabled;
