@@ -18,13 +18,14 @@ public partial class App : System.Windows.Application
 
         if (CanaryUpdateInstaller.TryRunUpdaterMode(e.Args) || UpdateService.TryRunUpdaterMode(e.Args))
         {
-            Environment.Exit(0);
+            Environment.Exit(Environment.ExitCode);
             return;
         }
 
         // Keep updater failures available to the still-installed build. Once a
         // newly installed build starts normally, it begins a clean diagnostic era.
         DiagnosticLogger.InitializeForCurrentBuild();
+        CanaryUpdateInstaller.ReconcilePendingTransactionOnStartup();
 
         int canaryManifestSmokeIndex = Array.FindIndex(e.Args, value => string.Equals(
             value,
@@ -164,11 +165,12 @@ public partial class App : System.Windows.Application
 
     internal void ConfirmHealthyStartup()
     {
+        bool startedFromUpdate = _startupArgs.Any(value => string.Equals(
+            value,
+            "--afterline-update-complete",
+            StringComparison.OrdinalIgnoreCase));
         if (_completedUpdateCleanupTimer is not null ||
-            !_startupArgs.Any(value => string.Equals(
-                value,
-                "--afterline-update-complete",
-                StringComparison.OrdinalIgnoreCase)))
+            (!startedFromUpdate && !CanaryUpdateInstaller.HasPendingHealthyCleanup))
             return;
 
         _completedUpdateCleanupTimer = new DispatcherTimer(DispatcherPriority.ApplicationIdle)
@@ -179,6 +181,7 @@ public partial class App : System.Windows.Application
         {
             _completedUpdateCleanupTimer.Stop();
             UpdateService.CleanupCompletedUpdate(_startupArgs);
+            CanaryUpdateInstaller.CompletePendingHealthyTransaction();
             DiagnosticLogger.Info("Afterline remained healthy after updating; the previous executable backup was cleared.");
         };
         _completedUpdateCleanupTimer.Start();

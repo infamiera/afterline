@@ -8,6 +8,11 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "02/SEP/2026", new[]
         {
+            "Transactional updates — Stages and verifies updates before atomically replacing Afterline.exe, with hash-verified recovery after locks or interrupted restarts.",
+            "Continuous Canary publishing — Keeps the previous download valid until the new executable, checksum and manifest are all available."
+        }, ChangelogChannel.Canary, 209),
+        new("0.7.0", "02/SEP/2026", new[]
+        {
             "Base Image trim — Clips overlapping image layers to the fixed Base Image borders and safely normalizes trim settings saved by Canary #205.",
             "Editor sidebar — Uses a shorter Layers list, collapsed presets and compact controls so Opacity and Corner radius stay within easy reach."
         }, ChangelogChannel.Canary, 207),

@@ -25,6 +25,8 @@ public static class AppPaths
     public static string ProfileDirectory => Path.Combine(LocalDataRoot, "Profile");
     public static string ProfilePictureFile => Path.Combine(ProfileDirectory, "avatar.png");
     public static string UpdatesDirectory => Path.Combine(LocalDataRoot, "Updates");
+    public static string UpdateTransactionFile => Path.Combine(UpdatesDirectory, "update-transaction.json");
+    public static string UpdateTransactionTemporaryFile => UpdateTransactionFile + ".tmp";
 
     public static void EnsureLocalDirectories()
     {
