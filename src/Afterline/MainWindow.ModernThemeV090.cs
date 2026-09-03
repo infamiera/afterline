@@ -227,7 +227,18 @@ public partial class MainWindow
             UseAutomaticColors = true,
             IsSystemMessage = false
         };
-        var host = new Border { Child = sample, Visibility = Visibility.Collapsed };
+        var cardProbe = new Border
+        {
+            Style = (Style)FindResource("CardStyle")
+        };
+        var controlProbe = new Button { Content = "Theme resource probe" };
+        var mutedProbe = new TextBlock { Text = "Theme text probe" };
+        mutedProbe.SetResourceReference(TextBlock.ForegroundProperty, "MutedText");
+        var host = new Grid { Visibility = Visibility.Collapsed };
+        host.Children.Add(sample);
+        host.Children.Add(cardProbe);
+        host.Children.Add(controlProbe);
+        host.Children.Add(mutedProbe);
 
         try
         {
@@ -242,6 +253,21 @@ public partial class MainWindow
             alternate.SecondaryText = "#8BD4CA";
             alternate.Accent = "#D24D78";
             ThemeService.Apply(alternate);
+
+            Color expectedPanel = ThemeService.ParseColor(alternate.Panel, Colors.Transparent);
+            Color expectedRaised = ThemeService.ParseColor(alternate.Raised, Colors.Transparent);
+            Color expectedMuted = ThemeService.ParseColor(alternate.SecondaryText, Colors.Transparent);
+            var lateControlProbe = new Button { Content = "Late theme resource probe" };
+            host.Children.Add(lateControlProbe);
+
+            if (ReadSolidColorV092(cardProbe.Background) != expectedPanel ||
+                ReadSolidColorV092(controlProbe.Background) != expectedRaised ||
+                ReadSolidColorV092(lateControlProbe.Background) != expectedRaised ||
+                ReadSolidColorV092(mutedProbe.Foreground) != expectedMuted)
+            {
+                throw new InvalidOperationException(
+                    "Theme resources did not update every existing and newly created interface surface.");
+            }
 
             ThemePreferences cloned = ThemeService.Clone(alternate);
             if (cloned.GradientStart != alternate.GradientStart ||
@@ -278,4 +304,7 @@ public partial class MainWindow
             .OfType<Run>()
             .Select(run => (run.Foreground as SolidColorBrush)?.Color ?? Colors.Transparent)
             .ToArray();
+
+    private static Color ReadSolidColorV092(Brush? brush)
+        => (brush as SolidColorBrush)?.Color ?? Colors.Transparent;
 }

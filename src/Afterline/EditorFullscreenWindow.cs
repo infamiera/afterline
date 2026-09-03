@@ -24,8 +24,8 @@ internal sealed class EditorFullscreenWindow : Window
         WindowState = WindowState.Maximized;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
-        Background = new SolidColorBrush(Color.FromRgb(0x08, 0x0B, 0x0F));
-        Foreground = Brushes.White;
+        SetResourceReference(Control.BackgroundProperty, "AfterlineAppGradient");
+        SetResourceReference(Control.ForegroundProperty, "Text");
         KeyDown += OnKeyDown;
 
         var root = new Grid();
@@ -34,11 +34,11 @@ internal sealed class EditorFullscreenWindow : Window
 
         var topBar = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x11, 0x15, 0x1B)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2C, 0x37, 0x44)),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(16, 10, 12, 10)
         };
+        topBar.SetResourceReference(Border.BackgroundProperty, "AfterlineHeaderGradient");
+        topBar.SetResourceReference(Border.BorderBrushProperty, "Border");
         var topGrid = new Grid();
         topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         topGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -48,10 +48,9 @@ internal sealed class EditorFullscreenWindow : Window
         label.Children.Add(new TextBlock
         {
             Text = "  ·  ESC to close  ·  Ctrl + mouse wheel to zoom",
-            Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xB6, 0xC3)),
             FontSize = 11,
             VerticalAlignment = VerticalAlignment.Center
-        });
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
         topGrid.Children.Add(label);
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal };
@@ -62,11 +61,11 @@ internal sealed class EditorFullscreenWindow : Window
             Width = 54,
             TextAlignment = TextAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xB6, 0xC3)),
             FontSize = 11,
             Cursor = Cursors.Hand,
             ToolTip = "Reset zoom to 100%"
         };
+        _zoomText.SetResourceReference(TextBlock.ForegroundProperty, "MutedText");
         _zoomText.MouseLeftButtonDown += (_, args) =>
         {
             _fitMode = false;
@@ -89,10 +88,10 @@ internal sealed class EditorFullscreenWindow : Window
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background = new SolidColorBrush(Color.FromRgb(0x05, 0x07, 0x0A)),
             Padding = new Thickness(24),
             CanContentScroll = false
         };
+        _scroll.SetResourceReference(Control.BackgroundProperty, "AfterlineInset");
         _scroll.PreviewMouseWheel += OnPreviewMouseWheel;
         _scroll.SizeChanged += (_, _) =>
         {
@@ -137,11 +136,11 @@ internal sealed class EditorFullscreenWindow : Window
             Height = 30,
             Padding = new Thickness(0),
             Margin = new Thickness(4, 0, 0, 0),
-            ToolTip = toolTip,
-            Background = new SolidColorBrush(Color.FromRgb(0x20, 0x28, 0x32)),
-            Foreground = Brushes.White,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(0x2C, 0x37, 0x44))
+            ToolTip = toolTip
         };
+        button.SetResourceReference(Control.BackgroundProperty, "Raised");
+        button.SetResourceReference(Control.ForegroundProperty, "Text");
+        button.SetResourceReference(Control.BorderBrushProperty, "Border");
         button.Click += handler;
         return button;
     }

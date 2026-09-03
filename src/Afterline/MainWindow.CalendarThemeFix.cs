@@ -81,7 +81,7 @@ public partial class MainWindow
         style.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(1)));
 
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x29, 0x3B, 0x50))));
+        hover.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension("AfterlineControlHover")));
         hover.Setters.Add(new Setter(Control.BorderBrushProperty, accent));
         style.Triggers.Add(hover);
 
@@ -109,7 +109,7 @@ public partial class MainWindow
         style.Setters.Add(new Setter(FrameworkElement.MarginProperty, new Thickness(1)));
 
         var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-        hover.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x29, 0x3B, 0x50))));
+        hover.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension("AfterlineControlHover")));
         style.Triggers.Add(hover);
 
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };

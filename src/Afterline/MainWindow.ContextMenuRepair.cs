@@ -120,7 +120,7 @@ public partial class MainWindow
         style.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(MenuItem)) { VisualTree = root }));
 
         var highlighted = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
-        highlighted.Setters.Add(new Setter(Control.BackgroundProperty, new SolidColorBrush(Color.FromRgb(0x29, 0x3B, 0x50))));
+        highlighted.Setters.Add(new Setter(Control.BackgroundProperty, new DynamicResourceExtension("AfterlineControlHover")));
         style.Triggers.Add(highlighted);
 
         var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };

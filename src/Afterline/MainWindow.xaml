@@ -48,7 +48,7 @@
                 <Border Grid.Row="3" Style="{StaticResource CardStyle}" Padding="12">
                     <StackPanel>
                         <TextBlock x:Name="TrayStateText" Text="Waiting for FiveM" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="FooterCaptureText" Text="Capture idle" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0"/>
+                        <TextBlock x:Name="FooterCaptureText" Text="Capture idle" Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -70,11 +70,11 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock x:Name="PageTitle" Text="Dashboard" FontSize="28" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="PageSubtitle" Text="FiveM capture and session overview" Foreground="{StaticResource MutedText}" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="PageSubtitle" Text="FiveM capture and session overview" Foreground="{DynamicResource MutedText}" Margin="0,4,0,0"/>
                 </StackPanel>
-                <Border Grid.Column="1" Background="{StaticResource Panel}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="18" Padding="14,7" VerticalAlignment="Center">
+                <Border Grid.Column="1" Background="{DynamicResource Panel}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="18" Padding="14,7" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{StaticResource MutedText}" Margin="0,0,8,0"/>
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{DynamicResource MutedText}" Margin="0,0,8,0"/>
                         <TextBlock x:Name="TopStatusText" Text="Waiting for FiveM" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
@@ -101,25 +101,25 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="FIVEM" Foreground="{StaticResource MutedText}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock Text="FIVEM" Foreground="{DynamicResource MutedText}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <Button Grid.Column="1" Content="↻" Width="30" Height="28" Padding="4,2" ToolTip="Check the FiveM connection now" Click="CheckFiveMConnection_Click"/>
                             </Grid>
                             <TextBlock x:Name="FiveMStateText" Text="Not detected" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                            <TextBlock Text="Capture only activates while FiveM is running." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                            <TextBlock Text="Capture only activates while FiveM is running." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="2" Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="CURRENT SESSION" Foreground="{StaticResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock Text="CURRENT SESSION" Foreground="{DynamicResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
                             <TextBlock x:Name="SessionCountText" Text="0 messages" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                            <TextBlock x:Name="SessionTimeText" Text="No active session" Foreground="{StaticResource MutedText}" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="SessionTimeText" Text="No active session" Foreground="{DynamicResource MutedText}" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="4" Style="{StaticResource CardStyle}">
                         <StackPanel>
-                            <TextBlock Text="AUTOSAVE" Foreground="{StaticResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock Text="AUTOSAVE" Foreground="{DynamicResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
                             <TextBlock Text="Protected" Foreground="{StaticResource Success}" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                            <TextBlock x:Name="AutosaveText" Text="Waiting for first chat message" Foreground="{StaticResource MutedText}" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="AutosaveText" Text="Waiting for first chat message" Foreground="{DynamicResource MutedText}" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -141,7 +141,7 @@
                         </Grid.RowDefinitions>
                         <StackPanel>
                             <TextBlock Text="Recent sessions" FontSize="18" FontWeight="SemiBold"/>
-                            <TextBlock Text="Completed chatlogs from the last 7 days." Foreground="{StaticResource MutedText}" Margin="0,3,0,0"/>
+                            <TextBlock Text="Completed chatlogs from the last 7 days." Foreground="{DynamicResource MutedText}" Margin="0,3,0,0"/>
                         </StackPanel>
                         <ListBox x:Name="RecentSessionsList" Grid.Row="2" BorderThickness="0" Background="Transparent" MouseDoubleClick="RecentSessionsList_MouseDoubleClick"/>
                         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
@@ -159,10 +159,10 @@
                         </Grid.RowDefinitions>
                         <StackPanel>
                             <TextBlock Text="Recent Editor projects" FontSize="18" FontWeight="SemiBold"/>
-                            <TextBlock Text="Double-click a project to continue editing." Foreground="{StaticResource MutedText}" Margin="0,3,0,0"/>
+                            <TextBlock Text="Double-click a project to continue editing." Foreground="{DynamicResource MutedText}" Margin="0,3,0,0"/>
                         </StackPanel>
                         <Grid Grid.Row="2">
-                            <TextBlock x:Name="RecentEditorProjectsEmptyText" Text="No saved Editor projects yet." Foreground="{StaticResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="RecentEditorProjectsEmptyText" Text="No saved Editor projects yet." Foreground="{DynamicResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
                             <ListBox x:Name="RecentEditorProjectsList" ItemsSource="{Binding RecentEditorProjectsV073}" BorderThickness="0" Background="Transparent" MouseDoubleClick="RecentEditorProjectsList_MouseDoubleClick" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
@@ -173,12 +173,12 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <Border Width="76" Height="48" Background="{StaticResource Bg}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
+                                            <Border Width="76" Height="48" Background="{DynamicResource Bg}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="5" ClipToBounds="True">
                                                 <Image Source="{Binding Preview}" Stretch="UniformToFill"/>
                                             </Border>
                                             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding Detail}" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                             </StackPanel>
                                             <Button Grid.Column="3" Content="Delete" Tag="{Binding FilePath}" Margin="10,0,0,0" Padding="9,5" VerticalAlignment="Center" Foreground="{StaticResource Warning}" ToolTip="Move this project to the Recycle Bin" Click="DeleteRecentEditorProjectV076_Click"/>
                                         </Grid>
@@ -208,7 +208,7 @@
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="Live display" FontSize="17" FontWeight="SemiBold"/>
-                            <TextBlock Text="Capture continues even when this display is disabled." Foreground="{StaticResource MutedText}" Margin="0,4,0,0"/>
+                            <TextBlock Text="Capture continues even when this display is disabled." Foreground="{DynamicResource MutedText}" Margin="0,4,0,0"/>
                         </StackPanel>
                         <CheckBox Grid.Column="1" x:Name="ShowLiveChatCheck" Content="Show live chat" VerticalAlignment="Center" Checked="ShowLiveChatCheck_Changed" Unchecked="ShowLiveChatCheck_Changed"/>
                     </Grid>
@@ -225,7 +225,7 @@
                         </ListBox>
                         <Border Grid.Row="1" Background="{DynamicResource AfterlineInset}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="12">
                             <Grid>
-                                <TextBlock x:Name="LiveCountText" Text="0 messages shown" Foreground="{StaticResource MutedText}" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="LiveCountText" Text="0 messages shown" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Content="Clear display" Padding="10,5" Margin="0,0,6,0" Click="ClearLive_Click"/>
                                     <Button Content="↻" Width="32" Padding="6,5" Margin="0,0,4,0" ToolTip="Force-refresh the active FiveM chat" Click="RefreshLiveChat_Click"/>
@@ -250,10 +250,10 @@
                             <Button Grid.Column="2" Content="Refresh" Margin="10,0,0,0" Click="RefreshSearch_Click"/>
                         </Grid>
                         <WrapPanel Grid.Row="2" VerticalAlignment="Center">
-                            <TextBlock Text="Folder" VerticalAlignment="Center" Foreground="{StaticResource MutedText}" Margin="0,0,8,0"/>
+                            <TextBlock Text="Folder" VerticalAlignment="Center" Foreground="{DynamicResource MutedText}" Margin="0,0,8,0"/>
                             <Grid Width="300">
                                 <TextBox x:Name="SearchRootBox" IsReadOnly="True"/>
-                                <Border x:Name="SearchRootPrivacyOverlay" Background="{StaticResource Raised}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
+                                <Border x:Name="SearchRootPrivacyOverlay" Background="{DynamicResource Raised}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
                                     <TextBlock x:Name="SearchRootPrivacyText" TextTrimming="CharacterEllipsis"/>
                                 </Border>
                             </Grid>
@@ -262,7 +262,7 @@
                                 <ComboBoxItem Content="Contains"/><ComboBoxItem Content="Exact"/><ComboBoxItem Content="Whole word"/><ComboBoxItem Content="Regex"/>
                             </ComboBox>
                             <CheckBox x:Name="CaseSensitiveCheck" Content="Case sensitive" Margin="14,0,0,0" VerticalAlignment="Center"/>
-                            <TextBlock Text="Context" VerticalAlignment="Center" Foreground="{StaticResource MutedText}" Margin="14,0,6,0"/>
+                            <TextBlock Text="Context" VerticalAlignment="Center" Foreground="{DynamicResource MutedText}" Margin="14,0,6,0"/>
                             <ComboBox x:Name="ContextLinesBox" Width="70" SelectedIndex="1">
                                 <ComboBoxItem Content="0"/><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="10"/><ComboBoxItem Content="25"/>
                             </ComboBox>
@@ -272,11 +272,11 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Secondary character / keyword" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Secondary character / keyword" Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,0,0,5"/>
                                     <TextBox x:Name="SearchTerm2Box" KeyDown="SearchBox_KeyDown"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Additional keyword (optional)" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5"/>
+                                    <TextBlock Text="Additional keyword (optional)" Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,0,0,5"/>
                                     <TextBox x:Name="SearchTerm3Box" KeyDown="SearchBox_KeyDown"/>
                                 </StackPanel>
                             </Grid>
@@ -290,7 +290,7 @@
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                             <Border Background="{DynamicResource AfterlineInset}" Padding="12" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
-                                <TextBlock x:Name="SearchSummaryText" Text="Enter a keyword to search your chatlogs." Foreground="{StaticResource MutedText}"/>
+                                <TextBlock x:Name="SearchSummaryText" Text="Enter a keyword to search your chatlogs." Foreground="{DynamicResource MutedText}"/>
                             </Border>
                             <ListBox x:Name="SearchResultsList" Grid.Row="1" ItemsSource="{Binding SearchResults}" DisplayMemberPath="Display" BorderThickness="0" Padding="8" MouseDoubleClick="SearchResultsList_MouseDoubleClick" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"/>
                         </Grid>
@@ -302,7 +302,7 @@
                             <Border Background="{DynamicResource AfterlineInset}" Padding="12" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
                                 <StackPanel>
                                     <TextBlock Text="Recently parsed logs" FontSize="16" FontWeight="SemiBold"/>
-                                    <TextBlock Text="Double-click a file to open it." Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0"/>
+                                    <TextBlock Text="Double-click a file to open it." Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Border>
                             <ListBox x:Name="RecentlyParsedLogsList" Grid.Row="1" ItemsSource="{Binding RecentlyParsedLogs}" BorderThickness="0" Padding="8" MouseDoubleClick="RecentlyParsedLogsList_MouseDoubleClick">
@@ -310,7 +310,7 @@
                                     <DataTemplate>
                                         <StackPanel Margin="4,5">
                                             <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding RecentTimestamp}" Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0"/>
+                                            <TextBlock Text="{Binding RecentTimestamp}" Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,3,0,0"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -328,7 +328,7 @@
                             <Grid>
                                 <StackPanel>
                                     <TextBlock Text="Chatlog archive" FontSize="17" FontWeight="SemiBold"/>
-                                    <TextBlock x:Name="ArchiveRootText" Foreground="{StaticResource MutedText}" Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="ArchiveRootText" Foreground="{DynamicResource MutedText}" Margin="0,4,0,0"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button x:Name="ArchiveRefreshButton" Content="Refresh" Margin="0,0,8,0" Click="RefreshArchive_Click"/>
@@ -358,29 +358,29 @@
                         <StackPanel>
                             <TextBlock Text="Screen capture" FontSize="18" FontWeight="SemiBold"/>
                             <CheckBox x:Name="ScreenshotCaptureEnabledCheck" Content="Enable screen capture" Margin="0,14,0,0" Checked="ScreenshotCaptureEnabledCheck_Changed" Unchecked="ScreenshotCaptureEnabledCheck_Changed"/>
-                            <TextBlock Text="Afterline captures only the foreground FiveM game subprocess, GTA5.exe, or GTAVLauncher.exe. It never falls back to the desktop or another app." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,10"/>
+                            <TextBlock Text="Afterline captures only the foreground FiveM game subprocess, GTA5.exe, or GTAVLauncher.exe. It never falls back to the desktop or another app." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,10"/>
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Capture hotkey" VerticalAlignment="Center"/>
                                 <TextBox x:Name="ScreenshotHotkeyBox" Grid.Column="1" IsReadOnly="True" ToolTip="Click here, then press a keyboard combination or Mouse 4/5." PreviewKeyDown="ScreenshotHotkeyBox_PreviewKeyDown" PreviewMouseDown="ScreenshotHotkeyBox_PreviewMouseDownV076" GotKeyboardFocus="ScreenshotHotkeyBox_GotKeyboardFocus"/>
                                 <Button Grid.Column="2" Content="Reset" Margin="8,0,0,0" Padding="9,4" ToolTip="Restore the default capture hotkey" Click="ResetScreenshotHotkey_Click"/>
-                                <TextBlock Grid.Column="3" Text="Global while enabled" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="3" Text="Global while enabled" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
-                            <Border x:Name="ScreenshotHotkeyConfirmationPanelV076" Background="{StaticResource Raised}" BorderBrush="{StaticResource Accent}" BorderThickness="1" CornerRadius="7" Padding="10" Margin="250,0,0,10" Visibility="Collapsed">
+                                <Border x:Name="ScreenshotHotkeyConfirmationPanelV076" Background="{DynamicResource Raised}" BorderBrush="{DynamicResource Accent}" BorderThickness="1" CornerRadius="7" Padding="10" Margin="250,0,0,10" Visibility="Collapsed">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock x:Name="ScreenshotHotkeyConfirmationTextV076" Text="Shortcut recognized." Foreground="{StaticResource MutedText}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ScreenshotHotkeyConfirmationTextV076" Text="Shortcut recognized." Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" TextWrapping="Wrap"/>
                                     <Button Grid.Column="1" Content="Confirm" Style="{StaticResource PrimaryButton}" Padding="10,5" Margin="10,0,0,0" Click="ConfirmScreenshotHotkeyV076_Click"/>
                                     <Button Grid.Column="2" Content="Re-do" Padding="10,5" Margin="8,0,0,0" Click="RedoScreenshotHotkeyV076_Click"/>
                                 </Grid>
                             </Border>
                             <CheckBox x:Name="ScreenshotCaptureNotificationCheckV076" Content="Show a notification after capture" Margin="250,0,0,0"/>
-                            <TextBlock Text="Off by default. When enabled, Afterline uses the Windows notification area after the PNG is saved, without taking focus away from the game. Click it to open the file location." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="250,4,0,10"/>
+                            <TextBlock Text="Off by default. When enabled, Afterline uses the Windows notification area after the PNG is saved, without taking focus away from the game. Click it to open the file location." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="250,4,0,10"/>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Screenshot folder" VerticalAlignment="Center"/>
                                 <TextBox x:Name="ScreenshotFolderBox" Grid.Column="1" IsReadOnly="True"/>
-                                <Border x:Name="ScreenshotFolderPrivacyOverlay" Grid.Column="1" Background="{StaticResource Raised}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
+                                <Border x:Name="ScreenshotFolderPrivacyOverlay" Grid.Column="1" Background="{DynamicResource Raised}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
                                     <TextBlock x:Name="ScreenshotFolderPrivacyText" TextTrimming="CharacterEllipsis"/>
                                 </Border>
                                 <Button Grid.Column="2" Content="Browse" Margin="10,0,0,0" Click="BrowseScreenshotFolder_Click"/>
@@ -391,16 +391,16 @@
                                 <ComboBox x:Name="ScreenshotCaptureSoundBox" Grid.Column="1">
                                     <ComboBoxItem Content="Shutter"/><ComboBoxItem Content="Chime"/><ComboBoxItem Content="Soft"/><ComboBoxItem Content="Snap"/><ComboBoxItem Content="Digital"/><ComboBoxItem Content="Double click"/><ComboBoxItem Content="Off"/>
                                 </ComboBox>
-                                <TextBlock Grid.Column="2" Text="Audio confirmation after a saved capture" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="2" Text="Audio confirmation after a saved capture" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                                 <Button Grid.Column="3" Content="Play" Margin="10,0,0,0" Padding="12,4" ToolTip="Preview the selected capture sound" Click="PlayScreenshotCaptureSound_Click"/>
                             </Grid>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Sound volume" VerticalAlignment="Center"/>
                                 <Slider x:Name="ScreenshotCaptureSoundVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="10" IsSnapToTickEnabled="True" ToolTip="Capture sound volume" ValueChanged="ScreenshotCaptureSoundVolumeSlider_ValueChanged"/>
-                                <TextBlock x:Name="ScreenshotCaptureSoundVolumeText" Grid.Column="2" Text="60%" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <TextBlock x:Name="ScreenshotCaptureSoundVolumeText" Grid.Column="2" Text="60%" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
-                            <TextBlock Text="The Gallery keeps only the 20 newest source-resolution captures in memory as thumbnails. Original PNG files stay in this folder." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                            <TextBlock Text="The Gallery keeps only the 20 newest source-resolution captures in memory as thumbnails. Original PNG files stay in this folder." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
 
@@ -408,7 +408,7 @@
                         <StackPanel>
                             <TextBlock Text="Streamer mode" FontSize="18" FontWeight="SemiBold"/>
                             <CheckBox x:Name="StreamerModeCheck" Content="Hide personal paths on screen" Margin="0,14,0,0" Checked="StreamerModeCheck_Changed" Unchecked="StreamerModeCheck_Changed"/>
-                            <TextBlock Text="Visually masks usernames and local folder paths throughout Afterline. Files, settings, and saved locations are not changed." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                            <TextBlock Text="Visually masks usernames and local folder paths throughout Afterline. Files, settings, and saved locations are not changed." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
 
@@ -424,7 +424,7 @@
                                 <ComboBox x:Name="ReconnectBox" Grid.Column="1">
                                     <ComboBoxItem Content="0"/><ComboBoxItem Content="1"/><ComboBoxItem Content="3"/><ComboBoxItem Content="5"/><ComboBoxItem Content="10"/>
                                 </ComboBox>
-                                <TextBlock Grid.Column="2" Text="minutes" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="2" Text="minutes" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -432,7 +432,7 @@
                                 <ComboBox x:Name="ProcessingBox" Grid.Column="1">
                                     <ComboBoxItem Content="1"/><ComboBoxItem Content="2"/><ComboBoxItem Content="5"/><ComboBoxItem Content="10"/><ComboBoxItem Content="30"/>
                                 </ComboBox>
-                                <TextBlock Grid.Column="2" Text="minutes" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <TextBlock Grid.Column="2" Text="minutes" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                             </Grid>
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -447,11 +447,11 @@
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Chatlog storage" FontSize="18" FontWeight="SemiBold"/>
-                            <TextBlock Text="Choose any writable folder. Completed sessions are organized beneath it by YEAR → MONTH. Active capture is continuously mirrored to Afterline's local recovery folder so unexpected shutdowns can be recovered." Foreground="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12"/>
+                            <TextBlock Text="Choose any writable folder. Completed sessions are organized beneath it by YEAR → MONTH. Active capture is continuously mirrored to Afterline's local recovery folder so unexpected shutdowns can be recovered." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12"/>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBox x:Name="ArchiveRootBox" IsReadOnly="True"/>
-                                <Border x:Name="ArchiveRootPrivacyOverlay" Background="{StaticResource Raised}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
+                                <Border x:Name="ArchiveRootPrivacyOverlay" Background="{DynamicResource Raised}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="7" Padding="10,8" Visibility="Collapsed" IsHitTestVisible="False">
                                     <TextBlock x:Name="ArchiveRootPrivacyText" TextTrimming="CharacterEllipsis"/>
                                 </Border>
                                 <Button Grid.Column="1" Content="Browse" Margin="10,0,0,0" Click="BrowseArchiveRoot_Click"/>
@@ -468,7 +468,7 @@
 
             <Grid Grid.Row="4">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock x:Name="BottomStatusText" Text="Afterline 0.7.0" Foreground="{StaticResource MutedText}" FontSize="11"/>
+                <TextBlock x:Name="BottomStatusText" Text="Afterline 0.7.0" Foreground="{DynamicResource MutedText}" FontSize="11"/>
                 <TextBlock Grid.Column="1" Text="Autosave always on" Foreground="{StaticResource Success}" FontSize="11"/>
             </Grid>
         </Grid>

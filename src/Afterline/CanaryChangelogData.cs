@@ -12,6 +12,7 @@ internal static class CanaryChangelogData
             "Theme popup — Groups default and color-gradient presets around an accurate miniature Afterline dashboard preview.",
             "Simple customization — Changes the complete dark interface from three colors, gradient direction and intensity, with up to eight saved themes.",
             "Theme state — Opens on the active appearance, previews safely and restores unapplied changes when closed.",
+            "Complete theme coverage — Keeps cards, controls, dropdowns, popup windows, Editor chrome and newly created interface elements synchronized with the selected appearance.",
             "Chat colour safety — Keeps captured server colour runs outside interface theming and verifies that boundary in the packaged Editor test."
         }, ChangelogChannel.Canary, 228),
         new("0.7.0", "03/SEP/2026", new[]

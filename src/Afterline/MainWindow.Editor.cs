@@ -297,9 +297,9 @@ public partial class MainWindow
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Background = new SolidColorBrush(Color.FromRgb(0x0A, 0x0E, 0x13)),
             Padding = new Thickness(14)
         };
+        scroll.SetResourceReference(Control.BackgroundProperty, "AfterlineInset");
 
         _editorComposition = new Grid
         {

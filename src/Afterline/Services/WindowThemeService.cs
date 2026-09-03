@@ -17,8 +17,10 @@ public static class WindowThemeService
     public static void Apply(Window window, ThemePreferences preferences)
     {
         ThemePreferences theme = ThemeService.Normalize(preferences);
-        window.Background = Brush(theme.Background);
-        window.Foreground = Brush(theme.PrimaryText);
+        window.SetResourceReference(
+            Window.BackgroundProperty,
+            window is global::Afterline.MainWindow ? "Bg" : "AfterlineAppGradient");
+        window.SetResourceReference(Window.ForegroundProperty, "Text");
 
         if (window is not global::Afterline.MainWindow)
         {
@@ -85,9 +87,6 @@ public static class WindowThemeService
 
     private static int ToColorRef(Color color)
         => color.R | (color.G << 8) | (color.B << 16);
-
-    private static SolidColorBrush Brush(string value)
-        => new(ThemeService.ParseColor(value, Colors.Transparent));
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
