@@ -74,7 +74,8 @@ public partial class MainWindow
             EnsureEditorWorkspaceV067,
             EnsureCompactEditorWorkspaceV078,
             EnsureEditorSelectionGuardV067,
-            InitializeEditorProjectAutosaveHooksV073);
+            InitializeEditorProjectAutosaveHooksV073,
+            EnsureModernThemeShellV090);
 
         RunEditorImageSmokeTestIfRequestedV069();
     }

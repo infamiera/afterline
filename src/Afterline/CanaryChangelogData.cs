@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "03/SEP/2026", new[]
         {
+            "Application shell — Introduces cleaner icon-and-text navigation, subtle theme-driven gradients and a compact Updates area.",
+            "Theme Manager — Adds a three-column preset, live-preview and saved-theme workspace with Black Cherry and up to eight named themes.",
+            "Theme controls — Adds customizable navigation and scrollbar colours while keeping every built-in appearance dark.",
+            "Chat colour safety — Keeps captured server colour runs outside interface theming and verifies that boundary in the packaged Editor test."
+        }, ChangelogChannel.Canary, 228),
+        new("0.7.0", "03/SEP/2026", new[]
+        {
             "Live Chat colors — Restores exact per-character server colors when the current session is replayed after startup or a session transition.",
             "Private color cache — Keeps the required replay metadata inside Afterline's app-data cache while archives, recovery copies and TXT exports remain standalone plain-text files."
         }, ChangelogChannel.Canary, 221),

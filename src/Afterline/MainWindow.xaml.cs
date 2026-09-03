@@ -632,6 +632,7 @@ public partial class MainWindow : Window
         page.Visibility = Visibility.Visible;
         PageTitle.Text = title;
         PageSubtitle.Text = subtitle;
+        UpdateModernNavigationSelectionV090(page);
     }
 
     private void DashboardNav_Click(object sender, RoutedEventArgs e) => ShowPage(DashboardPage, "Dashboard", "FiveM capture and session overview");

@@ -173,6 +173,7 @@ public partial class MainWindow
             try
             {
                 VerifyCaptureEventDoesNotWaitForUiV077();
+                VerifyModernThemeAndChatIsolationV090();
 
                 if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                     throw new FileNotFoundException("The Editor smoke-test image is unavailable.", path);

@@ -82,7 +82,15 @@ internal sealed class ThemeEditorWindow : Window
         AddColorRow(contentStack, "Accent hover", "Secondary accent used for hover states.", () => _working.AccentHover, value => _working.AccentHover = value);
         AddColorRow(contentStack, "Control hover", "General control hover surface.", () => _working.ControlHover, value => _working.ControlHover = value);
 
-        AddSectionHeader(contentStack, "TEXT COLORS", "Useful when creating a light theme. These only affect normal interface text.");
+        AddSectionHeader(contentStack, "NAVIGATION AND SCROLLING", "Tune navigation groups and keep scrollbars visible against dark surfaces.");
+        AddColorRow(contentStack, "Overview navigation", "Dashboard icon and related overview accents.", () => _working.NavigationOverview, value => _working.NavigationOverview = value);
+        AddColorRow(contentStack, "Chat navigation", "Live Chat icon and related chat accents.", () => _working.NavigationChat, value => _working.NavigationChat = value);
+        AddColorRow(contentStack, "Library navigation", "Search, Archive and Log Reader icons.", () => _working.NavigationLibrary, value => _working.NavigationLibrary = value);
+        AddColorRow(contentStack, "Editor navigation", "Editor and Gallery icons.", () => _working.NavigationCreate, value => _working.NavigationCreate = value);
+        AddColorRow(contentStack, "Scrollbar track", "The subtle channel behind each scrollbar.", () => _working.ScrollbarTrack, value => _working.ScrollbarTrack = value);
+        AddColorRow(contentStack, "Scrollbar thumb", "The draggable scrollbar handle.", () => _working.ScrollbarThumb, value => _working.ScrollbarThumb = value);
+
+        AddSectionHeader(contentStack, "TEXT COLORS", "Keep normal interface text readable across dark surface combinations.");
         AddColorRow(contentStack, "Primary text", "Main labels, headings and standard interface text.", () => _working.PrimaryText, value => _working.PrimaryText = value);
         AddColorRow(contentStack, "Secondary text", "Subtitles, hints and muted interface text.", () => _working.SecondaryText, value => _working.SecondaryText = value);
 
@@ -125,7 +133,7 @@ internal sealed class ThemeEditorWindow : Window
             Content = "Save named copy",
             Padding = new Thickness(12, 7, 12, 7),
             Margin = new Thickness(0, 0, 8, 0),
-            ToolTip = "Store these colors in one of three named custom-theme slots."
+            ToolTip = $"Store these colors in one of {ThemeService.MaximumCustomThemes} named custom-theme slots."
         };
         saveNamed.Click += (_, _) => SaveNamedTheme();
         buttons.Children.Add(saveNamed);
@@ -309,7 +317,7 @@ internal sealed class ThemeEditorWindow : Window
     {
         var prompt = new TextPromptWindow(
             "Save Custom Theme",
-            "Name this custom theme. You can keep up to three named themes:")
+            $"Name this custom theme. You can keep up to {ThemeService.MaximumCustomThemes} named themes:")
         {
             Owner = this
         };
