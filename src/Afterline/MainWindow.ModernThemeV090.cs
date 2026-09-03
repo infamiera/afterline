@@ -269,6 +269,21 @@ public partial class MainWindow
                     "Theme resources did not update every existing and newly created interface surface.");
             }
 
+            if ((Content as Grid)?.Background is not LinearGradientBrush firstDirection)
+                throw new InvalidOperationException("The application gradient was unavailable for direction testing.");
+            Point firstStart = firstDirection.StartPoint;
+            Point firstEnd = firstDirection.EndPoint;
+
+            ThemePreferences rotated = ThemeService.Clone(alternate);
+            rotated.GradientAngle = alternate.GradientAngle + 90;
+            ThemeService.Apply(rotated);
+            if ((Content as Grid)?.Background is not LinearGradientBrush secondDirection ||
+                (secondDirection.StartPoint == firstStart && secondDirection.EndPoint == firstEnd))
+            {
+                throw new InvalidOperationException(
+                    "Changing gradient direction did not update the displayed application gradient.");
+            }
+
             ThemePreferences cloned = ThemeService.Clone(alternate);
             if (cloned.GradientStart != alternate.GradientStart ||
                 cloned.GradientMiddle != alternate.GradientMiddle ||

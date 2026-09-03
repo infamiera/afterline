@@ -329,19 +329,19 @@ public static class ThemeService
         switch (root)
         {
             case Border border:
-                border.Background = MapSurface(border.Background, current, previous);
-                border.BorderBrush = MapBorder(border.BorderBrush, current, previous);
+                MapBrushProperty(border, Border.BackgroundProperty, MapSurface, current, previous);
+                MapBrushProperty(border, Border.BorderBrushProperty, MapBorder, current, previous);
                 break;
             case Panel panel:
-                panel.Background = MapSurface(panel.Background, current, previous);
+                MapBrushProperty(panel, Panel.BackgroundProperty, MapSurface, current, previous);
                 break;
             case Control control:
-                control.Background = MapSurface(control.Background, current, previous);
-                control.BorderBrush = MapBorder(control.BorderBrush, current, previous);
-                control.Foreground = MapText(control.Foreground, current, previous);
+                MapBrushProperty(control, Control.BackgroundProperty, MapSurface, current, previous);
+                MapBrushProperty(control, Control.BorderBrushProperty, MapBorder, current, previous);
+                MapBrushProperty(control, Control.ForegroundProperty, MapText, current, previous);
                 break;
             case TextBlock textBlock:
-                textBlock.Foreground = MapText(textBlock.Foreground, current, previous);
+                MapBrushProperty(textBlock, TextBlock.ForegroundProperty, MapText, current, previous);
                 break;
         }
 
@@ -357,6 +357,25 @@ public static class ThemeService
 
         for (int i = 0; i < childCount; i++)
             ApplyToTree(VisualTreeHelper.GetChild(root, i), current, previous);
+    }
+
+    private static void MapBrushProperty(
+        DependencyObject target,
+        DependencyProperty property,
+        Func<Brush?, ThemePreferences, ThemePreferences, Brush?> mapper,
+        ThemePreferences current,
+        ThemePreferences previous)
+    {
+        // DynamicResource and binding expressions must remain attached. Reassigning
+        // their resolved brush value would freeze that element on the first preview,
+        // which was most visible when changing the gradient direction repeatedly.
+        if (DependencyPropertyHelper.GetValueSource(target, property).IsExpression)
+            return;
+
+        Brush? original = target.GetValue(property) as Brush;
+        Brush? mapped = mapper(original, current, previous);
+        if (!ReferenceEquals(original, mapped))
+            target.SetValue(property, mapped);
     }
 
     private static Brush? MapSurface(Brush? brush, ThemePreferences current, ThemePreferences previous)
