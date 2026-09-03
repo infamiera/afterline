@@ -1,102 +1,57 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Afterline.Models;
 using Afterline.Services;
+using Forms = System.Windows.Forms;
 
 namespace Afterline;
 
 internal sealed class ThemeTemplatesWindow : Window
 {
-    private sealed class ThemeTemplate
+    private sealed record ThemePreset(string Name, string Description, ThemePreferences Theme);
+
+    private sealed class ColorControl
     {
-        public required string Name { get; init; }
-        public required string Description { get; init; }
-        public required ThemePreferences Theme { get; init; }
-        public override string ToString() => Name;
+        public required Func<string> Getter { get; init; }
+        public required Action<string> Setter { get; init; }
+        public required Border Swatch { get; init; }
+        public required TextBlock Value { get; init; }
     }
 
-    private static readonly IReadOnlyList<ThemeTemplate> Templates = new ThemeTemplate[]
+    private static readonly IReadOnlyList<ThemePreset> DefaultThemes = new ThemePreset[]
     {
-        new()
-        {
-            Name = "Afterline Slate",
-            Description = "Afterline's balanced blue-gray dark appearance.",
-            Theme = new ThemePreferences()
-        },
-        new()
-        {
-            Name = "Midnight Violet",
-            Description = "A subdued purple-black theme that keeps the same dark, editorial feel.",
-            Theme = new ThemePreferences
-            {
-                Background = "#121019", Sidebar = "#0D0B12", Panel = "#1B1723", Raised = "#241F2E", Inset = "#17131E",
-                Border = "#3B3149", Accent = "#9A7BD1", AccentHover = "#B092E6", ControlHover = "#30283D",
-                PrimaryText = "#F3EEF8", SecondaryText = "#BDB2C8", ScrollbarTrack = "#211B2A", ScrollbarThumb = "#76668A",
-                NavigationOverview = "#B092E6", NavigationChat = "#67D7CC", NavigationLibrary = "#E6B96F", NavigationCreate = "#D889C2"
-            }
-        },
-        new()
-        {
-            Name = "Deep Ocean",
-            Description = "Cool charcoal surfaces with a muted cyan-blue accent.",
-            Theme = new ThemePreferences
-            {
-                Background = "#0E1518", Sidebar = "#0A1012", Panel = "#142025", Raised = "#1B2A30", Inset = "#101A1E",
-                Border = "#294149", Accent = "#3FA7B8", AccentHover = "#64C2D0", ControlHover = "#22373E",
-                PrimaryText = "#EDF7F8", SecondaryText = "#AAC3C8", ScrollbarTrack = "#17262B", ScrollbarThumb = "#557A83",
-                NavigationOverview = "#6EA8E8", NavigationChat = "#58D6C5", NavigationLibrary = "#DDBB72", NavigationCreate = "#B894DD"
-            }
-        },
-        new()
-        {
-            Name = "Carbon Ember",
-            Description = "Near-black charcoal with restrained warm amber accents.",
-            Theme = new ThemePreferences
-            {
-                Background = "#151312", Sidebar = "#0F0E0D", Panel = "#201B18", Raised = "#2B2420", Inset = "#191512",
-                Border = "#44372F", Accent = "#D8874F", AccentHover = "#E9A06D", ControlHover = "#392D26",
-                PrimaryText = "#F7F0EB", SecondaryText = "#C8B5A8", ScrollbarTrack = "#261F1B", ScrollbarThumb = "#806858",
-                NavigationOverview = "#E09A66", NavigationChat = "#6FC9B6", NavigationLibrary = "#E5B56C", NavigationCreate = "#CC8AA4"
-            }
-        },
-        new()
-        {
-            Name = "Graphite Rose",
-            Description = "Neutral graphite surfaces with a soft rose accent for a warmer dark theme.",
-            Theme = new ThemePreferences
-            {
-                Background = "#151416", Sidebar = "#100F11", Panel = "#1E1C20", Raised = "#28252A", Inset = "#19171B",
-                Border = "#3C373F", Accent = "#D56C88", AccentHover = "#E888A0", ControlHover = "#342F36",
-                PrimaryText = "#F5F1F2", SecondaryText = "#BFB6BA", ScrollbarTrack = "#232024", ScrollbarThumb = "#786E7B",
-                NavigationOverview = "#8DA5E8", NavigationChat = "#67CCBC", NavigationLibrary = "#DDB46E", NavigationCreate = "#E888A0"
-            }
-        },
-        new()
-        {
-            Name = "Black Cherry",
-            Description = "Deep black-red surfaces with restrained cherry and rose highlights.",
-            Theme = new ThemePreferences
-            {
-                Background = "#110B0E", Sidebar = "#0A0709", Panel = "#1A1014", Raised = "#26171D", Inset = "#140C10",
-                Border = "#462630", Accent = "#C94F72", AccentHover = "#E06C8C", ControlHover = "#342028",
-                PrimaryText = "#F8F0F3", SecondaryText = "#C6AEB6", ScrollbarTrack = "#25151B", ScrollbarThumb = "#815262",
-                NavigationOverview = "#E06C8C", NavigationChat = "#63CBB9", NavigationLibrary = "#DEB06A", NavigationCreate = "#D77DA8"
-            }
-        }
+        new("Afterline Slate", "Balanced blue-gray", new ThemePreferences()),
+        new("Midnight Violet", "Subdued purple-black", ThemeService.CreateGradientTheme("#4B3475", "#241B3A", "#0D0B12", 145, 28)),
+        new("Deep Ocean", "Cool charcoal and teal", ThemeService.CreateGradientTheme("#176274", "#173C4A", "#081216", 145, 28)),
+        new("Carbon Ember", "Charcoal and warm amber", ThemeService.CreateGradientTheme("#8A4A25", "#49301F", "#0F0E0D", 145, 26))
+    };
+
+    private static readonly IReadOnlyList<ThemePreset> GradientThemes = new ThemePreset[]
+    {
+        new("Black Cherry", "Black, cherry and rose", ThemeService.CreateGradientTheme("#8D1638", "#4B1025", "#090609", 135, 58)),
+        new("Aurora", "Violet into cool green", ThemeService.CreateGradientTheme("#7020A5", "#17212A", "#22B826", 45, 54)),
+        new("Amethyst", "Deep violet and indigo", ThemeService.CreateGradientTheme("#6F3AD8", "#31205D", "#0A0815", 135, 52)),
+        new("Lagoon", "Teal into midnight blue", ThemeService.CreateGradientTheme("#087E83", "#123A5B", "#080D19", 35, 50)),
+        new("Ember", "Crimson into warm amber", ThemeService.CreateGradientTheme("#A51C3A", "#63301D", "#120807", 145, 55)),
+        new("Twilight", "Rose, violet and blue", ThemeService.CreateGradientTheme("#A72C67", "#592D8A", "#142C68", 45, 48))
     };
 
     private readonly AppSettings _settings;
     private readonly SettingsService _settingsService;
-    private ThemePreferences _savedTheme;
-    private readonly ComboBox _templateBox;
-    private readonly ComboBox _customThemeBox;
-    private readonly TextBlock _descriptionText;
-    private readonly TextBlock _customThemeCountText;
+    private readonly List<ColorControl> _colorControls = new();
+    private readonly ComboBox _savedThemeBox;
+    private readonly TextBlock _savedThemeCount;
+    private readonly TextBlock _angleValue;
+    private readonly TextBlock _intensityValue;
     private readonly TextBlock _statusText;
-    private bool _changingSelection;
-
-    public bool CustomizeRequested { get; private set; }
+    private readonly Slider _angleSlider;
+    private readonly Slider _intensitySlider;
+    private ThemePreferences _savedTheme;
+    private ThemePreferences _workingTheme;
+    private bool _updatingControls;
 
     public ThemeTemplatesWindow(Window owner, AppSettings settings, SettingsService settingsService)
     {
@@ -104,16 +59,18 @@ internal sealed class ThemeTemplatesWindow : Window
         _settings = settings;
         _settingsService = settingsService;
         _savedTheme = ThemeService.Clone(settings.Theme);
+        _workingTheme = ThemeService.Clone(_savedTheme);
 
         Title = "Afterline Themes";
-        Width = 1040;
-        Height = 680;
-        MinWidth = 900;
-        MinHeight = 590;
+        Width = 1180;
+        Height = 760;
+        MinWidth = 980;
+        MinHeight = 650;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
 
         var root = new Grid { Margin = new Thickness(22, 20, 22, 18) };
+        root.SetResourceReference(Panel.BackgroundProperty, "AfterlineAppGradient");
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -129,334 +86,489 @@ internal sealed class ThemeTemplatesWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "Choose a dark preset, preview it live, or build your own without changing captured chat colours.",
-            Foreground = (Brush)FindResource("MutedText"),
+            Text = "Choose a dark theme or build a gradient with a few simple controls.",
+            FontSize = 11.5,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 5, 0, 0)
-        });
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
         root.Children.Add(header);
 
         var workspace = new Grid();
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.95, GridUnitType.Star) });
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
-        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.95, GridUnitType.Star) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(390) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var templatesCard = CreateThemeCard("BUILT-IN THEMES", "Pick a starting point. Selection previews instantly.");
-        var templatesContent = (StackPanel)templatesCard.Child;
-        templatesContent.Children.Add(new TextBlock
-        {
-            Text = "Preset",
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 12, 0, 6)
-        });
+        var settingsStack = new StackPanel();
+        AddSectionHeading(settingsStack, "DEFAULT THEMES", "Afterline's ready-made dark appearances.");
+        settingsStack.Children.Add(BuildPresetGrid(DefaultThemes));
 
-        _templateBox = new ComboBox
+        AddSectionHeading(settingsStack, "COLOR & GRADIENT THEMES", "A quick starting point for a more colorful shell.", 20);
+        settingsStack.Children.Add(BuildPresetGrid(GradientThemes));
+
+        AddSectionHeading(settingsStack, "TRY IT OUT", "Pick three colors, then adjust direction and intensity.", 20);
+        settingsStack.Children.Add(BuildColorControl("Start color", () => _workingTheme.GradientStart, value => _workingTheme.GradientStart = value));
+        settingsStack.Children.Add(BuildColorControl("Middle color", () => _workingTheme.GradientMiddle, value => _workingTheme.GradientMiddle = value));
+        settingsStack.Children.Add(BuildColorControl("End color", () => _workingTheme.GradientEnd, value => _workingTheme.GradientEnd = value));
+
+        _angleValue = CreateValueText();
+        _angleSlider = BuildSlider(0, 360, 15);
+        _angleSlider.ValueChanged += (_, _) => CustomControlsChanged();
+        settingsStack.Children.Add(BuildSliderRow("Gradient direction", _angleSlider, _angleValue));
+
+        _intensityValue = CreateValueText();
+        _intensitySlider = BuildSlider(0, 100, 5);
+        _intensitySlider.ValueChanged += (_, _) => CustomControlsChanged();
+        settingsStack.Children.Add(BuildSliderRow("Color intensity", _intensitySlider, _intensityValue));
+
+        var reset = new Button
         {
-            ItemsSource = Templates,
-            DisplayMemberPath = nameof(ThemeTemplate.Name),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 34
+            Content = "Reset custom controls",
+            Padding = new Thickness(10, 7, 10, 7),
+            Margin = new Thickness(0, 8, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        BindSelectorToThemeResources();
-        _templateBox.SelectionChanged += TemplateBox_SelectionChanged;
-        templatesContent.Children.Add(_templateBox);
+        reset.Click += (_, _) => PreviewTheme(ThemeService.CreateDefault(), "Default controls restored.");
+        settingsStack.Children.Add(reset);
 
-        _descriptionText = new TextBlock
-        {
-            Foreground = (Brush)FindResource("MutedText"),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 12, 0, 0),
-            MinHeight = 54
-        };
-        templatesContent.Children.Add(_descriptionText);
+        AddSectionHeading(settingsStack, "YOUR THEMES", "Save and reuse up to eight named themes.", 20);
+        var savedHeading = new Grid();
+        savedHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        savedHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _savedThemeCount = CreateValueText();
+        Grid.SetColumn(_savedThemeCount, 1);
+        savedHeading.Children.Add(_savedThemeCount);
+        settingsStack.Children.Add(savedHeading);
 
-        var previewHint = new TextBlock
-        {
-            Text = "Previewing never saves automatically. Use the actions below when the theme feels right.",
-            Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 14, 0, 0)
-        };
-        templatesContent.Children.Add(previewHint);
-        workspace.Children.Add(templatesCard);
-
-        var previewCard = CreateThemeCard("LIVE PREVIEW", "A compact sample of the shell, navigation and controls.");
-        ((StackPanel)previewCard.Child).Children.Add(BuildThemePreview());
-        Grid.SetColumn(previewCard, 2);
-        workspace.Children.Add(previewCard);
-
-        var customCard = CreateThemeCard("YOUR THEMES", "Save and reuse up to eight named combinations.");
-        var customContent = (StackPanel)customCard.Child;
-
-        var customHeading = new Grid { Margin = new Thickness(0, 12, 0, 6) };
-        customHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        customHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        customHeading.Children.Add(new TextBlock
-        {
-            Text = "Saved themes",
-            FontWeight = FontWeights.SemiBold
-        });
-        _customThemeCountText = new TextBlock
-        {
-            Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 11,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_customThemeCountText, 1);
-        customHeading.Children.Add(_customThemeCountText);
-        customContent.Children.Add(customHeading);
-
-        _customThemeBox = new ComboBox
+        _savedThemeBox = new ComboBox
         {
             DisplayMemberPath = nameof(SavedThemePreset.Name),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 34,
-            ToolTip = $"Select one of up to {ThemeService.MaximumCustomThemes} locally saved custom themes to preview it."
+            Margin = new Thickness(0, 6, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        _customThemeBox.SelectionChanged += CustomThemeBox_SelectionChanged;
-        customContent.Children.Add(_customThemeBox);
+        _savedThemeBox.SelectionChanged += SavedThemeBox_SelectionChanged;
+        settingsStack.Children.Add(_savedThemeBox);
 
-        var customActions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-        var useCustom = new Button
-        {
-            Content = "Use saved theme",
-            Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 8, 6)
-        };
-        useCustom.Click += (_, _) => UseSelectedCustomTheme();
-        customActions.Children.Add(useCustom);
-        var saveCustom = new Button
-        {
-            Content = "Save current as…",
-            Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 8, 6)
-        };
-        saveCustom.Click += (_, _) => SaveCurrentCustomTheme();
-        customActions.Children.Add(saveCustom);
-        var deleteCustom = new Button
-        {
-            Content = "Delete saved",
-            Padding = new Thickness(10, 6, 10, 6),
-            Margin = new Thickness(0, 0, 0, 6)
-        };
-        deleteCustom.Click += (_, _) => DeleteSelectedCustomTheme();
-        customActions.Children.Add(deleteCustom);
-        customContent.Children.Add(customActions);
+        var savedButtons = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        savedButtons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        savedButtons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        savedButtons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var saveNamed = new Button { Content = "Save current as…", Padding = new Thickness(10, 7, 10, 7) };
+        saveNamed.Click += (_, _) => SaveNamedTheme();
+        savedButtons.Children.Add(saveNamed);
+        var deleteSaved = new Button { Content = "Delete saved", Padding = new Thickness(10, 7, 10, 7) };
+        deleteSaved.Click += (_, _) => DeleteSavedTheme();
+        Grid.SetColumn(deleteSaved, 2);
+        savedButtons.Children.Add(deleteSaved);
+        settingsStack.Children.Add(savedButtons);
 
-        _statusText = new TextBlock
+        var settingsScroll = new ScrollViewer
         {
-            Foreground = (Brush)FindResource("MutedText"),
+            Content = settingsStack,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Padding = new Thickness(0, 0, 8, 0)
+        };
+        workspace.Children.Add(settingsScroll);
+
+        var previewCard = CreateCard(18);
+        var previewStack = new StackPanel();
+        previewStack.Children.Add(new TextBlock
+        {
+            Text = "APPLICATION PREVIEW",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        previewStack.Children.Add(new TextBlock
+        {
+            Text = "A faithful dashboard sample using the same theme resources as Afterline.",
+            FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 14, 0, 0)
-        };
-        customContent.Children.Add(_statusText);
-        Grid.SetColumn(customCard, 4);
-        workspace.Children.Add(customCard);
+            Margin = new Thickness(0, 5, 0, 12)
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        previewStack.Children.Add(BuildApplicationPreview());
+        previewCard.Child = previewStack;
+        Grid.SetColumn(previewCard, 2);
+        workspace.Children.Add(previewCard);
 
         Grid.SetRow(workspace, 2);
         root.Children.Add(workspace);
 
-        var footer = new WrapPanel
+        var footer = new Grid();
+        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        footer.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _statusText = new TextBlock
         {
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+            Text = "Showing your active theme.",
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 16, 0)
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText");
+        footer.Children.Add(_statusText);
 
-        var revert = new Button
+        var footerButtons = new StackPanel { Orientation = Orientation.Horizontal };
+        var revert = new Button { Content = "Revert preview", Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(0, 0, 8, 0) };
+        revert.Click += (_, _) => PreviewTheme(_savedTheme, "Returned to your active theme.");
+        footerButtons.Children.Add(revert);
+        var apply = new Button
         {
-            Content = "Revert preview",
-            Padding = new Thickness(12, 7, 12, 7),
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        revert.Click += (_, _) => RevertPreview();
-        footer.Children.Add(revert);
-
-        var use = new Button
-        {
-            Content = "Use template",
+            Content = "Apply",
             Style = (Style)FindResource("PrimaryButton"),
-            Padding = new Thickness(12, 7, 12, 7),
+            Padding = new Thickness(18, 7, 18, 7),
             Margin = new Thickness(0, 0, 8, 0)
         };
-        use.Click += (_, _) => SaveSelectedTemplate(false);
-        footer.Children.Add(use);
-
-        var customizeTemplate = new Button
-        {
-            Content = "Use & customize",
-            Padding = new Thickness(12, 7, 12, 7),
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        customizeTemplate.Click += (_, _) => SaveSelectedTemplate(true);
-        footer.Children.Add(customizeTemplate);
-
-        var customizeCurrent = new Button
-        {
-            Content = "Customize current",
-            Padding = new Thickness(12, 7, 12, 7),
-            Margin = new Thickness(0, 0, 8, 0)
-        };
-        customizeCurrent.Click += (_, _) => CustomizeCurrentTheme();
-        footer.Children.Add(customizeCurrent);
-
+        apply.Click += (_, _) => ApplyTheme();
+        footerButtons.Children.Add(apply);
         var close = new Button { Content = "Close", Padding = new Thickness(12, 7, 12, 7) };
         close.Click += (_, _) => Close();
-        footer.Children.Add(close);
-
+        footerButtons.Children.Add(close);
+        Grid.SetColumn(footerButtons, 1);
+        footer.Children.Add(footerButtons);
         Grid.SetRow(footer, 4);
         root.Children.Add(footer);
 
         Content = root;
-        ThemeService.ApplyWindow(this);
         Closing += ThemeTemplatesWindow_Closing;
-        RefreshCustomThemes();
-        _templateBox.SelectedIndex = 0;
+        RefreshSavedThemes();
+        ThemeService.Apply(_workingTheme);
+        ThemeService.ApplyWindow(this);
+        RefreshCustomControls();
     }
 
-    private Border CreateThemeCard(string title, string subtitle)
+    private static void AddSectionHeading(StackPanel parent, string title, string subtitle, double top = 0)
     {
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock
+        parent.Children.Add(new TextBlock
         {
             Text = title,
             FontSize = 10,
             FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("MutedText")
-        });
-        content.Children.Add(new TextBlock
+            Margin = new Thickness(0, top, 0, 3)
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        parent.Children.Add(new TextBlock
         {
             Text = subtitle,
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = (Brush)FindResource("MutedText"),
-            Margin = new Thickness(0, 5, 0, 0)
-        });
-        return new Border
-        {
-            Style = (Style)FindResource("CardStyle"),
-            Padding = new Thickness(16),
-            Child = content
-        };
+            Margin = new Thickness(0, 0, 0, 8)
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
     }
 
-    private FrameworkElement BuildThemePreview()
+    private UniformGrid BuildPresetGrid(IReadOnlyList<ThemePreset> presets)
     {
-        var shell = new Border
+        var grid = new UniformGrid { Columns = 2 };
+        foreach (ThemePreset preset in presets)
         {
-            CornerRadius = new CornerRadius(9),
+            var button = new Button
+            {
+                Padding = new Thickness(8),
+                Margin = new Thickness(0, 0, 8, 8),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                ToolTip = preset.Description
+            };
+            var content = new Grid();
+            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var swatch = new Border
+            {
+                Width = 34,
+                Height = 28,
+                CornerRadius = new CornerRadius(6),
+                BorderThickness = new Thickness(1),
+                Background = CreatePreviewGradient(preset.Theme)
+            }.WithResource(Border.BorderBrushProperty, "Border");
+            content.Children.Add(swatch);
+            var label = new TextBlock
+            {
+                Text = preset.Name,
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            Grid.SetColumn(label, 2);
+            content.Children.Add(label);
+            button.Content = content;
+            button.Click += (_, _) => PreviewTheme(preset.Theme, $"Previewing {preset.Name}.");
+            grid.Children.Add(button);
+        }
+        return grid;
+    }
+
+    private Border BuildColorControl(string label, Func<string> getter, Action<string> setter)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        var value = CreateValueText();
+        value.Margin = new Thickness(8, 0, 10, 0);
+        Grid.SetColumn(value, 1);
+        row.Children.Add(value);
+        var swatch = new Border
+        {
+            Width = 32,
+            Height = 28,
+            CornerRadius = new CornerRadius(6),
             BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 14, 0, 0),
-            Padding = new Thickness(12),
-            MinHeight = 300
+            Cursor = System.Windows.Input.Cursors.Hand
+        }.WithResource(Border.BorderBrushProperty, "Border");
+        swatch.MouseLeftButtonUp += (_, _) => ChooseColor(getter, setter);
+        Grid.SetColumn(swatch, 2);
+        row.Children.Add(swatch);
+        _colorControls.Add(new ColorControl { Getter = getter, Setter = setter, Swatch = swatch, Value = value });
+        var card = CreateCard(10);
+        card.Margin = new Thickness(0, 0, 0, 7);
+        card.Child = row;
+        return card;
+    }
+
+    private static Slider BuildSlider(double minimum, double maximum, double tick)
+        => new()
+        {
+            Minimum = minimum,
+            Maximum = maximum,
+            TickFrequency = tick,
+            IsSnapToTickEnabled = false,
+            Margin = new Thickness(0, 6, 0, 0)
         };
+
+    private static Border BuildSliderRow(string label, Slider slider, TextBlock value)
+    {
+        var content = new Grid();
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.Children.Add(new TextBlock { Text = label });
+        Grid.SetColumn(value, 1);
+        content.Children.Add(value);
+        Grid.SetRow(slider, 1);
+        Grid.SetColumnSpan(slider, 2);
+        content.Children.Add(slider);
+        var card = CreateCard(10);
+        card.Margin = new Thickness(0, 0, 0, 7);
+        card.Child = content;
+        return card;
+    }
+
+    private FrameworkElement BuildApplicationPreview()
+    {
+        var shell = new Border { CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), MinHeight = 490 };
         shell.SetResourceReference(Border.BackgroundProperty, "AfterlineAppGradient");
         shell.SetResourceReference(Border.BorderBrushProperty, "Border");
 
-        var content = new Grid();
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(104) });
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var root = new Grid();
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(145) });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var navigation = new Border { CornerRadius = new CornerRadius(7), Padding = new Thickness(9) };
-        navigation.SetResourceReference(Border.BackgroundProperty, "AfterlineSidebarGradient");
-        var navigationItems = new StackPanel();
-        navigationItems.Children.Add(CreatePreviewNavigation("\uE80F", "Dashboard", "AfterlineNavOverview"));
-        navigationItems.Children.Add(CreatePreviewNavigation("\uE8BD", "Live Chat", "AfterlineNavChat"));
-        navigationItems.Children.Add(CreatePreviewNavigation("\uE7B8", "Archive", "AfterlineNavLibrary"));
-        navigationItems.Children.Add(CreatePreviewNavigation("\uE70F", "Editor", "AfterlineNavCreate"));
-        navigation.Child = navigationItems;
-        content.Children.Add(navigation);
+        var sidebar = new Border { Padding = new Thickness(14), CornerRadius = new CornerRadius(9, 0, 0, 9) };
+        sidebar.SetResourceReference(Border.BackgroundProperty, "AfterlineSidebarGradient");
+        var sidebarLayout = new Grid();
+        sidebarLayout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        sidebarLayout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var navigation = new StackPanel();
+        navigation.Children.Add(new TextBlock { Text = "⌁", FontSize = 32, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 20) }.WithResource(TextBlock.ForegroundProperty, "Accent"));
+        AddPreviewSection(navigation, "OVERVIEW", ("\uE80F", "Dashboard", "AfterlineNavOverview"));
+        AddPreviewSection(navigation, "CHAT", ("\uE8BD", "Live Chat", "AfterlineNavChat"));
+        AddPreviewSection(navigation, "LIBRARY",
+            ("\uE721", "Search", "AfterlineNavLibrary"),
+            ("\uE7B8", "Archive", "AfterlineNavLibrary"),
+            ("\uE8A5", "Log Reader", "AfterlineNavLibrary"));
+        AddPreviewSection(navigation, "IMAGE EDITOR",
+            ("\uE70F", "Editor", "AfterlineNavCreate"),
+            ("\uEB9F", "Gallery", "AfterlineNavCreate"));
+        AddPreviewSection(navigation, "SYSTEM", ("\uE713", "Settings", "MutedText"), ("\uE771", "Themes", "Accent"));
+        sidebarLayout.Children.Add(navigation);
+        var updates = new Border { Padding = new Thickness(0, 10, 0, 0), BorderThickness = new Thickness(0, 1, 0, 0) };
+        updates.SetResourceReference(Border.BorderBrushProperty, "Border");
+        var updateText = new StackPanel();
+        updateText.Children.Add(new TextBlock { Text = "UPDATES", FontSize = 7.5 }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        updateText.Children.Add(new TextBlock { Text = "CANARY · Current", FontSize = 8.5, Margin = new Thickness(0, 5, 0, 0) }.WithResource(TextBlock.ForegroundProperty, "Accent"));
+        updates.Child = updateText;
+        Grid.SetRow(updates, 1);
+        sidebarLayout.Children.Add(updates);
+        sidebar.Child = sidebarLayout;
+        root.Children.Add(sidebar);
 
-        var page = new StackPanel();
-        page.Children.Add(new TextBlock { Text = "Dashboard", FontSize = 18, FontWeight = FontWeights.SemiBold });
-        page.Children.Add(new TextBlock
-        {
-            Text = "Theme preview",
-            FontSize = 10.5,
-            Margin = new Thickness(0, 3, 0, 12),
-            Foreground = (Brush)FindResource("MutedText")
-        });
-        var sampleCard = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(12) };
-        var sampleContent = new StackPanel();
-        sampleContent.Children.Add(new TextBlock { Text = "Recent session", FontWeight = FontWeights.SemiBold });
-        sampleContent.Children.Add(new TextBlock
-        {
-            Text = "Cards, text and controls update live.",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 10.5,
-            Margin = new Thickness(0, 4, 0, 10),
-            Foreground = (Brush)FindResource("MutedText")
-        });
-        sampleContent.Children.Add(new Button
-        {
-            Content = "Open chatlog",
-            Style = (Style)FindResource("PrimaryButton"),
-            Padding = new Thickness(10, 6, 10, 6),
-            HorizontalAlignment = HorizontalAlignment.Left
-        });
-        sampleCard.Child = sampleContent;
-        page.Children.Add(sampleCard);
-        Grid.SetColumn(page, 2);
-        content.Children.Add(page);
+        var page = new Grid { Margin = new Thickness(18) };
+        page.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
+        page.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(12) });
+        page.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        var title = new StackPanel();
+        title.Children.Add(new TextBlock { Text = "Dashboard", FontSize = 22, FontWeight = FontWeights.SemiBold });
+        title.Children.Add(new TextBlock { Text = "FiveM capture and session overview", FontSize = 10.5, Margin = new Thickness(0, 3, 0, 0) }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        page.Children.Add(title);
 
-        shell.Child = content;
+        var summary = new UniformGrid { Columns = 3 };
+        summary.Children.Add(BuildPreviewCard("FIVEM", "Not detected", "No active server connection"));
+        summary.Children.Add(BuildPreviewCard("CURRENT SESSION", "0 messages", "No active session"));
+        summary.Children.Add(BuildPreviewCard("AUTOSAVE", "Protected", "Waiting for first chat message", true));
+        Grid.SetRow(summary, 2);
+        page.Children.Add(summary);
+
+        var lower = new Grid();
+        lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        lower.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var sessions = BuildPreviewCard("RECENT SESSIONS", "Recent sessions", "Completed chatlogs from the last 7 days.");
+        lower.Children.Add(sessions);
+        var projects = BuildPreviewCard("EDITOR", "Recent Editor projects", "Double-click a project to continue editing.");
+        Grid.SetColumn(projects, 2);
+        lower.Children.Add(projects);
+        Grid.SetRow(lower, 4);
+        page.Children.Add(lower);
+        Grid.SetColumn(page, 1);
+        root.Children.Add(page);
+        shell.Child = root;
         return shell;
     }
 
-    private TextBlock CreatePreviewNavigation(string glyph, string label, string colorResource)
+    private static void AddPreviewSection(StackPanel parent, string heading, params (string Glyph, string Label, string Color)[] items)
     {
-        var text = new TextBlock { FontSize = 10.5, Margin = new Thickness(0, 0, 0, 12) };
-        var icon = new System.Windows.Documents.Run(glyph)
+        parent.Children.Add(new TextBlock
         {
-            FontFamily = new FontFamily("Segoe MDL2 Assets")
-        };
-        icon.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, colorResource);
-        text.Inlines.Add(icon);
-        var caption = new System.Windows.Documents.Run($"  {label}");
-        caption.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "MutedText");
-        text.Inlines.Add(caption);
-        return text;
-    }
-
-    private void TemplateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_changingSelection) return;
-        if (_templateBox.SelectedItem is not ThemeTemplate template) return;
-        _changingSelection = true;
-        _customThemeBox.SelectedIndex = -1;
-        _changingSelection = false;
-        _descriptionText.Text = template.Description;
-        ApplyPreviewTheme(template.Theme);
-        SetStatus($"Previewing {template.Name}.", "MutedText");
-    }
-
-    private void CustomThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_changingSelection || _customThemeBox.SelectedItem is not SavedThemePreset preset) return;
-        _changingSelection = true;
-        _templateBox.SelectedIndex = -1;
-        _changingSelection = false;
-        _descriptionText.Text = $"Saved custom theme · {preset.Name}";
-        ApplyPreviewTheme(preset.Theme);
-        SetStatus($"Previewing {preset.Name}.", "MutedText");
-    }
-
-    private void RefreshCustomThemes(string? selectName = null)
-    {
-        _customThemeBox.ItemsSource = null;
-        _customThemeBox.ItemsSource = _settings.CustomThemes;
-        _customThemeCountText.Text = $"{_settings.CustomThemes.Count}/{ThemeService.MaximumCustomThemes} saved";
-        if (!string.IsNullOrWhiteSpace(selectName))
+            Text = heading,
+            FontSize = 7.5,
+            Margin = new Thickness(0, parent.Children.Count == 1 ? 0 : 10, 0, 5)
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        foreach ((string glyph, string label, string color) in items)
         {
-            _customThemeBox.SelectedItem = _settings.CustomThemes.FirstOrDefault(
-                preset => string.Equals(preset.Name, selectName, StringComparison.OrdinalIgnoreCase));
+            var text = new TextBlock { FontSize = 10, Margin = new Thickness(2, 3, 0, 3) };
+            var icon = new System.Windows.Documents.Run(glyph) { FontFamily = new FontFamily("Segoe MDL2 Assets") };
+            icon.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, color);
+            text.Inlines.Add(icon);
+            text.Inlines.Add(new System.Windows.Documents.Run($"  {label}"));
+            parent.Children.Add(text);
         }
     }
 
-    private void SaveCurrentCustomTheme()
+    private static Border BuildPreviewCard(string eyebrow, string title, string subtitle, bool success = false)
+    {
+        var card = CreateCard(13);
+        card.Margin = new Thickness(0, 0, 8, 0);
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock { Text = eyebrow, FontSize = 8 }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        content.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 7, 0, 0)
+        }.WithResource(TextBlock.ForegroundProperty, success ? "Success" : "Text"));
+        content.Children.Add(new TextBlock
+        {
+            Text = subtitle,
+            FontSize = 9,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0)
+        }.WithResource(TextBlock.ForegroundProperty, "MutedText"));
+        card.Child = content;
+        return card;
+    }
+
+    private static Border CreateCard(double padding)
+    {
+        var card = new Border { Padding = new Thickness(padding), CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1) };
+        card.SetResourceReference(Border.BackgroundProperty, "Panel");
+        card.SetResourceReference(Border.BorderBrushProperty, "Border");
+        return card;
+    }
+
+    private static TextBlock CreateValueText()
+        => new() { FontFamily = new FontFamily("Consolas"), FontSize = 10.5, VerticalAlignment = VerticalAlignment.Center };
+
+    private void ChooseColor(Func<string> getter, Action<string> setter)
+    {
+        Color current = ThemeService.ParseColor(getter(), Colors.Black);
+        using var dialog = new Forms.ColorDialog
+        {
+            Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B),
+            FullOpen = true,
+            AnyColor = true,
+            SolidColorOnly = true
+        };
+        if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
+        setter($"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}");
+        RebuildFromCustomControls("Previewing custom gradient.");
+    }
+
+    private void CustomControlsChanged()
+    {
+        if (_updatingControls) return;
+        _workingTheme.GradientAngle = _angleSlider.Value;
+        _workingTheme.GradientIntensity = _intensitySlider.Value;
+        RebuildFromCustomControls("Previewing custom gradient.");
+    }
+
+    private void RebuildFromCustomControls(string status)
+    {
+        _workingTheme = ThemeService.CreateGradientTheme(
+            _workingTheme.GradientStart,
+            _workingTheme.GradientMiddle,
+            _workingTheme.GradientEnd,
+            _workingTheme.GradientAngle,
+            _workingTheme.GradientIntensity);
+        ApplyWorkingPreview(status);
+    }
+
+    private void PreviewTheme(ThemePreferences theme, string status)
+    {
+        _workingTheme = ThemeService.Clone(theme);
+        ApplyWorkingPreview(status);
+    }
+
+    private void ApplyWorkingPreview(string status)
+    {
+        ThemeService.Apply(_workingTheme);
+        ThemeService.ApplyWindow(this);
+        RefreshCustomControls();
+        SetStatus(status, "MutedText");
+    }
+
+    private void RefreshCustomControls()
+    {
+        _updatingControls = true;
+        foreach (ColorControl control in _colorControls)
+        {
+            string value = control.Getter();
+            control.Value.Text = value;
+            control.Value.SetResourceReference(TextBlock.ForegroundProperty, "MutedText");
+            control.Swatch.Background = new SolidColorBrush(ThemeService.ParseColor(value, Colors.Transparent));
+        }
+        _angleSlider.Value = _workingTheme.GradientAngle;
+        _intensitySlider.Value = _workingTheme.GradientIntensity;
+        _angleValue.Text = $"{Math.Round(_workingTheme.GradientAngle):0}°";
+        _intensityValue.Text = $"{Math.Round(_workingTheme.GradientIntensity):0}%";
+        _angleValue.SetResourceReference(TextBlock.ForegroundProperty, "MutedText");
+        _intensityValue.SetResourceReference(TextBlock.ForegroundProperty, "MutedText");
+        _updatingControls = false;
+    }
+
+    private void SavedThemeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingControls || _savedThemeBox.SelectedItem is not SavedThemePreset preset) return;
+        PreviewTheme(preset.Theme, $"Previewing {preset.Name}.");
+    }
+
+    private void RefreshSavedThemes(string? selectName = null)
+    {
+        _updatingControls = true;
+        _savedThemeBox.ItemsSource = null;
+        _savedThemeBox.ItemsSource = _settings.CustomThemes;
+        _savedThemeCount.Text = $"{_settings.CustomThemes.Count}/{ThemeService.MaximumCustomThemes} saved";
+        _savedThemeCount.SetResourceReference(TextBlock.ForegroundProperty, "MutedText");
+        if (!string.IsNullOrWhiteSpace(selectName))
+        {
+            _savedThemeBox.SelectedItem = _settings.CustomThemes.FirstOrDefault(
+                preset => string.Equals(preset.Name, selectName, StringComparison.OrdinalIgnoreCase));
+        }
+        _updatingControls = false;
+    }
+
+    private void SaveNamedTheme()
     {
         var prompt = new TextPromptWindow(
             "Save Custom Theme",
@@ -468,20 +580,13 @@ internal sealed class ThemeTemplatesWindow : Window
 
         try
         {
-            if (!ThemeService.TrySaveCustomTheme(
-                    _settings,
-                    prompt.Value,
-                    _savedTheme,
-                    out _,
-                    out string message))
+            if (!ThemeService.TrySaveCustomTheme(_settings, prompt.Value, _workingTheme, out _, out string message))
             {
                 SetStatus(message, "Warning");
                 return;
             }
-
             _settingsService.Save(_settings);
-            string name = ThemeService.NormalizeCustomThemeName(prompt.Value);
-            RefreshCustomThemes(name);
+            RefreshSavedThemes(ThemeService.NormalizeCustomThemeName(prompt.Value));
             SetStatus(message, "Success");
         }
         catch (Exception ex)
@@ -491,135 +596,69 @@ internal sealed class ThemeTemplatesWindow : Window
         }
     }
 
-    private void UseSelectedCustomTheme()
+    private void DeleteSavedTheme()
     {
-        if (_customThemeBox.SelectedItem is not SavedThemePreset preset)
+        if (_savedThemeBox.SelectedItem is not SavedThemePreset preset)
         {
-            SetStatus("Select a saved custom theme first.", "Warning");
+            SetStatus("Select a saved theme first.", "Warning");
             return;
         }
-
-        try
-        {
-            _settings.Theme = ThemeService.Clone(preset.Theme);
-            _settingsService.Save(_settings);
-            _savedTheme = ThemeService.Clone(_settings.Theme);
-            ApplyPreviewTheme(_savedTheme);
-            SetStatus($"{preset.Name} is now the active theme.", "Success");
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Error("Unable to apply a saved custom theme.", ex);
-            SetStatus("Unable to use the selected custom theme.", "Warning");
-        }
-    }
-
-    private void DeleteSelectedCustomTheme()
-    {
-        if (_customThemeBox.SelectedItem is not SavedThemePreset preset)
-        {
-            SetStatus("Select a saved custom theme first.", "Warning");
-            return;
-        }
-
-        MessageBoxResult choice = MessageBox.Show(
-            this,
-            $"Delete the saved custom theme ‘{preset.Name}’?",
-            "Delete Custom Theme",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
+        MessageBoxResult choice = MessageBox.Show(this, $"Delete the saved theme ‘{preset.Name}’?", "Delete Theme", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (choice != MessageBoxResult.Yes) return;
+        _settings.CustomThemes.Remove(preset);
+        _settingsService.Save(_settings);
+        RefreshSavedThemes();
+        SetStatus("Saved theme deleted.", "Success");
+    }
 
+    private void ApplyTheme()
+    {
         try
         {
-            _settings.CustomThemes.Remove(preset);
-            _settingsService.Save(_settings);
-            RefreshCustomThemes();
-            ApplyPreviewTheme(_savedTheme);
-            SetStatus("Custom theme deleted.", "Success");
-        }
-        catch (Exception ex)
-        {
-            DiagnosticLogger.Error("Unable to delete a saved custom theme.", ex);
-            SetStatus("Unable to delete the custom theme.", "Warning");
-        }
-    }
-
-    private void RevertPreview()
-    {
-        ApplyPreviewTheme(_savedTheme);
-        SetStatus("Returned to your currently saved theme.", "MutedText");
-    }
-
-    private void CustomizeCurrentTheme()
-    {
-        ApplyPreviewTheme(_savedTheme);
-        CustomizeRequested = true;
-        Close();
-    }
-
-    private void SaveSelectedTemplate(bool customize)
-    {
-        if (_templateBox.SelectedItem is not ThemeTemplate template) return;
-
-        try
-        {
-            _settings.Theme = ThemeService.Clone(template.Theme);
+            _settings.Theme = ThemeService.Clone(_workingTheme);
             _settingsService.Save(_settings);
             _savedTheme = ThemeService.Clone(_settings.Theme);
-            ApplyPreviewTheme(_savedTheme);
-            SetStatus($"{template.Name} saved locally.", "Success");
-
-            if (customize)
-            {
-                CustomizeRequested = true;
-                Close();
-            }
+            ThemeService.Apply(_savedTheme);
+            ThemeService.ApplyWindow(this);
+            SetStatus("Theme applied and saved locally.", "Success");
         }
         catch (Exception ex)
         {
-            DiagnosticLogger.Error("Unable to save a theme template.", ex);
-            SetStatus("Unable to save the selected template.", "Warning");
+            DiagnosticLogger.Error("Unable to apply theme settings.", ex);
+            SetStatus("Unable to save the theme.", "Warning");
         }
     }
 
-    private void ApplyPreviewTheme(ThemePreferences preferences)
-    {
-        ThemePreferences theme = ThemeService.Normalize(preferences);
-        ThemeService.Apply(theme);
-        ThemeService.ApplyWindow(this);
-
-        // Keep the selector bound to live theme resources instead of assigning
-        // one-off brushes. WPF can freeze brushes from the shared ComboBox style;
-        // a light-theme preview may then leave the selector using stale colors.
-        // Dynamic resource references survive resource replacement and update as
-        // soon as a different template is previewed.
-        BindSelectorToThemeResources();
-        _customThemeBox.SetResourceReference(Control.BackgroundProperty, "Raised");
-        _customThemeBox.SetResourceReference(Control.ForegroundProperty, "Text");
-        _customThemeBox.SetResourceReference(Control.BorderBrushProperty, "Border");
-        _templateBox.ApplyTemplate();
-        _templateBox.InvalidateMeasure();
-        _templateBox.InvalidateArrange();
-        _templateBox.InvalidateVisual();
-    }
-
-    private void BindSelectorToThemeResources()
-    {
-        _templateBox.SetResourceReference(Control.BackgroundProperty, "Raised");
-        _templateBox.SetResourceReference(Control.ForegroundProperty, "Text");
-        _templateBox.SetResourceReference(Control.BorderBrushProperty, "Border");
-    }
-
-    private void SetStatus(string text, string resourceKey)
+    private void SetStatus(string text, string resource)
     {
         _statusText.Text = text;
-        _statusText.Foreground = (Brush)FindResource(resourceKey);
+        _statusText.SetResourceReference(TextBlock.ForegroundProperty, resource);
     }
 
     private void ThemeTemplatesWindow_Closing(object? sender, CancelEventArgs e)
+        => ThemeService.Apply(_savedTheme);
+
+    private static LinearGradientBrush CreatePreviewGradient(ThemePreferences theme)
     {
-        ThemeService.Apply(_savedTheme);
+        ThemePreferences normalized = ThemeService.Normalize(theme);
+        var brush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 1)
+        };
+        brush.GradientStops.Add(new GradientStop(ThemeService.ParseColor(normalized.GradientStart, Colors.Black), 0));
+        brush.GradientStops.Add(new GradientStop(ThemeService.ParseColor(normalized.GradientMiddle, Colors.Black), 0.5));
+        brush.GradientStops.Add(new GradientStop(ThemeService.ParseColor(normalized.GradientEnd, Colors.Black), 1));
+        return brush;
+    }
+}
+
+internal static class ThemeElementExtensions
+{
+    public static T WithResource<T>(this T element, DependencyProperty property, object resourceKey)
+        where T : FrameworkElement
+    {
+        element.SetResourceReference(property, resourceKey);
+        return element;
     }
 }

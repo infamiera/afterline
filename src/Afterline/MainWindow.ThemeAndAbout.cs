@@ -64,9 +64,6 @@ public partial class MainWindow
         var window = new ThemeTemplatesWindow(this, _settings, _settingsService);
         window.ShowDialog();
         ThemeService.Apply(_settings.Theme);
-
-        if (window.CustomizeRequested)
-            OpenThemeCreator();
     }
 
     private void OpenThemeCreator()

@@ -35,7 +35,12 @@ public static class ThemeService
             NavigationOverview = normalized.NavigationOverview,
             NavigationChat = normalized.NavigationChat,
             NavigationLibrary = normalized.NavigationLibrary,
-            NavigationCreate = normalized.NavigationCreate
+            NavigationCreate = normalized.NavigationCreate,
+            GradientStart = normalized.GradientStart,
+            GradientMiddle = normalized.GradientMiddle,
+            GradientEnd = normalized.GradientEnd,
+            GradientAngle = normalized.GradientAngle,
+            GradientIntensity = normalized.GradientIntensity
         };
     }
 
@@ -43,6 +48,13 @@ public static class ThemeService
     {
         ThemePreferences defaults = CreateDefault();
         source ??= defaults;
+        bool legacyPalette =
+            string.Equals(source.GradientStart, defaults.GradientStart, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(source.GradientMiddle, defaults.GradientMiddle, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(source.GradientEnd, defaults.GradientEnd, StringComparison.OrdinalIgnoreCase) &&
+            (!string.Equals(source.Background, defaults.Background, StringComparison.OrdinalIgnoreCase) ||
+             !string.Equals(source.Panel, defaults.Panel, StringComparison.OrdinalIgnoreCase) ||
+             !string.Equals(source.Accent, defaults.Accent, StringComparison.OrdinalIgnoreCase));
 
         return new ThemePreferences
         {
@@ -62,7 +74,60 @@ public static class ThemeService
             NavigationOverview = NormalizeColor(source.NavigationOverview, defaults.NavigationOverview),
             NavigationChat = NormalizeColor(source.NavigationChat, defaults.NavigationChat),
             NavigationLibrary = NormalizeColor(source.NavigationLibrary, defaults.NavigationLibrary),
-            NavigationCreate = NormalizeColor(source.NavigationCreate, defaults.NavigationCreate)
+            NavigationCreate = NormalizeColor(source.NavigationCreate, defaults.NavigationCreate),
+            GradientStart = NormalizeColor(legacyPalette ? source.Accent : source.GradientStart, source.Panel),
+            GradientMiddle = NormalizeColor(legacyPalette ? source.Panel : source.GradientMiddle, source.Background),
+            GradientEnd = NormalizeColor(legacyPalette ? source.Background : source.GradientEnd, source.Background),
+            GradientAngle = double.IsFinite(source.GradientAngle)
+                ? NormalizeAngle(source.GradientAngle)
+                : defaults.GradientAngle,
+            GradientIntensity = double.IsFinite(source.GradientIntensity)
+                ? Math.Clamp(source.GradientIntensity, 0, 100)
+                : defaults.GradientIntensity
+        };
+    }
+
+    public static ThemePreferences CreateGradientTheme(
+        string startHex,
+        string middleHex,
+        string endHex,
+        double angle = 145,
+        double intensity = 32)
+    {
+        Color start = ParseColor(startHex, Color.FromRgb(0x22, 0x34, 0x4D));
+        Color middle = ParseColor(middleHex, Color.FromRgb(0x17, 0x23, 0x31));
+        Color end = ParseColor(endHex, Color.FromRgb(0x11, 0x15, 0x1B));
+        Color tint = Average(start, middle, end);
+        double strength = Math.Clamp(intensity, 0, 100) / 100.0;
+
+        string Surface(string neutral, Color source, double amount)
+            => ToHex(Blend(ParseColor(neutral, Colors.Black), source, strength * amount));
+
+        Color accent = EnsureReadableAccent(Blend(middle, start, 0.35));
+        return new ThemePreferences
+        {
+            Background = Surface("#101319", end, 0.46),
+            Sidebar = Surface("#0C0F14", start, 0.42),
+            Panel = Surface("#181C23", tint, 0.54),
+            Raised = Surface("#202630", middle, 0.50),
+            Inset = Surface("#14181F", end, 0.48),
+            Border = Surface("#303844", tint, 0.62),
+            Accent = ToHex(accent),
+            AccentHover = ToHex(Blend(accent, Colors.White, 0.16)),
+            ControlHover = Surface("#2A313C", middle, 0.58),
+            PrimaryText = "#F2F4F7",
+            SecondaryText = "#AFB8C4",
+            ScrollbarTrack = Surface("#202630", end, 0.46),
+            ScrollbarThumb = ToHex(Blend(Color.FromRgb(0x68, 0x78, 0x8A), tint, strength * 0.48)),
+            NavigationOverview = ToHex(EnsureReadableAccent(start)),
+            NavigationChat = ToHex(EnsureReadableAccent(middle)),
+            NavigationLibrary = ToHex(EnsureReadableAccent(Blend(middle, Colors.White, 0.10))),
+            NavigationCreate = ToHex(EnsureReadableAccent(end)),
+            GradientStart = ToHex(start),
+            GradientMiddle = ToHex(middle),
+            GradientEnd = ToHex(end),
+            GradientAngle = NormalizeAngle(angle),
+            GradientIntensity = Math.Clamp(intensity, 0, 100)
         };
     }
 
@@ -154,9 +219,9 @@ public static class ThemeService
         SetApplicationBrush("AfterlineNavChat", current.NavigationChat);
         SetApplicationBrush("AfterlineNavLibrary", current.NavigationLibrary);
         SetApplicationBrush("AfterlineNavCreate", current.NavigationCreate);
-        SetGradientBrush("AfterlineAppGradient", current.Panel, current.Background, 145);
-        SetGradientBrush("AfterlineSidebarGradient", current.Panel, current.Sidebar, 180);
-        SetGradientBrush("AfterlineHeaderGradient", current.Sidebar, current.Inset, 100);
+        SetGradientBrush("AfterlineAppGradient", current, 1.0);
+        SetGradientBrush("AfterlineSidebarGradient", current, 0.72, current.GradientAngle + 35);
+        SetGradientBrush("AfterlineHeaderGradient", current, 0.58, current.GradientAngle - 45);
 
         if (System.Windows.Application.Current is not null)
         {
@@ -195,15 +260,62 @@ public static class ThemeService
         resources[key] = new SolidColorBrush(color);
     }
 
-    private static void SetGradientBrush(string key, string startHex, string endHex, double angle)
+    private static void SetGradientBrush(
+        string key,
+        ThemePreferences theme,
+        double intensityScale,
+        double? angleOverride = null)
     {
         if (System.Windows.Application.Current is null) return;
 
-        Color start = ParseColor(startHex, Colors.Transparent);
-        Color end = ParseColor(endHex, Colors.Transparent);
-        var brush = new LinearGradientBrush(start, end, angle);
-        brush.Freeze();
+        double strength = Math.Clamp(theme.GradientIntensity / 100.0 * intensityScale, 0, 1);
+        Color background = ParseColor(theme.Background, Colors.Black);
+        Color start = Blend(background, ParseColor(theme.GradientStart, background), strength);
+        Color middle = Blend(background, ParseColor(theme.GradientMiddle, background), strength);
+        Color end = Blend(background, ParseColor(theme.GradientEnd, background), strength);
+        double angle = NormalizeAngle(angleOverride ?? theme.GradientAngle);
+        var brush = new LinearGradientBrush
+        {
+            StartPoint = GradientPoint(angle, true),
+            EndPoint = GradientPoint(angle, false)
+        };
+        brush.GradientStops.Add(new GradientStop(start, 0));
+        brush.GradientStops.Add(new GradientStop(middle, 0.52));
+        brush.GradientStops.Add(new GradientStop(end, 1));
         System.Windows.Application.Current.Resources[key] = brush;
+    }
+
+    private static Point GradientPoint(double angle, bool start)
+    {
+        double radians = NormalizeAngle(angle) * Math.PI / 180.0;
+        double x = Math.Cos(radians) * 0.5;
+        double y = Math.Sin(radians) * 0.5;
+        return start ? new Point(0.5 - x, 0.5 - y) : new Point(0.5 + x, 0.5 + y);
+    }
+
+    private static double NormalizeAngle(double angle)
+    {
+        double normalized = angle % 360;
+        return normalized < 0 ? normalized + 360 : normalized;
+    }
+
+    private static Color Average(params Color[] colors)
+        => Color.FromRgb(
+            (byte)colors.Average(color => color.R),
+            (byte)colors.Average(color => color.G),
+            (byte)colors.Average(color => color.B));
+
+    private static Color Blend(Color from, Color to, double amount)
+    {
+        amount = Math.Clamp(amount, 0, 1);
+        byte Channel(byte a, byte b) => (byte)Math.Round(a + ((b - a) * amount));
+        return Color.FromRgb(Channel(from.R, to.R), Channel(from.G, to.G), Channel(from.B, to.B));
+    }
+
+    private static Color EnsureReadableAccent(Color color)
+    {
+        double luminance = (0.2126 * color.R + 0.7152 * color.G + 0.0722 * color.B) / 255.0;
+        return luminance >= 0.48 ? color : Blend(color, Colors.White, Math.Min(0.58, 0.48 - luminance + 0.18));
     }
 
     private static void ApplyToTree(DependencyObject root, ThemePreferences current, ThemePreferences previous)

@@ -236,11 +236,25 @@ public partial class MainWindow
             _editorPage.Children.Add(host);
             Color[] before = ReadRenderedChatColorsV090(sample);
 
-            ThemePreferences alternate = ThemeService.Clone(original);
+            ThemePreferences alternate = ThemeService.CreateGradientTheme(
+                "#8D1638", "#4B1025", "#090609", 45, 60);
             alternate.PrimaryText = "#E8A1C1";
             alternate.SecondaryText = "#8BD4CA";
             alternate.Accent = "#D24D78";
             ThemeService.Apply(alternate);
+
+            ThemePreferences cloned = ThemeService.Clone(alternate);
+            if (cloned.GradientStart != alternate.GradientStart ||
+                cloned.GradientMiddle != alternate.GradientMiddle ||
+                cloned.GradientEnd != alternate.GradientEnd ||
+                cloned.GradientAngle != alternate.GradientAngle ||
+                cloned.GradientIntensity != alternate.GradientIntensity ||
+                Application.Current.FindResource("AfterlineAppGradient") is not LinearGradientBrush gradient ||
+                gradient.GradientStops.Count != 3 ||
+                gradient.GradientStops[0].Color == gradient.GradientStops[2].Color)
+            {
+                throw new InvalidOperationException("Gradient theme state was not applied completely.");
+            }
 
             Color[] after = ReadRenderedChatColorsV090(sample);
             if (before.Length != 2 || !before.SequenceEqual(after) ||
