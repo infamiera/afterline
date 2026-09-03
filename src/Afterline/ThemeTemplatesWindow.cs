@@ -20,8 +20,8 @@ internal sealed class ThemeTemplatesWindow : Window
     {
         new()
         {
-            Name = "Afterline Default",
-            Description = "The original dark blue-gray Afterline appearance.",
+            Name = "Afterline Slate",
+            Description = "Afterline's balanced blue-gray dark appearance.",
             Theme = new ThemePreferences()
         },
         new()
@@ -32,7 +32,8 @@ internal sealed class ThemeTemplatesWindow : Window
             {
                 Background = "#121019", Sidebar = "#0D0B12", Panel = "#1B1723", Raised = "#241F2E", Inset = "#17131E",
                 Border = "#3B3149", Accent = "#9A7BD1", AccentHover = "#B092E6", ControlHover = "#30283D",
-                PrimaryText = "#F3EEF8", SecondaryText = "#BDB2C8"
+                PrimaryText = "#F3EEF8", SecondaryText = "#BDB2C8", ScrollbarTrack = "#211B2A", ScrollbarThumb = "#76668A",
+                NavigationOverview = "#B092E6", NavigationChat = "#67D7CC", NavigationLibrary = "#E6B96F", NavigationCreate = "#D889C2"
             }
         },
         new()
@@ -43,7 +44,8 @@ internal sealed class ThemeTemplatesWindow : Window
             {
                 Background = "#0E1518", Sidebar = "#0A1012", Panel = "#142025", Raised = "#1B2A30", Inset = "#101A1E",
                 Border = "#294149", Accent = "#3FA7B8", AccentHover = "#64C2D0", ControlHover = "#22373E",
-                PrimaryText = "#EDF7F8", SecondaryText = "#AAC3C8"
+                PrimaryText = "#EDF7F8", SecondaryText = "#AAC3C8", ScrollbarTrack = "#17262B", ScrollbarThumb = "#557A83",
+                NavigationOverview = "#6EA8E8", NavigationChat = "#58D6C5", NavigationLibrary = "#DDBB72", NavigationCreate = "#B894DD"
             }
         },
         new()
@@ -54,7 +56,8 @@ internal sealed class ThemeTemplatesWindow : Window
             {
                 Background = "#151312", Sidebar = "#0F0E0D", Panel = "#201B18", Raised = "#2B2420", Inset = "#191512",
                 Border = "#44372F", Accent = "#D8874F", AccentHover = "#E9A06D", ControlHover = "#392D26",
-                PrimaryText = "#F7F0EB", SecondaryText = "#C8B5A8"
+                PrimaryText = "#F7F0EB", SecondaryText = "#C8B5A8", ScrollbarTrack = "#261F1B", ScrollbarThumb = "#806858",
+                NavigationOverview = "#E09A66", NavigationChat = "#6FC9B6", NavigationLibrary = "#E5B56C", NavigationCreate = "#CC8AA4"
             }
         },
         new()
@@ -65,7 +68,20 @@ internal sealed class ThemeTemplatesWindow : Window
             {
                 Background = "#151416", Sidebar = "#100F11", Panel = "#1E1C20", Raised = "#28252A", Inset = "#19171B",
                 Border = "#3C373F", Accent = "#D56C88", AccentHover = "#E888A0", ControlHover = "#342F36",
-                PrimaryText = "#F5F1F2", SecondaryText = "#BFB6BA"
+                PrimaryText = "#F5F1F2", SecondaryText = "#BFB6BA", ScrollbarTrack = "#232024", ScrollbarThumb = "#786E7B",
+                NavigationOverview = "#8DA5E8", NavigationChat = "#67CCBC", NavigationLibrary = "#DDB46E", NavigationCreate = "#E888A0"
+            }
+        },
+        new()
+        {
+            Name = "Black Cherry",
+            Description = "Deep black-red surfaces with restrained cherry and rose highlights.",
+            Theme = new ThemePreferences
+            {
+                Background = "#110B0E", Sidebar = "#0A0709", Panel = "#1A1014", Raised = "#26171D", Inset = "#140C10",
+                Border = "#462630", Accent = "#C94F72", AccentHover = "#E06C8C", ControlHover = "#342028",
+                PrimaryText = "#F8F0F3", SecondaryText = "#C6AEB6", ScrollbarTrack = "#25151B", ScrollbarThumb = "#815262",
+                NavigationOverview = "#E06C8C", NavigationChat = "#63CBB9", NavigationLibrary = "#DEB06A", NavigationCreate = "#D77DA8"
             }
         }
     };
@@ -90,18 +106,18 @@ internal sealed class ThemeTemplatesWindow : Window
         _savedTheme = ThemeService.Clone(settings.Theme);
 
         Title = "Afterline Themes";
-        Width = 640;
-        Height = 660;
-        MinWidth = 580;
-        MinHeight = 560;
+        Width = 1040;
+        Height = 680;
+        MinWidth = 900;
+        MinHeight = 590;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ResizeMode = ResizeMode.CanResize;
 
-        var root = new Grid { Margin = new Thickness(22) };
+        var root = new Grid { Margin = new Thickness(22, 20, 22, 18) };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(16) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(16) });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var header = new StackPanel();
@@ -113,25 +129,27 @@ internal sealed class ThemeTemplatesWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "Pick a ready-made appearance, preview it instantly, or use it as the starting point for your own theme.",
+            Text = "Choose a dark preset, preview it live, or build your own without changing captured chat colours.",
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 5, 0, 0)
         });
         root.Children.Add(header);
 
-        var card = new Border
-        {
-            Style = (Style)FindResource("CardStyle"),
-            Padding = new Thickness(18)
-        };
+        var workspace = new Grid();
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.95, GridUnitType.Star) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        workspace.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.95, GridUnitType.Star) });
 
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock
+        var templatesCard = CreateThemeCard("BUILT-IN THEMES", "Pick a starting point. Selection previews instantly.");
+        var templatesContent = (StackPanel)templatesCard.Child;
+        templatesContent.Children.Add(new TextBlock
         {
-            Text = "Template",
+            Text = "Preset",
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 6)
+            Margin = new Thickness(0, 12, 0, 6)
         });
 
         _templateBox = new ComboBox
@@ -143,32 +161,42 @@ internal sealed class ThemeTemplatesWindow : Window
         };
         BindSelectorToThemeResources();
         _templateBox.SelectionChanged += TemplateBox_SelectionChanged;
-        content.Children.Add(_templateBox);
+        templatesContent.Children.Add(_templateBox);
 
         _descriptionText = new TextBlock
         {
             Foreground = (Brush)FindResource("MutedText"),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 12, 0, 0)
+            Margin = new Thickness(0, 12, 0, 0),
+            MinHeight = 54
         };
-        content.Children.Add(_descriptionText);
+        templatesContent.Children.Add(_descriptionText);
 
         var previewHint = new TextBlock
         {
-            Text = "Selecting a template only previews it. Nothing is saved until you choose Use template or Use & customize.",
+            Text = "Previewing never saves automatically. Use the actions below when the theme feels right.",
             Foreground = (Brush)FindResource("MutedText"),
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 18, 0, 0)
+            Margin = new Thickness(0, 14, 0, 0)
         };
-        content.Children.Add(previewHint);
+        templatesContent.Children.Add(previewHint);
+        workspace.Children.Add(templatesCard);
 
-        var customHeading = new Grid { Margin = new Thickness(0, 22, 0, 6) };
+        var previewCard = CreateThemeCard("LIVE PREVIEW", "A compact sample of the shell, navigation and controls.");
+        ((StackPanel)previewCard.Child).Children.Add(BuildThemePreview());
+        Grid.SetColumn(previewCard, 2);
+        workspace.Children.Add(previewCard);
+
+        var customCard = CreateThemeCard("YOUR THEMES", "Save and reuse up to eight named combinations.");
+        var customContent = (StackPanel)customCard.Child;
+
+        var customHeading = new Grid { Margin = new Thickness(0, 12, 0, 6) };
         customHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         customHeading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         customHeading.Children.Add(new TextBlock
         {
-            Text = "Saved custom themes",
+            Text = "Saved themes",
             FontWeight = FontWeights.SemiBold
         });
         _customThemeCountText = new TextBlock
@@ -179,17 +207,17 @@ internal sealed class ThemeTemplatesWindow : Window
         };
         Grid.SetColumn(_customThemeCountText, 1);
         customHeading.Children.Add(_customThemeCountText);
-        content.Children.Add(customHeading);
+        customContent.Children.Add(customHeading);
 
         _customThemeBox = new ComboBox
         {
             DisplayMemberPath = nameof(SavedThemePreset.Name),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             MinHeight = 34,
-            ToolTip = "Select one of up to three locally saved custom themes to preview it."
+            ToolTip = $"Select one of up to {ThemeService.MaximumCustomThemes} locally saved custom themes to preview it."
         };
         _customThemeBox.SelectionChanged += CustomThemeBox_SelectionChanged;
-        content.Children.Add(_customThemeBox);
+        customContent.Children.Add(_customThemeBox);
 
         var customActions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         var useCustom = new Button
@@ -216,7 +244,7 @@ internal sealed class ThemeTemplatesWindow : Window
         };
         deleteCustom.Click += (_, _) => DeleteSelectedCustomTheme();
         customActions.Children.Add(deleteCustom);
-        content.Children.Add(customActions);
+        customContent.Children.Add(customActions);
 
         _statusText = new TextBlock
         {
@@ -224,11 +252,12 @@ internal sealed class ThemeTemplatesWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 14, 0, 0)
         };
-        content.Children.Add(_statusText);
+        customContent.Children.Add(_statusText);
+        Grid.SetColumn(customCard, 4);
+        workspace.Children.Add(customCard);
 
-        card.Child = content;
-        Grid.SetRow(card, 2);
-        root.Children.Add(card);
+        Grid.SetRow(workspace, 2);
+        root.Children.Add(workspace);
 
         var footer = new WrapPanel
         {
@@ -287,6 +316,111 @@ internal sealed class ThemeTemplatesWindow : Window
         _templateBox.SelectedIndex = 0;
     }
 
+    private Border CreateThemeCard(string title, string subtitle)
+    {
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText")
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = subtitle,
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)FindResource("MutedText"),
+            Margin = new Thickness(0, 5, 0, 0)
+        });
+        return new Border
+        {
+            Style = (Style)FindResource("CardStyle"),
+            Padding = new Thickness(16),
+            Child = content
+        };
+    }
+
+    private FrameworkElement BuildThemePreview()
+    {
+        var shell = new Border
+        {
+            CornerRadius = new CornerRadius(9),
+            BorderThickness = new Thickness(1),
+            Margin = new Thickness(0, 14, 0, 0),
+            Padding = new Thickness(12),
+            MinHeight = 300
+        };
+        shell.SetResourceReference(Border.BackgroundProperty, "AfterlineAppGradient");
+        shell.SetResourceReference(Border.BorderBrushProperty, "Border");
+
+        var content = new Grid();
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(104) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var navigation = new Border { CornerRadius = new CornerRadius(7), Padding = new Thickness(9) };
+        navigation.SetResourceReference(Border.BackgroundProperty, "AfterlineSidebarGradient");
+        var navigationItems = new StackPanel();
+        navigationItems.Children.Add(CreatePreviewNavigation("\uE80F", "Dashboard", "AfterlineNavOverview"));
+        navigationItems.Children.Add(CreatePreviewNavigation("\uE8BD", "Live Chat", "AfterlineNavChat"));
+        navigationItems.Children.Add(CreatePreviewNavigation("\uE7B8", "Archive", "AfterlineNavLibrary"));
+        navigationItems.Children.Add(CreatePreviewNavigation("\uE70F", "Editor", "AfterlineNavCreate"));
+        navigation.Child = navigationItems;
+        content.Children.Add(navigation);
+
+        var page = new StackPanel();
+        page.Children.Add(new TextBlock { Text = "Dashboard", FontSize = 18, FontWeight = FontWeights.SemiBold });
+        page.Children.Add(new TextBlock
+        {
+            Text = "Theme preview",
+            FontSize = 10.5,
+            Margin = new Thickness(0, 3, 0, 12),
+            Foreground = (Brush)FindResource("MutedText")
+        });
+        var sampleCard = new Border { Style = (Style)FindResource("CardStyle"), Padding = new Thickness(12) };
+        var sampleContent = new StackPanel();
+        sampleContent.Children.Add(new TextBlock { Text = "Recent session", FontWeight = FontWeights.SemiBold });
+        sampleContent.Children.Add(new TextBlock
+        {
+            Text = "Cards, text and controls update live.",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 10.5,
+            Margin = new Thickness(0, 4, 0, 10),
+            Foreground = (Brush)FindResource("MutedText")
+        });
+        sampleContent.Children.Add(new Button
+        {
+            Content = "Open chatlog",
+            Style = (Style)FindResource("PrimaryButton"),
+            Padding = new Thickness(10, 6, 10, 6),
+            HorizontalAlignment = HorizontalAlignment.Left
+        });
+        sampleCard.Child = sampleContent;
+        page.Children.Add(sampleCard);
+        Grid.SetColumn(page, 2);
+        content.Children.Add(page);
+
+        shell.Child = content;
+        return shell;
+    }
+
+    private TextBlock CreatePreviewNavigation(string glyph, string label, string colorResource)
+    {
+        var text = new TextBlock { FontSize = 10.5, Margin = new Thickness(0, 0, 0, 12) };
+        var icon = new System.Windows.Documents.Run(glyph)
+        {
+            FontFamily = new FontFamily("Segoe MDL2 Assets")
+        };
+        icon.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, colorResource);
+        text.Inlines.Add(icon);
+        var caption = new System.Windows.Documents.Run($"  {label}");
+        caption.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "MutedText");
+        text.Inlines.Add(caption);
+        return text;
+    }
+
     private void TemplateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_changingSelection) return;
@@ -326,7 +460,7 @@ internal sealed class ThemeTemplatesWindow : Window
     {
         var prompt = new TextPromptWindow(
             "Save Custom Theme",
-            "Name this custom theme. You can keep up to three named themes:")
+            $"Name this custom theme. You can keep up to {ThemeService.MaximumCustomThemes} named themes:")
         {
             Owner = this
         };

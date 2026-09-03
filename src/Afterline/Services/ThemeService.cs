@@ -7,7 +7,7 @@ namespace Afterline.Services;
 
 public static class ThemeService
 {
-    public const int MaximumCustomThemes = 3;
+    public const int MaximumCustomThemes = 8;
     private static ThemePreferences _previousApplied = CreateDefault();
 
     public static ThemePreferences CreateDefault() => new();
@@ -29,7 +29,13 @@ public static class ThemeService
             AccentHover = normalized.AccentHover,
             ControlHover = normalized.ControlHover,
             PrimaryText = normalized.PrimaryText,
-            SecondaryText = normalized.SecondaryText
+            SecondaryText = normalized.SecondaryText,
+            ScrollbarTrack = normalized.ScrollbarTrack,
+            ScrollbarThumb = normalized.ScrollbarThumb,
+            NavigationOverview = normalized.NavigationOverview,
+            NavigationChat = normalized.NavigationChat,
+            NavigationLibrary = normalized.NavigationLibrary,
+            NavigationCreate = normalized.NavigationCreate
         };
     }
 
@@ -50,7 +56,13 @@ public static class ThemeService
             AccentHover = NormalizeColor(source.AccentHover, defaults.AccentHover),
             ControlHover = NormalizeColor(source.ControlHover, defaults.ControlHover),
             PrimaryText = NormalizeColor(source.PrimaryText, defaults.PrimaryText),
-            SecondaryText = NormalizeColor(source.SecondaryText, defaults.SecondaryText)
+            SecondaryText = NormalizeColor(source.SecondaryText, defaults.SecondaryText),
+            ScrollbarTrack = NormalizeColor(source.ScrollbarTrack, defaults.ScrollbarTrack),
+            ScrollbarThumb = NormalizeColor(source.ScrollbarThumb, defaults.ScrollbarThumb),
+            NavigationOverview = NormalizeColor(source.NavigationOverview, defaults.NavigationOverview),
+            NavigationChat = NormalizeColor(source.NavigationChat, defaults.NavigationChat),
+            NavigationLibrary = NormalizeColor(source.NavigationLibrary, defaults.NavigationLibrary),
+            NavigationCreate = NormalizeColor(source.NavigationCreate, defaults.NavigationCreate)
         };
     }
 
@@ -103,7 +115,7 @@ public static class ThemeService
         if (settings.CustomThemes.Count >= MaximumCustomThemes)
         {
             updated = false;
-            message = "All three custom theme slots are in use. Delete one before saving another.";
+            message = $"All {MaximumCustomThemes} custom theme slots are in use. Delete one before saving another.";
             return false;
         }
 
@@ -136,6 +148,15 @@ public static class ThemeService
         SetApplicationBrush("AfterlineSidebar", current.Sidebar);
         SetApplicationBrush("AfterlineInset", current.Inset);
         SetApplicationBrush("AfterlineControlHover", current.ControlHover);
+        SetApplicationBrush("AfterlineScrollbarTrack", current.ScrollbarTrack);
+        SetApplicationBrush("AfterlineScrollbarThumb", current.ScrollbarThumb);
+        SetApplicationBrush("AfterlineNavOverview", current.NavigationOverview);
+        SetApplicationBrush("AfterlineNavChat", current.NavigationChat);
+        SetApplicationBrush("AfterlineNavLibrary", current.NavigationLibrary);
+        SetApplicationBrush("AfterlineNavCreate", current.NavigationCreate);
+        SetGradientBrush("AfterlineAppGradient", current.Panel, current.Background, 145);
+        SetGradientBrush("AfterlineSidebarGradient", current.Panel, current.Sidebar, 180);
+        SetGradientBrush("AfterlineHeaderGradient", current.Sidebar, current.Inset, 100);
 
         if (System.Windows.Application.Current is not null)
         {
@@ -174,8 +195,25 @@ public static class ThemeService
         resources[key] = new SolidColorBrush(color);
     }
 
+    private static void SetGradientBrush(string key, string startHex, string endHex, double angle)
+    {
+        if (System.Windows.Application.Current is null) return;
+
+        Color start = ParseColor(startHex, Colors.Transparent);
+        Color end = ParseColor(endHex, Colors.Transparent);
+        var brush = new LinearGradientBrush(start, end, angle);
+        brush.Freeze();
+        System.Windows.Application.Current.Resources[key] = brush;
+    }
+
     private static void ApplyToTree(DependencyObject root, ThemePreferences current, ThemePreferences previous)
     {
+        // Chat presentation owns its captured server colours. Theme previews may
+        // restyle the surrounding interface, but must never rewrite a live or
+        // archived chat line's foreground/fallback state.
+        if (root is Afterline.RoleplayColorTextBlock)
+            return;
+
         switch (root)
         {
             case Border border:

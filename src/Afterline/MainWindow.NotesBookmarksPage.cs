@@ -131,6 +131,7 @@ public partial class MainWindow
         if (_notesBookmarksPage is not null) _notesBookmarksPage.Visibility = Visibility.Visible;
         PageTitle.Text = "Notes & Bookmarks";
         PageSubtitle.Text = "Saved RP moments linked back to their chatlogs";
+        UpdateModernNavigationSelectionV090(_notesBookmarksPage);
         ReloadNotesBookmarks();
     }
 

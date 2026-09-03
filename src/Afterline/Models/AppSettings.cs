@@ -125,6 +125,12 @@ public sealed class ThemePreferences
     public string ControlHover { get; set; } = "#293544";
     public string PrimaryText { get; set; } = "#EDF2F7";
     public string SecondaryText { get; set; } = "#AAB6C3";
+    public string ScrollbarTrack { get; set; } = "#202832";
+    public string ScrollbarThumb { get; set; } = "#68788A";
+    public string NavigationOverview { get; set; } = "#7DA4FF";
+    public string NavigationChat { get; set; } = "#42D2C7";
+    public string NavigationLibrary { get; set; } = "#E5B568";
+    public string NavigationCreate { get; set; } = "#C18AEC";
 }
 
 public sealed class SavedThemePreset

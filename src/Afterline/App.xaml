@@ -24,6 +24,24 @@
         <SolidColorBrush x:Key="Border" Color="{StaticResource BorderColor}"/>
         <SolidColorBrush x:Key="Success" Color="{StaticResource SuccessColor}"/>
         <SolidColorBrush x:Key="Warning" Color="{StaticResource WarningColor}"/>
+        <SolidColorBrush x:Key="AfterlineScrollbarTrack" Color="#202832"/>
+        <SolidColorBrush x:Key="AfterlineScrollbarThumb" Color="#68788A"/>
+        <SolidColorBrush x:Key="AfterlineNavOverview" Color="#7DA4FF"/>
+        <SolidColorBrush x:Key="AfterlineNavChat" Color="#42D2C7"/>
+        <SolidColorBrush x:Key="AfterlineNavLibrary" Color="#E5B568"/>
+        <SolidColorBrush x:Key="AfterlineNavCreate" Color="#C18AEC"/>
+        <LinearGradientBrush x:Key="AfterlineAppGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#181E26" Offset="0"/>
+            <GradientStop Color="#11151B" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="AfterlineSidebarGradient" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#181E26" Offset="0"/>
+            <GradientStop Color="#0E1217" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="AfterlineHeaderGradient" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="#0E1217" Offset="0"/>
+            <GradientStop Color="#141A21" Offset="1"/>
+        </LinearGradientBrush>
 
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource Bg}"/>
