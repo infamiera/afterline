@@ -8,9 +8,10 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "03/SEP/2026", new[]
         {
-            "Application shell — Introduces cleaner icon-and-text navigation, subtle theme-driven gradients and a compact Updates area.",
-            "Theme Manager — Adds a three-column preset, live-preview and saved-theme workspace with Black Cherry and up to eight named themes.",
-            "Theme controls — Adds customizable navigation and scrollbar colours while keeping every built-in appearance dark.",
+            "Application shell — Introduces cleaner icon-and-text navigation, visible theme-driven gradients and a compact Updates area.",
+            "Theme popup — Groups default and color-gradient presets around an accurate miniature Afterline dashboard preview.",
+            "Simple customization — Changes the complete dark interface from three colors, gradient direction and intensity, with up to eight saved themes.",
+            "Theme state — Opens on the active appearance, previews safely and restores unapplied changes when closed.",
             "Chat colour safety — Keeps captured server colour runs outside interface theming and verifies that boundary in the packaged Editor test."
         }, ChangelogChannel.Canary, 228),
         new("0.7.0", "03/SEP/2026", new[]

@@ -3,13 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Afterline" Icon="Assets/Afterline.ico" Width="1260" Height="800" MinWidth="1040" MinHeight="680"
         WindowStartupLocation="CenterScreen">
-    <Grid Background="{StaticResource Bg}">
+    <Grid Background="{DynamicResource AfterlineAppGradient}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="215"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="#0E1217" BorderBrush="{StaticResource Border}" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Background="{DynamicResource AfterlineSidebarGradient}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,1,0">
             <Grid Margin="18,22">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -223,7 +223,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Border Grid.Row="1" Background="#141A21" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="12">
+                        <Border Grid.Row="1" Background="{DynamicResource AfterlineInset}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="12">
                             <Grid>
                                 <TextBlock x:Name="LiveCountText" Text="0 messages shown" Foreground="{StaticResource MutedText}" VerticalAlignment="Center"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -268,7 +268,7 @@
                             </ComboBox>
                             <CheckBox x:Name="ExtendedSearchCheck" Content="Extended search" Margin="16,0,0,0" Checked="ExtendedSearchCheck_Changed" Unchecked="ExtendedSearchCheck_Changed"/>
                         </WrapPanel>
-                        <Border x:Name="ExtendedSearchPanel" Grid.Row="3" Visibility="Collapsed" Background="#141A21" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,12,0,0">
+                        <Border x:Name="ExtendedSearchPanel" Grid.Row="3" Visibility="Collapsed" Background="{DynamicResource AfterlineInset}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,12,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <StackPanel>
@@ -289,7 +289,7 @@
                     <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="0">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                            <Border Background="#141A21" Padding="12" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                            <Border Background="{DynamicResource AfterlineInset}" Padding="12" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
                                 <TextBlock x:Name="SearchSummaryText" Text="Enter a keyword to search your chatlogs." Foreground="{StaticResource MutedText}"/>
                             </Border>
                             <ListBox x:Name="SearchResultsList" Grid.Row="1" ItemsSource="{Binding SearchResults}" DisplayMemberPath="Display" BorderThickness="0" Padding="8" MouseDoubleClick="SearchResultsList_MouseDoubleClick" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"/>
@@ -299,7 +299,7 @@
                     <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="0">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                            <Border Background="#141A21" Padding="12" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                            <Border Background="{DynamicResource AfterlineInset}" Padding="12" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
                                 <StackPanel>
                                     <TextBlock Text="Recently parsed logs" FontSize="16" FontWeight="SemiBold"/>
                                     <TextBlock Text="Double-click a file to open it." Foreground="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0"/>
@@ -324,7 +324,7 @@
                 <Border Style="{StaticResource CardStyle}" Padding="0">
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                        <Border Background="#141A21" Padding="14" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <Border Background="{DynamicResource AfterlineInset}" Padding="14" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1">
                             <Grid>
                                 <StackPanel>
                                     <TextBlock Text="Chatlog archive" FontSize="17" FontWeight="SemiBold"/>

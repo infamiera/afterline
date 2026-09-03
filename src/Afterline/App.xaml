@@ -80,7 +80,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#293544"/>
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource AfterlineControlHover}"/>
                                 <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Accent}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
@@ -197,7 +197,7 @@
                             </Trigger>
                             <Trigger Property="IsDropDownOpen" Value="True">
                                 <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
-                                <Setter TargetName="ComboBorder" Property="Background" Value="#242E3A"/>
+                                <Setter TargetName="ComboBorder" Property="Background" Value="{DynamicResource AfterlineControlHover}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="ComboBorder" Property="Opacity" Value="0.5"/>
@@ -225,11 +225,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#293B50"/>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource AfterlineControlHover}"/>
                                 <Setter Property="Foreground" Value="#FFFFFF"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#315F8F"/>
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource Accent}"/>
                                 <Setter Property="Foreground" Value="#FFFFFF"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">

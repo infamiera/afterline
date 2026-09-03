@@ -131,6 +131,11 @@ public sealed class ThemePreferences
     public string NavigationChat { get; set; } = "#42D2C7";
     public string NavigationLibrary { get; set; } = "#E5B568";
     public string NavigationCreate { get; set; } = "#C18AEC";
+    public string GradientStart { get; set; } = "#22344D";
+    public string GradientMiddle { get; set; } = "#172331";
+    public string GradientEnd { get; set; } = "#11151B";
+    public double GradientAngle { get; set; } = 145;
+    public double GradientIntensity { get; set; } = 32;
 }
 
 public sealed class SavedThemePreset

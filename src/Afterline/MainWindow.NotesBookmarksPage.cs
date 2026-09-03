@@ -74,7 +74,7 @@ public partial class MainWindow
 
         var listHeader = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(0x14, 0x1A, 0x21)),
+            Background = (Brush)FindResource("AfterlineInset"),
             BorderBrush = (Brush)FindResource("Border"),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(12),
