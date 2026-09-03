@@ -12,7 +12,7 @@ internal static class CanaryChangelogData
             "Theme Manager — Adds a three-column preset, live-preview and saved-theme workspace with Black Cherry and up to eight named themes.",
             "Theme controls — Adds customizable navigation and scrollbar colours while keeping every built-in appearance dark.",
             "Chat colour safety — Keeps captured server colour runs outside interface theming and verifies that boundary in the packaged Editor test."
-        }, ChangelogChannel.Canary, 223),
+        }, ChangelogChannel.Canary, 228),
         new("0.7.0", "03/SEP/2026", new[]
         {
             "Live Chat colors — Restores exact per-character server colors when the current session is replayed after startup or a session transition.",
