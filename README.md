@@ -116,8 +116,7 @@ Server rules differ. You are responsible for checking whether external chat logg
 
 ## Support and development
 
-- Use [GitHub Issues](https://github.com/infamiera/afterline/issues) for reproducible bugs and feature requests.
-- For diagnostic help, join the [Afterline Discord](https://discord.gg/At2znTygfV) and post exported Error Logs in the `#afterline` forum channel.
+Report bugs and request features through [GitHub Issues](https://github.com/infamiera/afterline/issues).
 
 To build Afterline yourself, use Windows with the .NET 8 SDK:
 
