@@ -14,7 +14,7 @@ internal static class CanaryChangelogData
             "Editor proofing — Adds input-only English spelling underlines, correction suggestions, a personal dictionary and cautious contextual grammar hints without changing the rendered preview.",
             "Editor cleanup — Removes the nonfunctional background-removal tool and its unused implementation.",
             "Capture diagnostics — Treats ordinary FiveM NUI reloads and DevTools reconnects as throttled warnings instead of repeated application errors."
-        }, ChangelogChannel.Canary, 236),
+        }, ChangelogChannel.Canary, 237),
         new("0.7.0", "07/SEP/2026", new[]
         {
             "Faction chat colors — Preserves FiveM's complete server-provided HEX color for player-scoped (( (ID) name/title: message )) lines instead of replacing it with generic OOC grey.",
