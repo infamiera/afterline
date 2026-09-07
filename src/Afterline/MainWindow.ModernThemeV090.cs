@@ -39,6 +39,7 @@ public partial class MainWindow
 
         AddModernSystemNavigationV090(navigationPanel);
         RestyleModernNavigationV090(navigationPanel);
+        DockModernSystemNavigationV090(navigationPanel, sidebarGrid);
         RestyleModernUpdateAreaV090();
         UpdateModernNavigationSelectionV090(FindVisibleMainPageV090());
         RoundNestedPanelCornersV090(rootGrid);
@@ -76,6 +77,52 @@ public partial class MainWindow
 
         if (systemButtons.Count > 0)
             AddSidebarSection(navigationPanel, "SYSTEM", systemButtons);
+    }
+
+    private static void DockModernSystemNavigationV090(StackPanel navigationPanel, Grid sidebarGrid)
+    {
+        if (navigationPanel.Parent is not ScrollViewer navigationScroll ||
+            navigationScroll.Parent is not Grid ||
+            navigationScroll.Tag as string == "ModernNavigationTop")
+            return;
+
+        Grid? systemHeader = navigationPanel.Children
+            .OfType<Grid>()
+            .FirstOrDefault(header => header.Children.OfType<TextBlock>()
+                .Any(label => string.Equals(label.Text, "SYSTEM", StringComparison.Ordinal)));
+        if (systemHeader is null) return;
+
+        int systemIndex = navigationPanel.Children.IndexOf(systemHeader);
+        UIElement[] systemElements = navigationPanel.Children
+            .Cast<UIElement>()
+            .Skip(systemIndex)
+            .ToArray();
+        foreach (UIElement element in systemElements)
+            navigationPanel.Children.Remove(element);
+
+        var systemPanel = new StackPanel
+        {
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        foreach (UIElement element in systemElements)
+            systemPanel.Children.Add(element);
+
+        int row = Grid.GetRow(navigationScroll);
+        sidebarGrid.Children.Remove(navigationScroll);
+        var navigationHost = new Grid();
+        navigationHost.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        navigationHost.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        navigationScroll.Tag = "ModernNavigationTop";
+        navigationScroll.Margin = new Thickness(0, 0, -7, 0);
+        navigationScroll.Padding = new Thickness(0, 0, 7, 0);
+        Grid.SetRow(navigationScroll, 0);
+        navigationHost.Children.Add(navigationScroll);
+        Grid.SetRow(systemPanel, 1);
+        navigationHost.Children.Add(systemPanel);
+
+        Grid.SetRow(navigationHost, row);
+        sidebarGrid.Children.Add(navigationHost);
     }
 
     private static void AddSystemButtonV090(

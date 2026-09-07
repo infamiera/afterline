@@ -8,6 +8,15 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "07/SEP/2026", new[]
         {
+            "Theme consistency — Keeps cards, nested panels, controls and tooltips synchronized with live theme changes throughout Afterline.",
+            "Rounded surfaces — Corrects scrollbar tracks and clipped Changelog corners that could expose the wrong background.",
+            "Sidebar layout — Moves the System section to the bottom directly above Updates for cleaner navigation.",
+            "Editor proofing — Adds input-only English spelling underlines, correction suggestions, a personal dictionary and cautious contextual grammar hints without changing the rendered preview.",
+            "Editor cleanup — Removes the nonfunctional background-removal tool and its unused implementation.",
+            "Capture diagnostics — Treats ordinary FiveM NUI reloads and DevTools reconnects as throttled warnings instead of repeated application errors."
+        }, ChangelogChannel.Canary, 238),
+        new("0.7.0", "07/SEP/2026", new[]
+        {
             "Faction chat colors — Preserves FiveM's complete server-provided HEX color for player-scoped (( (ID) name/title: message )) lines instead of replacing it with generic OOC grey.",
             "Disconnect timestamps — Records the actual resolved server time of disconnection instead of repeating the timestamp of the last chat message.",
             "Manual updates — Adds current Stable and Canary download links and checksum-verified installation of a selected executable beneath Updates and Changes.",

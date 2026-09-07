@@ -510,18 +510,37 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private void LogCaptureFailure(string context, Exception exception)
     {
-        string signature = $"{exception.GetType().FullName}:{exception.Message}";
+        bool expectedInterruption = IsExpectedDevToolsInterruption(exception);
+        string signature = expectedInterruption
+            ? "FiveMDevToolsTemporarilyUnavailable"
+            : $"{exception.GetType().FullName}:{exception.Message}";
         DateTime now = DateTime.UtcNow;
         if (string.Equals(signature, _lastCaptureFailureSignature, StringComparison.Ordinal) &&
-            now - _lastCaptureFailureLoggedUtc < TimeSpan.FromSeconds(60))
+            now - _lastCaptureFailureLoggedUtc < (expectedInterruption
+                ? TimeSpan.FromMinutes(5)
+                : TimeSpan.FromSeconds(60)))
         {
             return;
         }
 
         _lastCaptureFailureSignature = signature;
         _lastCaptureFailureLoggedUtc = now;
+        if (expectedInterruption)
+        {
+            DiagnosticLogger.Warn(
+                "FiveM chat became temporarily unavailable; capture is reconnecting automatically.");
+            return;
+        }
+
         DiagnosticLogger.Error(context, exception);
     }
+
+    private static bool IsExpectedDevToolsInterruption(Exception exception)
+        => exception is TaskCanceledException or System.Net.WebSockets.WebSocketException ||
+           exception is IOException io &&
+           (io.Message.Contains("NUI target is not available", StringComparison.OrdinalIgnoreCase) ||
+            io.Message.Contains("chat frame is not available", StringComparison.OrdinalIgnoreCase) ||
+            io.Message.Contains("execution context is unavailable", StringComparison.OrdinalIgnoreCase));
 
     private async Task HandleObservedServerCoreAsync(
         ServerSessionInfo observed,
