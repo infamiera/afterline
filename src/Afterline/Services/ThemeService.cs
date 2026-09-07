@@ -396,8 +396,8 @@ public static class ThemeService
             _ => null
         };
 
-        if (resourceKey is not null)
-            target.SetResourceReference(property, resourceKey);
+        if (resourceKey is not null && target is FrameworkElement element)
+            element.SetResourceReference(property, resourceKey);
     }
 
     private static string? FindSurfaceResource(string hex, ThemePreferences current, ThemePreferences previous)
