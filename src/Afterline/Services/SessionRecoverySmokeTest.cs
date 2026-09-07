@@ -142,6 +142,18 @@ internal static class SessionRecoverySmokeTest
             !archiveText.Contains(repeatedSecond, StringComparison.Ordinal))
             throw new InvalidOperationException("Restarting the journal created a false session boundary or lost its continuation.");
 
+        DateTime disconnectedAt = startedAt.AddMinutes(47).AddSeconds(26);
+        ChatEntry? disconnect = await resumed.MarkDisconnectedAsync(
+            disconnectedAt,
+            CancellationToken.None);
+        if (disconnect is null ||
+            disconnect.CapturedAt != disconnectedAt ||
+            !disconnect.Text.Contains("[DISCONNECTED] - 05:27:26", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The disconnect marker reused the last message time instead of the current server time.");
+        }
+
         string finalizedPath = await resumed.FinalizeAsync(archiveRoot, CancellationToken.None)
             ?? throw new InvalidOperationException("The resumed session did not produce a finalized archive file.");
         bool indexed = await new ArchiveService().EnsureFileIndexedAsync(
@@ -437,6 +449,7 @@ internal static class SessionRecoverySmokeTest
             });
         VerifyRecoveredCommandAccents(initiallyWhiteInstruction, attachmentInstruction);
         VerifyCapturedAccentPrecedence(exportedAt, attachmentInstruction);
+        VerifyPlayerScopedFactionColor(exportedAt);
         VerifyActivityPandaPointAccents(exportedAt);
         VerifyLowSpeechNeutrality(exportedAt);
         VerifyGlobalOocRoles(exportedAt);
@@ -563,6 +576,44 @@ internal static class SessionRecoverySmokeTest
         VerifyGlobalOocRole(observedAt, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00);
         VerifyGlobalOocRole(observedAt, 0xED, 0xA8, 0x41, 0xED, 0xA8, 0x41);
         VerifyGlobalOocRole(observedAt, 0x38, 0x96, 0xF3, 0x38, 0x96, 0xF3);
+    }
+
+    private static void VerifyPlayerScopedFactionColor(DateTime observedAt)
+    {
+        const string text = "(( (213) Chief Executive Officer Bianca Yurei: buh ))";
+        (byte Red, byte Green, byte Blue)[] factionColors =
+        {
+            (0xF0, 0x28, 0x0A),
+            (0x31, 0xA7, 0xD8)
+        };
+
+        foreach ((byte red, byte green, byte blue) in factionColors)
+        {
+            var entry = new ChatEntry(
+                observedAt,
+                text,
+                capturedColorRuns: new[]
+                {
+                    new ChatColorRun(0, text.Length, red, green, blue)
+                });
+            int bodyIndex = text.IndexOf("Chief Executive", StringComparison.Ordinal);
+            if (!HasColorAt(entry.CapturedColorRuns, bodyIndex, red, green, blue))
+                throw new InvalidOperationException(
+                    "A server-provided faction HEX color was replaced by generic OOC grey.");
+
+            string timestamped = $"[{observedAt:HH:mm:ss}] {text}";
+            int timestampedBody = timestamped.IndexOf("Chief Executive", StringComparison.Ordinal);
+            if (!HasColorAt(
+                    entry.GetColorRunsForText(timestamped),
+                    timestampedBody,
+                    red,
+                    green,
+                    blue))
+            {
+                throw new InvalidOperationException(
+                    "Adding Afterline's server timestamp discarded the faction HEX color.");
+            }
+        }
     }
 
     private static void VerifyGlobalOocRole(

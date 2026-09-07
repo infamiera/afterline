@@ -9,6 +9,7 @@ namespace Afterline;
 
 public partial class MainWindow
 {
+    internal void PrepareManualUpdateExit() => _isExiting = true;
     private bool _modernThemeShellV090Initialized;
     private readonly List<Button> _modernNavigationButtonsV090 = new();
 
@@ -172,6 +173,16 @@ public partial class MainWindow
         updateCard.CornerRadius = new CornerRadius(0);
         updateCard.Padding = new Thickness(6, 12, 6, 0);
         updateCard.SetResourceReference(Border.BorderBrushProperty, "Border");
+        if (!updatePanel.Children.OfType<TextBlock>().Any(text => text.Tag as string == "ManualUpdate"))
+        {
+            var link = new Hyperlink(new Run("Failed to update? Download manually here."));
+            link.SetResourceReference(Hyperlink.ForegroundProperty, "Accent");
+            link.Click += (_, _) => new ManualUpdateWindow(this).ShowDialog();
+            var help = new TextBlock { Tag = "ManualUpdate", FontSize = 10,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+            help.Inlines.Add(link);
+            updatePanel.Children.Add(help);
+        }
 
         if (!updatePanel.Children.OfType<TextBlock>().Any(text => text.Text == "UPDATES"))
         {

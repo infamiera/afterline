@@ -8,6 +8,14 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "07/SEP/2026", new[]
         {
+            "Faction chat colors — Preserves FiveM's complete server-provided HEX color for player-scoped (( (ID) name/title: message )) lines instead of replacing it with generic OOC grey.",
+            "Disconnect timestamps — Records the actual resolved server time of disconnection instead of repeating the timestamp of the last chat message.",
+            "Manual updates — Adds current Stable and Canary download links and checksum-verified installation of a selected executable beneath Updates and Changes.",
+            "Rounded panels — Clips nested scrollbars and panel contents to their rounded container edges.",
+            "Canary downloads — Keeps only the newest executable and checksum after successful publication."
+        }, ChangelogChannel.Canary, 234),
+        new("0.7.0", "07/SEP/2026", new[]
+        {
             "Server timestamps — Never substitutes the player's local clock for timestamp-free chat; detects advertised server zones, learns offsets from fresh server timestamps, remembers them per server and safely falls back to UTC.",
             "Dashboard server clock — Shows the clock source for the active server and adds a per-server manual time-zone override when automatic detection is unavailable.",
             "Timestamp toggle safety — Treats a confirmed whole-buffer timestamp on/off change as presentation only, preventing duplicate archive rows without suppressing genuine repeated messages.",

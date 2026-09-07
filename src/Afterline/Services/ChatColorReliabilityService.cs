@@ -22,6 +22,10 @@ internal static class ChatColorReliabilityService
         @"^\s*\(\(\s*Global\s+OOC:\s*\(\d+\)\s*(?<name>[^:]+?)(?<colon>:\s*)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private static readonly Regex PlayerScopedParenthesizedChat = new(
+        @"^\s*\(\(\s*\(\d+\)\s+[^:\r\n]+:\s*.*\)\)\s*$",
+        RegexOptions.Compiled);
+
     internal static IReadOnlyList<ChatColorRun> EnsureExpectedAccents(
         string text,
         IEnumerable<ChatColorRun>? colorRuns)
@@ -38,6 +42,13 @@ internal static class ChatColorReliabilityService
         int bodyStart = timestamp.Success ? timestamp.Length : 0;
         string body = text[bodyStart..];
         Color? timestampColor = ResolveTimestampReferenceColor(normalized, timestamp);
+
+        // Faction and other player-scoped channels use the same outer (( ... ))
+        // shape as ordinary OOC, but the server assigns an arbitrary per-faction
+        // CSS color. A complete computed-style snapshot is authoritative here;
+        // replacing it with the generic OOC grey destroys that server meaning.
+        if (PlayerScopedParenthesizedChat.IsMatch(body))
+            return normalized;
 
         if (IsNeutralLowSpeech(body))
         {

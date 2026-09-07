@@ -211,7 +211,10 @@ public sealed class SessionJournal
         {
             if (!HasActiveSession || _state is null || _activeFile is null) return null;
 
-            DateTime timestamp = _state.LastMessageAt ?? observedAt;
+            // A disconnect is an event in its own right. The last chat message may
+            // be many minutes old, so use the coordinator's resolved server clock
+            // instead of copying LastMessageAt into the boundary marker.
+            DateTime timestamp = observedAt;
             string marker =
                 $"==================== [DISCONNECTED] - {timestamp:HH:mm:ss} ====================";
 

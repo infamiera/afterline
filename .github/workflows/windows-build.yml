@@ -295,8 +295,7 @@ jobs:
             --prerelease
           if ($LASTEXITCODE -ne 0) { throw "Unable to update the Canary prerelease details." }
 
-          # Retain the current and immediately previous executable/checksum pairs.
-          # Cached old manifests and downloads therefore remain valid across a publish.
+          # Remove superseded packages only after publishing the new manifest.
           $release = gh release view canary --json assets | ConvertFrom-Json
           $identified = @($release.assets | ForEach-Object {
             $match = [regex]::Match($_.name, '^Afterline-v.+-Canary-(\d+)-[0-9a-f]+-Windows-x64\.exe$')
@@ -304,7 +303,7 @@ jobs:
               [pscustomobject]@{ Name = $_.name; Run = [int]$match.Groups[1].Value }
             }
           } | Sort-Object Run -Descending)
-          $keep = @($identified | Select-Object -First 2 | ForEach-Object { $_.Name })
+          $keep = @($exeName)
           $keepChecksums = @($keep | ForEach-Object { "${_}.sha256" })
           foreach ($asset in $release.assets) {
             if ($asset.name -eq 'afterline-canary-update.json' -or

@@ -329,6 +329,7 @@ public static class ThemeService
         switch (root)
         {
             case Border border:
+                RoundedPanelClip.Attach(border);
                 MapBrushProperty(border, Border.BackgroundProperty, MapSurface, current, previous);
                 MapBrushProperty(border, Border.BorderBrushProperty, MapBorder, current, previous);
                 break;
