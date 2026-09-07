@@ -330,19 +330,26 @@ public static class ThemeService
         {
             case Border border:
                 RoundedPanelClip.Attach(border);
-                MapBrushProperty(border, Border.BackgroundProperty, MapSurface, current, previous);
-                MapBrushProperty(border, Border.BorderBrushProperty, MapBorder, current, previous);
+                if (System.Windows.Application.Current?.Resources["CardStyle"] is Style cardStyle &&
+                    ReferenceEquals(border.Style, cardStyle))
+                {
+                    border.SetResourceReference(Border.BackgroundProperty, "Panel");
+                    border.SetResourceReference(Border.BorderBrushProperty, "Border");
+                    break;
+                }
+                BindThemeBrushProperty(border, Border.BackgroundProperty, ThemeBrushRole.Surface, current, previous);
+                BindThemeBrushProperty(border, Border.BorderBrushProperty, ThemeBrushRole.Border, current, previous);
                 break;
             case Panel panel:
-                MapBrushProperty(panel, Panel.BackgroundProperty, MapSurface, current, previous);
+                BindThemeBrushProperty(panel, Panel.BackgroundProperty, ThemeBrushRole.Surface, current, previous);
                 break;
             case Control control:
-                MapBrushProperty(control, Control.BackgroundProperty, MapSurface, current, previous);
-                MapBrushProperty(control, Control.BorderBrushProperty, MapBorder, current, previous);
-                MapBrushProperty(control, Control.ForegroundProperty, MapText, current, previous);
+                BindThemeBrushProperty(control, Control.BackgroundProperty, ThemeBrushRole.Surface, current, previous);
+                BindThemeBrushProperty(control, Control.BorderBrushProperty, ThemeBrushRole.Border, current, previous);
+                BindThemeBrushProperty(control, Control.ForegroundProperty, ThemeBrushRole.Text, current, previous);
                 break;
             case TextBlock textBlock:
-                MapBrushProperty(textBlock, TextBlock.ForegroundProperty, MapText, current, previous);
+                BindThemeBrushProperty(textBlock, TextBlock.ForegroundProperty, ThemeBrushRole.Text, current, previous);
                 break;
         }
 
@@ -360,71 +367,64 @@ public static class ThemeService
             ApplyToTree(VisualTreeHelper.GetChild(root, i), current, previous);
     }
 
-    private static void MapBrushProperty(
+    private enum ThemeBrushRole { Surface, Border, Text }
+
+    private static void BindThemeBrushProperty(
         DependencyObject target,
         DependencyProperty property,
-        Func<Brush?, ThemePreferences, ThemePreferences, Brush?> mapper,
+        ThemeBrushRole role,
         ThemePreferences current,
         ThemePreferences previous)
     {
-        // DynamicResource and binding expressions must remain attached. Reassigning
-        // their resolved brush value would freeze that element on the first preview,
-        // which was most visible when changing the gradient direction repeatedly.
+        // Preserve bindings and existing DynamicResource expressions. For plain
+        // brushes, convert recognized palette colours to DynamicResource references
+        // once. That keeps controls created at different points in a theme-preview
+        // session from becoming stranded on an older palette.
         if (DependencyPropertyHelper.GetValueSource(target, property).IsExpression)
             return;
 
-        Brush? original = target.GetValue(property) as Brush;
-        Brush? mapped = mapper(original, current, previous);
-        if (!ReferenceEquals(original, mapped))
-            target.SetValue(property, mapped);
+        if (target.GetValue(property) is not SolidColorBrush brush)
+            return;
+
+        string? resourceKey = role switch
+        {
+            ThemeBrushRole.Surface => FindSurfaceResource(ToHex(brush.Color), current, previous),
+            ThemeBrushRole.Border => MatchesAny(ToHex(brush.Color), current.Border, previous.Border, CreateDefault().Border)
+                ? "Border"
+                : null,
+            ThemeBrushRole.Text => FindTextResource(ToHex(brush.Color), current, previous),
+            _ => null
+        };
+
+        if (resourceKey is not null)
+            target.SetResourceReference(property, resourceKey);
     }
 
-    private static Brush? MapSurface(Brush? brush, ThemePreferences current, ThemePreferences previous)
+    private static string? FindSurfaceResource(string hex, ThemePreferences current, ThemePreferences previous)
     {
-        if (brush is not SolidColorBrush solid) return brush;
-        string hex = ToHex(solid.Color);
         ThemePreferences defaults = CreateDefault();
-
-        if (Matches(hex, defaults.Background, previous.Background)) return NewBrush(current.Background);
-        if (Matches(hex, defaults.Sidebar, previous.Sidebar)) return NewBrush(current.Sidebar);
-        if (Matches(hex, defaults.Panel, previous.Panel)) return NewBrush(current.Panel);
-        if (Matches(hex, defaults.Raised, previous.Raised)) return NewBrush(current.Raised);
-        if (Matches(hex, defaults.Inset, previous.Inset)) return NewBrush(current.Inset);
-        if (Matches(hex, defaults.Border, previous.Border)) return NewBrush(current.Border);
-        if (Matches(hex, defaults.Accent, previous.Accent)) return NewBrush(current.Accent);
-        if (Matches(hex, defaults.AccentHover, previous.AccentHover)) return NewBrush(current.AccentHover);
-        if (Matches(hex, defaults.ControlHover, previous.ControlHover) ||
-            Matches(hex, "#242E3A", previous.ControlHover) ||
-            Matches(hex, "#293B50", previous.ControlHover) ||
-            Matches(hex, "#293544", previous.ControlHover))
-            return NewBrush(current.ControlHover);
-
-        return brush;
+        if (MatchesAny(hex, defaults.Background, previous.Background, current.Background)) return "Bg";
+        if (MatchesAny(hex, defaults.Sidebar, previous.Sidebar, current.Sidebar)) return "AfterlineSidebar";
+        if (MatchesAny(hex, defaults.Panel, previous.Panel, current.Panel)) return "Panel";
+        if (MatchesAny(hex, defaults.Raised, previous.Raised, current.Raised)) return "Raised";
+        if (MatchesAny(hex, defaults.Inset, previous.Inset, current.Inset)) return "AfterlineInset";
+        if (MatchesAny(hex, defaults.Border, previous.Border, current.Border)) return "Border";
+        if (MatchesAny(hex, defaults.Accent, previous.Accent, current.Accent)) return "Accent";
+        if (MatchesAny(hex, defaults.AccentHover, previous.AccentHover, current.AccentHover)) return "AccentHover";
+        if (MatchesAny(hex, defaults.ControlHover, previous.ControlHover, current.ControlHover,
+                "#242E3A", "#293B50", "#293544")) return "AfterlineControlHover";
+        return null;
     }
 
-    private static Brush? MapBorder(Brush? brush, ThemePreferences current, ThemePreferences previous)
+    private static string? FindTextResource(string hex, ThemePreferences current, ThemePreferences previous)
     {
-        if (brush is not SolidColorBrush solid) return brush;
-        string hex = ToHex(solid.Color);
         ThemePreferences defaults = CreateDefault();
-        return Matches(hex, defaults.Border, previous.Border) ? NewBrush(current.Border) : brush;
+        if (MatchesAny(hex, defaults.PrimaryText, previous.PrimaryText, current.PrimaryText)) return "Text";
+        if (MatchesAny(hex, defaults.SecondaryText, previous.SecondaryText, current.SecondaryText)) return "MutedText";
+        if (MatchesAny(hex, defaults.Accent, previous.Accent, current.Accent)) return "Accent";
+        return null;
     }
 
-    private static Brush? MapText(Brush? brush, ThemePreferences current, ThemePreferences previous)
-    {
-        if (brush is not SolidColorBrush solid) return brush;
-        string hex = ToHex(solid.Color);
-        ThemePreferences defaults = CreateDefault();
-
-        if (Matches(hex, defaults.PrimaryText, previous.PrimaryText)) return NewBrush(current.PrimaryText);
-        if (Matches(hex, defaults.SecondaryText, previous.SecondaryText)) return NewBrush(current.SecondaryText);
-        return brush;
-    }
-
-    private static bool Matches(string actual, string defaultValue, string previousValue)
-        => string.Equals(actual, defaultValue, StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(actual, previousValue, StringComparison.OrdinalIgnoreCase);
-
-    private static SolidColorBrush NewBrush(string hex)
-        => new(ParseColor(hex, Colors.Transparent));
+    private static bool MatchesAny(string actual, params string[] candidates)
+        => candidates.Any(candidate => string.Equals(actual, candidate, StringComparison.OrdinalIgnoreCase));
 }

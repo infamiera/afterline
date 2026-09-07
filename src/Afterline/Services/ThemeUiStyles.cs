@@ -38,7 +38,7 @@ public static class ThemeUiStyles
     </Style>
 
     <ControlTemplate x:Key="AfterlineVerticalScrollBar" TargetType="{x:Type ScrollBar}">
-        <Grid Width="11" Background="{DynamicResource AfterlineScrollbarTrack}">
+        <Border Width="11" Background="{DynamicResource AfterlineScrollbarTrack}" CornerRadius="5">
             <Track x:Name="PART_Track"
                    IsDirectionReversed="True"
                    Minimum="{TemplateBinding Minimum}"
@@ -61,11 +61,11 @@ public static class ThemeUiStyles
                                   Opacity="0"/>
                 </Track.IncreaseRepeatButton>
             </Track>
-        </Grid>
+        </Border>
     </ControlTemplate>
 
     <ControlTemplate x:Key="AfterlineHorizontalScrollBar" TargetType="{x:Type ScrollBar}">
-        <Grid Height="11" Background="{DynamicResource AfterlineScrollbarTrack}">
+        <Border Height="11" Background="{DynamicResource AfterlineScrollbarTrack}" CornerRadius="5">
             <Track x:Name="PART_Track"
                    IsDirectionReversed="False"
                    Minimum="{TemplateBinding Minimum}"
@@ -88,7 +88,7 @@ public static class ThemeUiStyles
                                   Opacity="0"/>
                 </Track.IncreaseRepeatButton>
             </Track>
-        </Grid>
+        </Border>
     </ControlTemplate>
 
     <Style TargetType="{x:Type ScrollBar}">
@@ -176,7 +176,15 @@ public static class ThemeUiStyles
                                           Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
                                           ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
-                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          TextElement.FontFamily="Segoe UI Variable Text, Segoe UI">
+                            <ContentPresenter.Resources>
+                                <Style TargetType="{x:Type TextBlock}">
+                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+                                </Style>
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

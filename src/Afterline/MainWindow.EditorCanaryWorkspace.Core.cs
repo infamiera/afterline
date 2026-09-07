@@ -461,6 +461,7 @@ public partial class MainWindow
             Padding = new Thickness(9),
             ToolTip = "Text for the selected additional chat block."
         };
+        EditorTextProofingService.Attach(_editorExtraChatInputCanary);
         _editorExtraChatInputCanary.TextChanged += (_, _) =>
         {
             if (_editorExtraChatUiUpdatingCanary || _editorSelectedExtraChatCanary is null) return;

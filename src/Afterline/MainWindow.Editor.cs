@@ -212,6 +212,7 @@ public partial class MainWindow
             FontSize = 12,
             Padding = new Thickness(10)
         };
+        EditorTextProofingService.Attach(_editorInput);
         _editorInput.TextChanged += (_, _) => ScheduleEditorChatRender();
         content.Children.Add(_editorInput);
 

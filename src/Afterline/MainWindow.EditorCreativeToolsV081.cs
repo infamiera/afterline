@@ -145,65 +145,6 @@ public partial class MainWindow
         return bitmap;
     }
 
-    private void OpenBackgroundRemovalV081()
-    {
-        EditorImageLayerV067? layer = _editorSelectedImageLayerV067;
-        BitmapSource? source = layer?.CollageSource ?? layer?.Bitmap ?? _editorFilterCommittedCanary ?? _editorBaseOriginal;
-        if (source is null)
-        {
-            SetEditorStatus("Select an image layer or load a Base Image before removing a background.");
-            return;
-        }
-        if (EditorHasAnimatedGifV060 && layer is null)
-        {
-            System.Windows.MessageBox.Show(
-                this,
-                "Background removal currently supports still Base Images and added image layers. Convert or load a still frame first.",
-                "Animated Base Image",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        var window = new EditorBackgroundRemovalWindow(this, source, allowSolidFill: layer is null);
-        if (window.ShowDialog() != true || window.Result is not BitmapSource result)
-            return;
-
-        if (layer is not null)
-        {
-            PushLayerEditHistoryV068(layer, "background removal");
-            if (layer.IsCollageFrame)
-            {
-                layer.CollageSource = result;
-                RefreshCollageFrameBitmapV081(layer);
-            }
-            else
-            {
-                layer.Bitmap = result;
-            }
-            UpdateImageLayerVisualV067(layer);
-            RefreshLayerListV067(layer);
-            RefreshSelectedLayerAdornerV068();
-            SetEditorStatus($"Removed the edge-connected background from ‘{layer.Name}’. Undo restores the original pixels.");
-            return;
-        }
-
-        PushEditorDocumentHistoryV081("Base Image background removal");
-        _editorSyntheticBaseV081 = false;
-        _editorBaseOriginal = result;
-        _editorFilterCommittedCanary = CloneBitmapCanary(result);
-        _editorFilterPreviewCanary = null;
-        SetBackgroundSelectionV081(window.SelectedFill switch
-        {
-            EditorBackgroundRemovalFill.Black => "Black",
-            EditorBackgroundRemovalFill.White => "White",
-            _ => "Transparent"
-        });
-        ApplyEditorImageAdjustments();
-        FinalizeLoadedBaseImageV069();
-        SetEditorStatus("Background removal applied to the Base Image. Undo restores the original pixels.");
-    }
-
     private void SetSelectedLayerAsBaseV081(EditorImageLayerV067 layer)
     {
         if (layer.IsLocked)
@@ -512,6 +453,7 @@ public partial class MainWindow
     {
         VerifyLiveCollageGapGeometryV082();
         VerifyEditorContentBoundaryGeometryV083();
+        EditorTextProofingService.RunSmokeTest();
         if (DefaultEditorCanvasWidthV081 < EditorBaseSizeWindowV081.MinimumBaseWidth ||
             DefaultEditorCanvasHeightV081 < EditorBaseSizeWindowV081.MinimumBaseHeight ||
             EditorCollageCanvasesV081.Any(canvas =>
@@ -531,35 +473,7 @@ public partial class MainWindow
             throw new InvalidOperationException("The Editor composition would flatten transparent PNG exports.");
         }
 
-        const int size = 5;
-        byte[] pixels = new byte[size * size * 4];
-        for (int index = 0; index < pixels.Length; index += 4)
-        {
-            pixels[index] = 255;
-            pixels[index + 1] = 255;
-            pixels[index + 2] = 255;
-            pixels[index + 3] = 255;
-        }
-        int center = (2 * size + 2) * 4;
-        pixels[center] = 0;
-        pixels[center + 1] = 0;
-        pixels[center + 2] = 255;
-        BitmapSource sample = BitmapSource.Create(size, size, 96, 96, PixelFormats.Bgra32, null, pixels, size * 4);
-        sample.Freeze();
-        BitmapSource transparent = EditorBackgroundRemovalProcessor.Remove(
-            sample, 30, 0, EditorBackgroundRemovalFill.Transparent, CancellationToken.None);
         byte[] corner = new byte[4];
-        byte[] subject = new byte[4];
-        transparent.CopyPixels(new Int32Rect(0, 0, 1, 1), corner, 4, 0);
-        transparent.CopyPixels(new Int32Rect(2, 2, 1, 1), subject, 4, 0);
-        if (corner[3] != 0 || subject[3] != 255 || subject[2] < 200)
-            throw new InvalidOperationException("Edge-connected background removal did not preserve the interior subject.");
-        BitmapSource solid = EditorBackgroundRemovalProcessor.Remove(
-            sample, 30, 0, EditorBackgroundRemovalFill.Black, CancellationToken.None);
-        solid.CopyPixels(new Int32Rect(0, 0, 1, 1), corner, 4, 0);
-        if (corner[3] != 255)
-            throw new InvalidOperationException("Solid background removal output retained transparent pixels.");
-
         BitmapSource blank = CreateProjectBackgroundBitmapV081(3, 3, "Transparent");
         blank.CopyPixels(new Int32Rect(1, 1, 1, 1), corner, 4, 0);
         if (corner[3] != 0)

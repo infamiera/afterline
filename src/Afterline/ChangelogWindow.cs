@@ -76,8 +76,15 @@ internal sealed class ChangelogWindow : Window
             Content = releaseStack
         };
         scroll.SetResourceReference(Control.BackgroundProperty, "Bg");
-        Grid.SetRow(scroll, 2);
-        root.Children.Add(scroll);
+        var scrollFrame = new Border
+        {
+            CornerRadius = new CornerRadius(12),
+            ClipToBounds = true,
+            Child = scroll
+        };
+        scrollFrame.SetResourceReference(Border.BackgroundProperty, "Bg");
+        Grid.SetRow(scrollFrame, 2);
+        root.Children.Add(scrollFrame);
 
         var close = new Button
         {

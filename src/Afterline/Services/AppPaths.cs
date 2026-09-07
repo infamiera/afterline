@@ -19,6 +19,7 @@ public static class AppPaths
     public static string PotentialDuplicateCandidatesFile => Path.Combine(LocalDataRoot, "Cache", "potential-duplicates.json");
     public static string NotesBookmarksFile => Path.Combine(LocalDataRoot, "Cache", "notes-bookmarks.json");
     public static string SearchHistoryFile => Path.Combine(LocalDataRoot, "Cache", "search-history.json");
+    public static string EditorDictionaryFile => Path.Combine(LocalDataRoot, "Editor", "dictionary.lex");
     public static string ScreenshotGalleryIndexFile => Path.Combine(LocalDataRoot, "Cache", "screenshot-gallery.json");
     public static string ActiveSessionsDirectory => Path.Combine(LocalDataRoot, "Active Sessions");
     public static string RecoveryBackupsDirectory => Path.Combine(LocalDataRoot, "Recovery Backups");

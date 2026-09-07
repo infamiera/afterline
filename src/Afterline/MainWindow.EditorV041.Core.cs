@@ -262,6 +262,7 @@ public partial class MainWindow
             FontSize = 12,
             Padding = new Thickness(9)
         };
+        EditorTextProofingService.Attach(_editorInput);
         _editorInput.TextChanged += (_, _) =>
         {
             PruneEditorLineColorOverrides();
