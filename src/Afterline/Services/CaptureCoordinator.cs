@@ -27,6 +27,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private readonly CaptureReplayGuard _replayGuard = new();
     private readonly PotentialDuplicateCandidateService _potentialDuplicates = new();
     private readonly Func<AppSettings> _settings;
+    private readonly Action<AppSettings>? _persistSettings;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _captureGate = new(1, 1);
 
@@ -51,11 +52,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public event EventHandler<ServerSessionChangedEventArgs>? ServerSessionChanged;
     public event EventHandler? CachedSessionReplayStarting;
     public event EventHandler<PotentialDuplicateCandidate>? PotentialDuplicateDetected;
+    public event EventHandler? ServerClockChanged;
 
-    public CaptureCoordinator(SessionJournal journal, Func<AppSettings> settings)
+    public CaptureCoordinator(
+        SessionJournal journal,
+        Func<AppSettings> settings,
+        Action<AppSettings>? persistSettings = null)
     {
         _journal = journal;
         _settings = settings;
+        _persistSettings = persistSettings;
     }
 
     public async Task StartAsync()
@@ -392,10 +398,26 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         int captured = 0;
         Guid? candidateId = replay.IsReplay ? Guid.NewGuid() : null;
 
+        if (pending.Length > 0 && _previousVisible.Count > 0)
+        {
+            CapturedChatLine newest = pending[^1];
+            if (ServerTimeService.TryLearnFromFreshTimestamp(
+                    settings,
+                    _currentServer,
+                    newest.Text,
+                    DateTimeOffset.UtcNow))
+            {
+                PersistServerClockSettings(settings);
+            }
+        }
+
         for (int pendingIndex = 0; pendingIndex < pending.Length; pendingIndex++)
         {
             CapturedChatLine line = pending[pendingIndex];
-            DateTime observedAt = DateTime.Now;
+            DateTime observedAt = ServerTimeService.Resolve(
+                settings,
+                _currentServer,
+                DateTimeOffset.UtcNow).ServerTime;
             bool potentialDuplicate = replay.IsReplay &&
                                       pendingIndex >= replay.CandidateStartIndex &&
                                       pendingIndex < replay.CandidateStartIndex + replay.CandidateCount;
@@ -509,6 +531,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         if (_currentServer is null)
         {
             _currentServer = observed;
+            ApplyServerClockHint(settings);
             NotifyServerChanged();
             return;
         }
@@ -517,10 +540,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         {
             await FinalizeCurrentServerCoreAsync(
                 settings,
-                DateTime.Now,
+                CurrentServerTime(settings),
                 false,
                 cancellationToken);
             _currentServer = observed;
+            ApplyServerClockHint(settings);
             NotifyServerChanged();
             return;
         }
@@ -529,6 +553,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             (string.IsNullOrWhiteSpace(_currentServer.Address) &&
              !string.IsNullOrWhiteSpace(observed.Address)) ||
             (!_currentServer.HasFriendlyName && observed.HasFriendlyName);
+
+        metadataImproved |=
+            (string.IsNullOrWhiteSpace(_currentServer.TimeZoneIdHint) &&
+             !string.IsNullOrWhiteSpace(observed.TimeZoneIdHint)) ||
+            (_currentServer.UtcOffsetMinutesHint is null &&
+             observed.UtcOffsetMinutesHint is not null);
 
         if (metadataImproved)
         {
@@ -539,8 +569,14 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     : observed.Address,
                 Name = observed.HasFriendlyName
                     ? observed.Name
-                    : _currentServer.Name
+                    : _currentServer.Name,
+                TimeZoneIdHint = string.IsNullOrWhiteSpace(observed.TimeZoneIdHint)
+                    ? _currentServer.TimeZoneIdHint
+                    : observed.TimeZoneIdHint,
+                UtcOffsetMinutesHint = observed.UtcOffsetMinutesHint ??
+                                       _currentServer.UtcOffsetMinutesHint
             };
+            ApplyServerClockHint(settings);
             NotifyServerChanged();
         }
     }
@@ -566,7 +602,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             {
                 await FinalizeCurrentServerCoreAsync(
                     settings,
-                    DateTime.Now,
+                    CurrentServerTime(settings),
                     false,
                     _cts.Token);
             }
@@ -601,7 +637,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         await FinalizeCurrentServerCoreAsync(
             settings,
-            DateTime.Now,
+            CurrentServerTime(settings),
             false,
             cancellationToken);
         SetState(GetDisconnectedIdleState(
@@ -814,7 +850,9 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             FindOverlap(_previousVisible, current) > 0)
             return;
 
-        DateTime boundary = InferVisibleTimestamp(current[0], DateTime.Now);
+        DateTime boundary = InferVisibleTimestamp(
+            current[0],
+            CurrentServerTime(settings));
         await FinalizeCurrentServerCoreAsync(
             settings,
             boundary,
@@ -875,6 +913,36 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         IReadOnlyList<string> oldLines,
         IReadOnlyList<string> newLines)
     {
+        int exact = FindOverlapCore(oldLines, newLines, static line => line);
+        if (exact > 0) return exact;
+
+        // FiveM adds/removes the timestamp prefix on every retained row when the
+        // player toggles timestamps. Treat that as a presentation-only change,
+        // but require multiple varied rows so a legitimate repeated message is
+        // never silently swallowed.
+        if (!HasConfirmedTimestampPresentationSwitch(oldLines, newLines))
+            return 0;
+
+        int normalized = FindOverlapCore(
+            oldLines,
+            newLines,
+            static line => VisibleTimestampPrefix.Replace(line ?? string.Empty, string.Empty).TrimStart());
+        if (normalized < 2)
+            return 0;
+
+        int distinct = newLines.Take(normalized)
+            .Select(line => VisibleTimestampPrefix.Replace(line ?? string.Empty, string.Empty).Trim())
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .Count();
+        return distinct >= 2 ? normalized : 0;
+    }
+
+    private static int FindOverlapCore(
+        IReadOnlyList<string> oldLines,
+        IReadOnlyList<string> newLines,
+        Func<string, string> normalize)
+    {
         int max = Math.Min(oldLines.Count, newLines.Count);
 
         for (int length = max; length > 0; length--)
@@ -883,8 +951,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             for (int i = 0; i < length; i++)
             {
                 if (!string.Equals(
-                        oldLines[oldLines.Count - length + i],
-                        newLines[i],
+                        normalize(oldLines[oldLines.Count - length + i]),
+                        normalize(newLines[i]),
                         StringComparison.Ordinal))
                 {
                     same = false;
@@ -897,6 +965,52 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         return 0;
     }
+
+    private static bool HasConfirmedTimestampPresentationSwitch(
+        IReadOnlyList<string> oldLines,
+        IReadOnlyList<string> newLines)
+    {
+        if (oldLines.Count < 2 || newLines.Count < 2)
+            return false;
+
+        bool oldStamped = VisibleTimestampPrefix.IsMatch(oldLines[^1]);
+        bool newStamped = VisibleTimestampPrefix.IsMatch(newLines[0]);
+        if (oldStamped == newStamped)
+            return false;
+
+        return oldLines.All(line => VisibleTimestampPrefix.IsMatch(line) == oldStamped) &&
+               newLines.All(line => VisibleTimestampPrefix.IsMatch(line) == newStamped);
+    }
+
+    private DateTime CurrentServerTime(AppSettings settings)
+        => ServerTimeService.Resolve(
+            settings,
+            _currentServer,
+            DateTimeOffset.UtcNow).ServerTime;
+
+    private void ApplyServerClockHint(AppSettings settings)
+    {
+        if (ServerTimeService.ApplyServerHint(settings, _currentServer))
+            PersistServerClockSettings(settings);
+    }
+
+    private void PersistServerClockSettings(AppSettings settings)
+    {
+        try
+        {
+            _persistSettings?.Invoke(settings);
+            ServerClockChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to persist the detected server timezone.", ex);
+        }
+    }
+
+    internal static int FindOverlapForSmokeTest(
+        IReadOnlyList<string> oldLines,
+        IReadOnlyList<string> newLines)
+        => FindOverlap(oldLines, newLines);
 
     public async ValueTask DisposeAsync()
     {

@@ -77,7 +77,12 @@ public static class FiveMScreenshotCaptureService
 
         try
         {
-            using var image = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppPArgb);
+            // Screen captures are fully opaque. A premultiplied-alpha surface can
+            // retain invalid alpha/color values from some DWM/game compositions,
+            // producing bright speckles around hair, foliage and other thin detail.
+            // A 24-bit RGB target preserves the exact desktop pixels without an
+            // alpha conversion; PNG encoding remains lossless.
+            using var image = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
             using (Graphics graphics = Graphics.FromImage(image))
             {
                 graphics.CopyFromScreen(

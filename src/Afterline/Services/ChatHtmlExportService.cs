@@ -182,7 +182,7 @@ internal static class ChatHtmlExportService
         if (entry.IsSystemMessage && EditorChatFormatter.IsSessionBoundaryMarker(text))
             return new[] { new EditorChatSegment(text, EditorChatFormatter.Blue) };
 
-        if (!useAutomaticColors || entry.IsSystemMessage)
+        if (entry.IsSystemMessage)
             return new[] { new EditorChatSegment(text, fallback) };
 
         IReadOnlyList<ChatColorRun> exactRuns = ChatColorData.NormalizeRuns(
@@ -196,6 +196,9 @@ internal static class ChatHtmlExportService
                     run.Italic))
                 .ToArray();
         }
+
+        if (!useAutomaticColors)
+            return new[] { new EditorChatSegment(text, fallback) };
 
         EditorChatLine? formatted = UnifiedChatFormatter
             .FormatLines(text, showTimestamps: true)

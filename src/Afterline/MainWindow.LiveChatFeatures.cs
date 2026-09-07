@@ -14,8 +14,11 @@ public partial class MainWindow
     private CheckBox? _showIcChatCheckV076;
     private CheckBox? _roleplayColorsCheck;
     private CheckBox? _showLiveTimestampsCheck;
+    private CheckBox? _autoScrollLiveCheck;
     private TextBlock? _liveActionStatus;
     private TextBlock? _serverStatusText;
+    private TextBlock? _serverClockStatusText;
+    private Button? _serverTimeZoneButton;
 
     internal void EnsureLiveChatEnhancements()
     {
@@ -192,6 +195,17 @@ public partial class MainWindow
         _showLiveTimestampsCheck.Checked += ShowLiveTimestampsCheck_Changed;
         _showLiveTimestampsCheck.Unchecked += ShowLiveTimestampsCheck_Changed;
 
+        _autoScrollLiveCheck = new CheckBox
+        {
+            Content = "Auto-scroll",
+            IsChecked = _settings.AutoScrollLiveChat,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 18, 0),
+            ToolTip = "Keep Live Chat pinned to the newest message. Turn this off to scroll through earlier messages without being pulled back down."
+        };
+        _autoScrollLiveCheck.Checked += AutoScrollLiveCheck_Changed;
+        _autoScrollLiveCheck.Unchecked += AutoScrollLiveCheck_Changed;
+
         ShowLiveChatCheck.VerticalAlignment = VerticalAlignment.Center;
         ShowLiveChatCheck.Margin = new Thickness(0);
 
@@ -199,6 +213,7 @@ public partial class MainWindow
         optionsPanel.Children.Add(_showIcChatCheckV076);
         optionsPanel.Children.Add(_roleplayColorsCheck);
         optionsPanel.Children.Add(_showLiveTimestampsCheck);
+        optionsPanel.Children.Add(_autoScrollLiveCheck);
         optionsPanel.Children.Add(ShowLiveChatCheck);
         headerGrid.Children.Add(optionsPanel);
 
@@ -249,6 +264,7 @@ public partial class MainWindow
     private void ConfigureServerStatus()
     {
         _capture.ServerSessionChanged += Capture_ServerSessionChanged;
+        _capture.ServerClockChanged += Capture_ServerClockChanged;
 
         if (FiveMStateText.Parent is StackPanel panel)
         {
@@ -262,6 +278,26 @@ public partial class MainWindow
 
             int index = panel.Children.IndexOf(FiveMStateText);
             panel.Children.Insert(Math.Min(index + 1, panel.Children.Count), _serverStatusText);
+
+            _serverClockStatusText = new TextBlock
+            {
+                Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
+                FontSize = 11,
+                Margin = new Thickness(0, 4, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            };
+            panel.Children.Insert(Math.Min(index + 2, panel.Children.Count), _serverClockStatusText);
+
+            _serverTimeZoneButton = new Button
+            {
+                Content = "Set server time zone",
+                Padding = new Thickness(9, 5, 9, 5),
+                Margin = new Thickness(0, 7, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                ToolTip = "Automatic detection is preferred. Use this only when the server does not expose a reliable timezone."
+            };
+            _serverTimeZoneButton.Click += SetServerTimeZone_Click;
+            panel.Children.Insert(Math.Min(index + 3, panel.Children.Count), _serverTimeZoneButton);
         }
 
         UpdateServerStatus(_capture.CurrentServer);
@@ -282,6 +318,7 @@ public partial class MainWindow
         {
             _serverStatusText.Text = "No active server connection";
             _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("MutedText");
+            UpdateServerClockStatus(null);
             return;
         }
 
@@ -289,6 +326,69 @@ public partial class MainWindow
             ? $"Server: {server.DisplayName}"
             : "Connected to a server · name unavailable";
         _serverStatusText.Foreground = (System.Windows.Media.Brush)FindResource("Success");
+        UpdateServerClockStatus(server);
+    }
+
+    private void Capture_ServerClockChanged(object? sender, EventArgs e)
+        => _ = Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.Background,
+            new Action(() => UpdateServerClockStatus(_capture.CurrentServer)));
+
+    private void UpdateServerClockStatus(ServerSessionInfo? server)
+    {
+        if (_serverClockStatusText is null || _serverTimeZoneButton is null) return;
+
+        _serverTimeZoneButton.Visibility = server is null
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        if (server is null)
+        {
+            _serverClockStatusText.Text = "Server time: UTC until a server is connected";
+            return;
+        }
+
+        ServerClockResult clock = ServerTimeService.Resolve(
+            _settings,
+            server,
+            DateTimeOffset.UtcNow);
+        _serverClockStatusText.Text = $"Server time: {clock.ServerTime:HH:mm:ss} · {clock.Description}";
+    }
+
+    private void SetServerTimeZone_Click(object sender, RoutedEventArgs e)
+    {
+        ServerSessionInfo? server = _capture.CurrentServer;
+        if (server is null) return;
+
+        ServerClockResult current = ServerTimeService.Resolve(
+            _settings,
+            server,
+            DateTimeOffset.UtcNow);
+        var dialog = new ServerTimeZoneWindow(
+            this,
+            server.DisplayName,
+            current.Description,
+            ServerTimeService.GetManualTimeZoneId(_settings, server));
+        if (dialog.ShowDialog() != true) return;
+
+        ServerTimeService.SetManualTimeZone(
+            _settings,
+            server,
+            dialog.SelectedTimeZoneId);
+        try
+        {
+            _settingsService.Save(_settings);
+            UpdateServerClockStatus(server);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to save the server timezone override.", ex);
+            System.Windows.MessageBox.Show(
+                this,
+                "Afterline could not save the server timezone setting.",
+                "Server Time Zone",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private async void CheckFiveMConnection_Click(object sender, RoutedEventArgs e)
@@ -378,6 +478,17 @@ public partial class MainWindow
         SaveLivePresentationSettings();
     }
 
+    private void AutoScrollLiveCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_autoScrollLiveCheck is null) return;
+        _settings.AutoScrollLiveChat = _autoScrollLiveCheck.IsChecked == true;
+        if (AutoScrollCheck.IsChecked != _settings.AutoScrollLiveChat)
+            AutoScrollCheck.IsChecked = _settings.AutoScrollLiveChat;
+        if (_settings.AutoScrollLiveChat && LiveMessages.Count > 0)
+            LiveChatList.ScrollIntoView(LiveMessages[^1]);
+        SaveLivePresentationSettings();
+    }
+
     private void SaveLivePresentationSettings()
     {
         try
@@ -446,7 +557,14 @@ public partial class MainWindow
         try
         {
             string downloads = GetDownloadsFolder();
-            string path = await _journal.ExportCurrentLogAsync(_settings.ArchiveRoot, downloads, CancellationToken.None);
+            string path = await _journal.ExportCurrentLogAsync(
+                _settings.ArchiveRoot,
+                downloads,
+                CancellationToken.None,
+                ServerTimeService.Resolve(
+                    _settings,
+                    _capture.CurrentServer,
+                    DateTimeOffset.UtcNow).ServerTime);
             if (_liveActionStatus is not null)
                 _liveActionStatus.Text = $"Saved {Path.GetFileName(path)} to Downloads.";
             ShowExportSuccessNotification(path);

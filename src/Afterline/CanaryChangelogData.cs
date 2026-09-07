@@ -6,6 +6,16 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "07/SEP/2026", new[]
+        {
+            "Server timestamps — Never substitutes the player's local clock for timestamp-free chat; detects advertised server zones, learns offsets from fresh server timestamps, remembers them per server and safely falls back to UTC.",
+            "Dashboard server clock — Shows the clock source for the active server and adds a per-server manual time-zone override when automatic detection is unavailable.",
+            "Timestamp toggle safety — Treats a confirmed whole-buffer timestamp on/off change as presentation only, preventing duplicate archive rows without suppressing genuine repeated messages.",
+            "Faction colors — Keeps exact arbitrary FiveM faction colors in Live Chat, Log Reader and HTML exports even when automatic fallback coloring is disabled.",
+            "Live Chat scrolling — Adds an immediate Auto-scroll toggle so incoming messages do not interrupt reviewing earlier chat.",
+            "Screen capture — Uses an opaque native-resolution PNG buffer to prevent premultiplied-alpha speckles and retain the captured game pixels.",
+            "Interface polish — Adds main-sidebar scrolling, wraps long tooltips, updates theme-driven dividers, rounds nested panel edges and shows the selection rail only for the active page."
+        }, ChangelogChannel.Canary, 233),
         new("0.7.0", "03/SEP/2026", new[]
         {
             "Application shell — Introduces cleaner icon-and-text navigation, visible theme-driven gradients and a compact Updates area.",

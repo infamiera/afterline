@@ -5,6 +5,7 @@ namespace Afterline.Services;
 
 public sealed class SettingsService
 {
+    private static readonly object SaveGate = new();
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     public AppSettings Load()
@@ -45,6 +46,12 @@ public sealed class SettingsService
                 .ToList();
             settings.RecentLogPaths ??= new List<string>();
             settings.PinnedLogPaths ??= new List<string>();
+            settings.ServerTimeZones ??= new List<ServerTimeZonePreference>();
+            settings.ServerTimeZones = settings.ServerTimeZones
+                .Where(item => item is not null && !string.IsNullOrWhiteSpace(item.ServerKey))
+                .GroupBy(item => item.ServerKey.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
             if (string.IsNullOrWhiteSpace(settings.ScreenshotFolder))
             {
                 settings.ScreenshotFolder = Path.Combine(
@@ -145,9 +152,15 @@ public sealed class SettingsService
 
     public void Save(AppSettings settings)
     {
-        AppPaths.EnsureLocalDirectories();
-        string temp = AppPaths.SettingsFile + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(settings, _jsonOptions));
-        File.Move(temp, AppPaths.SettingsFile, true);
+        lock (SaveGate)
+        {
+            AppPaths.EnsureLocalDirectories();
+            string temp = AppPaths.SettingsFile + ".tmp";
+            string serialized;
+            lock (settings.ServerTimeZones)
+                serialized = JsonSerializer.Serialize(settings, _jsonOptions);
+            File.WriteAllText(temp, serialized);
+            File.Move(temp, AppPaths.SettingsFile, true);
+        }
     }
 }

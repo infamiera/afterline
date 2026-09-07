@@ -150,6 +150,60 @@ public static class ChatColorSidecarService
         }
     }
 
+    public static async Task ReplaceAsync(
+        string textFilePath,
+        IEnumerable<ChatColorLineRecord> records,
+        CancellationToken cancellationToken)
+    {
+        string sidecarPath = GetSidecarPath(textFilePath);
+        string temporary = sidecarPath + $".{Environment.ProcessId}.tmp";
+        ChatColorLineRecord[] normalized = records
+            .Select(record => new ChatColorLineRecord
+            {
+                Text = record.Text,
+                ColorRuns = ChatColorData.NormalizeRuns(record.Text, record.ColorRuns).ToList()
+            })
+            .Where(record => !string.IsNullOrEmpty(record.Text) && record.ColorRuns.Count > 0)
+            .ToArray();
+
+        await Gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (normalized.Length == 0)
+            {
+                if (File.Exists(sidecarPath)) File.Delete(sidecarPath);
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(sidecarPath)!);
+            await using (FileStream stream = new(
+                temporary,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                4096,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            await using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                foreach (ChatColorLineRecord record in normalized)
+                {
+                    string json = JsonSerializer.Serialize(record);
+                    await writer.WriteLineAsync(json.AsMemory(), cancellationToken);
+                }
+                await writer.FlushAsync(cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+            }
+
+            File.Move(temporary, sidecarPath, true);
+        }
+        finally
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            catch { }
+            Gate.Release();
+        }
+    }
+
     private static async Task<IReadOnlyList<ChatColorLineRecord>> ReadRecordsAsync(
         string textFilePath,
         CancellationToken cancellationToken)

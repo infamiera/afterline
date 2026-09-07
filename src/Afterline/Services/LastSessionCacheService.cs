@@ -77,8 +77,8 @@ public sealed class LastSessionCacheService
 
             // Live Chat can be rebuilt from this private app-data cache after a
             // restart or session transition. Preserve the CFX capture's exact
-            // per-character colors here; user-facing archives and TXT exports
-            // deliberately remain plain text without companion files.
+            // per-character colors here as well as in the active archive sidecar;
+            // explicitly exported TXT copies remain standalone plain text.
             await ChatColorSidecarService.AppendAsync(
                 AppPaths.LastSessionCacheFile,
                 line,

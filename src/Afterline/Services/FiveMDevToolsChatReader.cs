@@ -129,10 +129,23 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         "name"
     };
 
+    private static readonly string[] ServerTimeZoneProperties =
+    {
+        "sv_timezone",
+        "server_timezone",
+        "serverTimeZone",
+        "timezone",
+        "timeZone",
+        "tz",
+        "utc_offset",
+        "utcOffset"
+    };
+
     private static readonly JsonElement EmptyResult = CreateEmptyResult();
 
     private readonly HttpClient _http;
     private readonly Dictionary<string, string> _resolvedNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ServerTimeZoneHint> _resolvedTimeZones = new(StringComparer.OrdinalIgnoreCase);
     private readonly byte[] _receiveBuffer = new byte[8192];
     private ClientWebSocket? _socket;
     private int _contextId;
@@ -140,6 +153,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private ServerSessionInfo _currentServer = ServerSessionInfo.Unknown;
     private string? _lastResolutionAddress;
     private DateTime _lastResolutionAttemptUtc = DateTime.MinValue;
+    private string? _lastTimeZoneResolutionAddress;
+    private DateTime _lastTimeZoneResolutionAttemptUtc = DateTime.MinValue;
     private bool _exactColorFallbackLogged;
     private string[] _lastExactVisibleText = Array.Empty<string>();
 
@@ -330,6 +345,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _currentServer = ServerSessionInfo.Unknown;
         _lastResolutionAddress = null;
         _lastResolutionAttemptUtc = DateTime.MinValue;
+        _lastTimeZoneResolutionAddress = null;
+        _lastTimeZoneResolutionAttemptUtc = DateTime.MinValue;
         _lastExactVisibleText = Array.Empty<string>();
         return Task.CompletedTask;
     }
@@ -430,11 +447,74 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             _lastResolutionAddress = normalizedAddress;
         }
 
+        ServerTimeZoneHint timeZone = _resolvedTimeZones.TryGetValue(
+            normalizedAddress,
+            out ServerTimeZoneHint cachedTimeZone)
+            ? cachedTimeZone
+            : ServerTimeZoneHint.Empty;
+        bool shouldResolveTimeZone = timeZone == ServerTimeZoneHint.Empty &&
+            (!string.Equals(
+                 normalizedAddress,
+                 _lastTimeZoneResolutionAddress,
+                 StringComparison.OrdinalIgnoreCase) ||
+             DateTime.UtcNow - _lastTimeZoneResolutionAttemptUtc >= TimeSpan.FromMinutes(15));
+        if (shouldResolveTimeZone)
+        {
+            _lastTimeZoneResolutionAddress = normalizedAddress;
+            _lastTimeZoneResolutionAttemptUtc = DateTime.UtcNow;
+            ServerTimeZoneHint resolved = await TryResolveServerTimeZoneAsync(
+                address,
+                cancellationToken);
+            if (resolved != ServerTimeZoneHint.Empty)
+            {
+                timeZone = resolved;
+                _resolvedTimeZones[normalizedAddress] = resolved;
+            }
+        }
+
         _currentServer = new ServerSessionInfo
         {
             Address = address,
-            Name = name
+            Name = name,
+            TimeZoneIdHint = timeZone.TimeZoneId,
+            UtcOffsetMinutesHint = timeZone.UtcOffsetMinutes
         };
+    }
+
+    private async Task<ServerTimeZoneHint> TryResolveServerTimeZoneAsync(
+        string address,
+        CancellationToken cancellationToken)
+    {
+        if (!TryBuildServerBaseUri(address, out Uri? baseUri))
+            return ServerTimeZoneHint.Empty;
+
+        JsonDocument? info = await TryReadJsonAsync(
+            new Uri(baseUri, "/info.json"),
+            cancellationToken);
+        if (info is null) return ServerTimeZoneHint.Empty;
+
+        using (info)
+        {
+            IEnumerable<JsonElement> sources = info.RootElement
+                .TryGetProperty("vars", out JsonElement vars) && vars.ValueKind == JsonValueKind.Object
+                ? new[] { vars, info.RootElement }
+                : new[] { info.RootElement };
+
+            foreach (JsonElement source in sources)
+            {
+                foreach (string property in ServerTimeZoneProperties)
+                {
+                    string? value = TryGetRawString(source, property);
+                    if (ServerTimeService.TryParseServerHint(
+                            value,
+                            out string? timeZoneId,
+                            out int? utcOffsetMinutes))
+                        return new ServerTimeZoneHint(timeZoneId, utcOffsetMinutes);
+                }
+            }
+        }
+
+        return ServerTimeZoneHint.Empty;
     }
 
     private async Task<ServerHint> ReadServerHintAsync(CancellationToken cancellationToken)
@@ -551,6 +631,17 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         if (!parent.TryGetProperty(property, out JsonElement value)) return null;
         if (value.ValueKind != JsonValueKind.String) return null;
         return CleanServerName(NullIfBlank(value.GetString()));
+    }
+
+    private static string? TryGetRawString(JsonElement parent, string property)
+    {
+        if (!parent.TryGetProperty(property, out JsonElement value)) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => NullIfBlank(value.GetString()),
+            JsonValueKind.Number => value.GetRawText(),
+            _ => null
+        };
     }
 
     private static string? CleanServerName(string? value)
@@ -695,5 +786,12 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     {
         public string? Address { get; set; }
         public string? Name { get; set; }
+    }
+
+    private sealed record ServerTimeZoneHint(
+        string? TimeZoneId,
+        int? UtcOffsetMinutes)
+    {
+        public static ServerTimeZoneHint Empty { get; } = new(null, null);
     }
 }

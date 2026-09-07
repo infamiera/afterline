@@ -58,7 +58,11 @@ public partial class MainWindow
                 : await _journal.ExportCurrentLogAsync(
                     _settings.ArchiveRoot,
                     GetDownloadsFolder(),
-                    CancellationToken.None);
+                    CancellationToken.None,
+                    ServerTimeService.Resolve(
+                        _settings,
+                        _capture.CurrentServer,
+                        DateTimeOffset.UtcNow).ServerTime);
 
             SetLiveActionStatus($"Saved {Path.GetFileName(destination)} to Downloads.");
             ShowExportSuccessNotification(destination);

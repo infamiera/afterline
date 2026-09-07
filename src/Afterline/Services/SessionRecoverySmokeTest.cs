@@ -15,6 +15,8 @@ internal static class SessionRecoverySmokeTest
         ApplicationHealthMonitor.RunPersistenceSmokeTest(archiveRoot);
         DiagnosticLogger.RunPreviousSessionSnapshotSmokeTest(archiveRoot);
         CaptureReplayGuard.RunSmokeTest();
+        VerifyTimestampToggleOverlap();
+        ServerTimeService.RunSmokeTest();
         VerifyTimestampProvenance();
         await PotentialDuplicateCleanupService.RunSmokeTestAsync(
             archiveRoot,
@@ -69,7 +71,7 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException(
                 "The private Live Chat replay cache did not preserve exact captured colors.");
         }
-        VerifyNoAutomaticColorSidecar(initial.ActiveFile);
+        await VerifyArchivedColorSidecarAsync(initial.ActiveFile, firstLine);
 
         // Simulate the replay cache being absent after a power interruption. The
         // resumed journal must reconstruct it from its write-through backup.
@@ -91,7 +93,7 @@ internal static class SessionRecoverySmokeTest
             throw new InvalidOperationException("The last-session replay cache was not rebuilt from the journal backup.");
 
         VerifyHtmlChatExport(exactColorEntry, startedAt);
-        VerifyNoAutomaticColorSidecar(initial.ActiveFile);
+        await VerifyArchivedColorSidecarAsync(initial.ActiveFile, firstLine);
 
         string plainTextExport = await resumed.ExportCurrentLogAsync(
             archiveRoot,
@@ -241,24 +243,74 @@ internal static class SessionRecoverySmokeTest
         }
     }
 
+    private static async Task VerifyArchivedColorSidecarAsync(
+        string? textFile,
+        string expectedLine)
+    {
+        if (string.IsNullOrWhiteSpace(textFile) || !File.Exists(textFile))
+            throw new InvalidOperationException("The color smoke-test chatlog is unavailable.");
+
+        string[] lines = await File.ReadAllLinesAsync(textFile);
+        IReadOnlyDictionary<int, ChatColorLineRecord> colors =
+            await ChatColorSidecarService.MatchLinesAsync(
+                textFile,
+                lines,
+                CancellationToken.None);
+        int lineIndex = Array.FindIndex(lines, line => string.Equals(
+            line,
+            expectedLine,
+            StringComparison.Ordinal));
+        if (lineIndex < 0 ||
+            !colors.TryGetValue(lineIndex, out ChatColorLineRecord? record) ||
+            !ChatColorData.HasCompleteCoverage(expectedLine, record.ColorRuns))
+        {
+            throw new InvalidOperationException(
+                "The archived chatlog did not retain exact FiveM colors for Log Reader playback.");
+        }
+    }
+
     private static void VerifyTimestampProvenance()
     {
         DateTime observed = DateTime.Today.AddHours(17);
         var visibleTimestamp = new ChatEntry(
             observed,
             "[14:53:02] (( PM from (196) Player: hi ))");
-        var localTimestamp = new ChatEntry(
+        var serverTimestamp = new ChatEntry(
             observed,
             "(( PM from (196) Player: hi ))");
 
         if (visibleTimestamp.TimestampSource != ChatTimestampSource.VisibleChat ||
             visibleTimestamp.CapturedAt.TimeOfDay != new TimeSpan(14, 53, 2) ||
-            localTimestamp.TimestampSource != ChatTimestampSource.LocalObservation ||
-            localTimestamp.CapturedAt != observed)
+            serverTimestamp.TimestampSource != ChatTimestampSource.ServerObservation ||
+            serverTimestamp.CapturedAt != observed)
         {
             throw new InvalidOperationException(
-                "Visible FiveM timestamps were not kept distinct from local observation time.");
+                "Visible FiveM timestamps were not kept distinct from resolved server observation time.");
         }
+    }
+
+    private static void VerifyTimestampToggleOverlap()
+    {
+        string[] stamped =
+        {
+            "[13:45:01] Bianca says: First line.",
+            "[13:45:04] * Bianca checks her phone.",
+            "[13:45:07] (( A distinct OOC line. ))"
+        };
+        string[] unstamped = stamped
+            .Select(line => line[(line.IndexOf(']') + 1)..].TrimStart())
+            .ToArray();
+
+        if (CaptureCoordinator.FindOverlapForSmokeTest(stamped, unstamped) != stamped.Length ||
+            CaptureCoordinator.FindOverlapForSmokeTest(unstamped, stamped) != stamped.Length)
+            throw new InvalidOperationException(
+                "Toggling FiveM timestamps made the retained chat buffer appear new.");
+
+        string[] oldRepeated = { "[13:45:01] (( hi ))" };
+        string[] genuinelyNewRepeated = { "(( hi ))" };
+        if (CaptureCoordinator.FindOverlapForSmokeTest(oldRepeated, genuinelyNewRepeated) != 0)
+            throw new InvalidOperationException(
+                "A single legitimate repeated message was swallowed as a timestamp toggle.");
     }
 
     private static void VerifyStreamerModeMasking()

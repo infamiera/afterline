@@ -15,6 +15,8 @@ public sealed class ServerSessionInfo
 
     public string? Name { get; init; }
     public string? Address { get; init; }
+    public string? TimeZoneIdHint { get; init; }
+    public int? UtcOffsetMinutesHint { get; init; }
 
     public bool HasFriendlyName =>
         !string.IsNullOrWhiteSpace(Name) &&

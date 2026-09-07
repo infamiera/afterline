@@ -23,7 +23,7 @@ public partial class MainWindow
         if (_roleplayColorsCheck is not null)
         {
             _roleplayColorsCheck.Content = "Automatic chat colors";
-            _roleplayColorsCheck.ToolTip = "Use the same automatic RP color recognition as the screenshot Editor. Turn this off to use the simpler legacy line colors.";
+            _roleplayColorsCheck.ToolTip = "Infer RP colors when FiveM does not provide exact colors. Exact server and faction colors are always preserved.";
             _roleplayColorsCheck.Checked += UnifiedChatColorToggle_Changed;
             _roleplayColorsCheck.Unchecked += UnifiedChatColorToggle_Changed;
         }
@@ -31,7 +31,7 @@ public partial class MainWindow
         if (_logReaderRpCheck is not null)
         {
             _logReaderRpCheck.Content = "Automatic chat colors";
-            _logReaderRpCheck.ToolTip = "Use the same automatic RP color recognition as the screenshot Editor. Turn this off to use the simpler legacy line colors.";
+            _logReaderRpCheck.ToolTip = "Infer RP colors when the archive has no exact colors. Exact server and faction colors are always preserved.";
             _logReaderRpCheck.Checked += UnifiedChatColorToggle_Changed;
             _logReaderRpCheck.Unchecked += UnifiedChatColorToggle_Changed;
         }

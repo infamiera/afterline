@@ -66,7 +66,10 @@ public partial class MainWindow : Window
         _settings = _settingsService.Load();
         BottomStatusText.Text = $"Afterline {GetCurrentBuildVersion()}" +
                                 (IsCanaryBinaryV062() ? " · Canary" : string.Empty);
-        _capture = new CaptureCoordinator(_journal, () => _settings);
+        _capture = new CaptureCoordinator(
+            _journal,
+            () => _settings,
+            settings => _settingsService.Save(settings));
         _processor = new BackgroundProcessor(_archiveService, () => _settings);
 
         _capture.MessageCaptured += Capture_MessageCaptured;
@@ -383,7 +386,12 @@ public partial class MainWindow : Window
         SessionCountText.Text = $"{_journal.MessageCount:N0} messages";
         if (_journal.StartedAt is DateTime started)
         {
-            TimeSpan duration = DateTime.Now - started;
+            DateTime serverNow = ServerTimeService.Resolve(
+                _settings,
+                _capture.CurrentServer,
+                DateTimeOffset.UtcNow).ServerTime;
+            TimeSpan duration = serverNow - started;
+            if (duration < TimeSpan.Zero) duration = TimeSpan.Zero;
             SessionTimeText.Text = $"Started {started:HH:mm} · {duration:hh\\:mm\\:ss}";
         }
         else
@@ -397,6 +405,7 @@ public partial class MainWindow : Window
         AutosaveText.Text = _capture.LastCaptureAt is DateTime last
             ? $"Last message saved {Math.Max(0, (DateTime.Now - last).TotalSeconds):0}s ago · {pollStatus}"
             : $"Waiting for first chat message · {pollStatus}";
+        UpdateServerClockStatus(_capture.CurrentServer);
     }
 
     private void UpdateStatusUi()
@@ -901,6 +910,11 @@ public partial class MainWindow : Window
 
             ApplyStreamerModePresentationV075();
             ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
+            if (_autoScrollLiveCheck is not null &&
+                _autoScrollLiveCheck.IsChecked != _settings.AutoScrollLiveChat)
+            {
+                _autoScrollLiveCheck.IsChecked = _settings.AutoScrollLiveChat;
+            }
             LiveChatList.Visibility = _settings.ShowLiveChat ? Visibility.Visible : Visibility.Collapsed;
             await RefreshArchiveAsync(
                 ArchiveRefreshScope.Dashboard,

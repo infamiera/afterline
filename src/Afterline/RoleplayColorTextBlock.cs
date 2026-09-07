@@ -98,16 +98,24 @@ internal sealed class RoleplayColorTextBlock : TextBlock
             return;
         }
 
-        if (!UseAutomaticColors || IsSystemMessage)
+        if (IsSystemMessage)
         {
             AddPlainTypographyRuns(text, fallback);
             return;
         }
 
+        // Exact colors came from FiveM itself and can include arbitrary faction colors.
+        // Preserve those regardless of whether the optional RP-color inference is enabled.
         IReadOnlyList<ChatColorRun> exactRuns = ChatColorReliabilityService.EnsureExpectedAccents(text, ExactColorRuns);
         if (exactRuns.Count > 0 && ChatColorData.HasCompleteCoverage(text, exactRuns))
         {
             AddExactColorRuns(text, exactRuns, fallback);
+            return;
+        }
+
+        if (!UseAutomaticColors)
+        {
+            AddPlainTypographyRuns(text, fallback);
             return;
         }
 

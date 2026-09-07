@@ -252,6 +252,22 @@ public sealed class SessionJournal
             try
             {
                 await AppendLineAsync(_activeFile, line, cancellationToken);
+                try
+                {
+                    await ChatColorSidecarService.AppendAsync(
+                        _activeFile,
+                        line,
+                        entry.GetColorRunsForText(line),
+                        cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // The plain-text journal is authoritative. Exact server colors
+                    // are optional presentation metadata and must never block it.
+                    DiagnosticLogger.Error(
+                        "Exact FiveM chat colors could not be saved for Log Reader playback.",
+                        ex);
+                }
             }
             catch
             {
@@ -338,13 +354,14 @@ public sealed class SessionJournal
     public async Task<string> ExportCurrentLogAsync(
         string archiveRoot,
         string downloadsFolder,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DateTime? serverNow = null)
     {
         await _gate.WaitAsync(cancellationToken);
         try
         {
             Directory.CreateDirectory(downloadsFolder);
-            DateTime now = DateTime.Now;
+            DateTime now = serverNow ?? _state?.LastMessageAt ?? DateTime.UtcNow;
             string destination = UniquePath(
                 downloadsFolder,
                 $"Chatlog Export [{now:dd-MMMM-yyyy - HH-mm-ss}]",
@@ -421,7 +438,8 @@ public sealed class SessionJournal
                 if (backup.Length > 0) return backup;
             }
 
-            string? latest = FindLatestSameDayArchive(archiveRoot, DateTime.Now);
+            DateTime archiveDate = _state?.LastMessageAt ?? DateTime.UtcNow;
+            string? latest = FindLatestSameDayArchive(archiveRoot, archiveDate);
             return latest is null
                 ? Array.Empty<string>()
                 : File.ReadLines(latest).Skip(1).ToArray();

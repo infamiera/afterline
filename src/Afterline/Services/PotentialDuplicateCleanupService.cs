@@ -55,7 +55,15 @@ public static class PotentialDuplicateCleanupService
             }
         }
 
-        string[] retained = lines.Where((_, index) => !removals.Contains(index)).ToArray();
+        IReadOnlyDictionary<int, ChatColorLineRecord> exactColors =
+            await ChatColorSidecarService.MatchLinesAsync(
+                journalPath,
+                lines,
+                cancellationToken);
+        (string Line, int OriginalIndex)[] retained = lines
+            .Select((line, index) => (Line: line, OriginalIndex: index))
+            .Where(item => !removals.Contains(item.OriginalIndex))
+            .ToArray();
         Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
         string stem = Path.GetFileNameWithoutExtension(journalPath);
         string backupPath = UniquePath(
@@ -63,11 +71,12 @@ public static class PotentialDuplicateCleanupService
             $"Duplicate Review Backup [{DateTime.Now:yyyy-MM-dd - HH-mm-ss}] {stem}",
             ".txt");
         File.Copy(journalPath, backupPath, false);
+        ChatColorSidecarService.CopyForTextFile(journalPath, backupPath, overwrite: false);
 
         string temporary = journalPath + $".{Environment.ProcessId}.duplicate-review.tmp";
         try
         {
-            string replacement = string.Join(newline, retained);
+            string replacement = string.Join(newline, retained.Select(item => item.Line));
             if (endedWithNewline)
                 replacement += newline;
             await File.WriteAllTextAsync(
@@ -76,6 +85,26 @@ public static class PotentialDuplicateCleanupService
                 new UTF8Encoding(false),
                 cancellationToken);
             File.Move(temporary, journalPath, true);
+
+            try
+            {
+                ChatColorLineRecord[] retainedColors = retained
+                    .Where(item => exactColors.ContainsKey(item.OriginalIndex))
+                    .Select(item => exactColors[item.OriginalIndex])
+                    .ToArray();
+                await ChatColorSidecarService.ReplaceAsync(
+                    journalPath,
+                    retainedColors,
+                    CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The reviewed text edit remains authoritative and its complete
+                // color sidecar is preserved with the backup.
+                DiagnosticLogger.Error(
+                    "Duplicate cleanup succeeded, but exact Log Reader colors could not be rebuilt.",
+                    ex);
+            }
 
             return new PotentialDuplicateCleanupResult(removals.Count, backupPath);
         }

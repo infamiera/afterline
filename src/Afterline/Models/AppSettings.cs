@@ -55,10 +55,23 @@ public sealed class AppSettings
     public bool FirstRunCompleted { get; set; } = true;
     public List<string> RecentLogPaths { get; set; } = new();
     public List<string> PinnedLogPaths { get; set; } = new();
+    public List<ServerTimeZonePreference> ServerTimeZones { get; set; } = new();
 
     public EditorPreferences Editor { get; set; } = new();
     public ThemePreferences Theme { get; set; } = new();
     public List<SavedThemePreset> CustomThemes { get; set; } = new();
+}
+
+public sealed class ServerTimeZonePreference
+{
+    public string ServerKey { get; set; } = string.Empty;
+    public string ServerName { get; set; } = "Unknown Server";
+    public string? ManualTimeZoneId { get; set; }
+    public string? DetectedTimeZoneId { get; set; }
+    public int? LearnedUtcOffsetMinutes { get; set; }
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public bool IsManual => !string.IsNullOrWhiteSpace(ManualTimeZoneId);
 }
 
 public sealed class EditorPreferences

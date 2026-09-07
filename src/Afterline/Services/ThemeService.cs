@@ -389,6 +389,7 @@ public static class ThemeService
         if (Matches(hex, defaults.Panel, previous.Panel)) return NewBrush(current.Panel);
         if (Matches(hex, defaults.Raised, previous.Raised)) return NewBrush(current.Raised);
         if (Matches(hex, defaults.Inset, previous.Inset)) return NewBrush(current.Inset);
+        if (Matches(hex, defaults.Border, previous.Border)) return NewBrush(current.Border);
         if (Matches(hex, defaults.Accent, previous.Accent)) return NewBrush(current.Accent);
         if (Matches(hex, defaults.AccentHover, previous.AccentHover)) return NewBrush(current.AccentHover);
         if (Matches(hex, defaults.ControlHover, previous.ControlHover) ||

@@ -6,7 +6,7 @@ namespace Afterline.Models;
 public enum ChatTimestampSource
 {
     VisibleChat,
-    LocalObservation,
+    ServerObservation,
     Application
 }
 
@@ -160,7 +160,7 @@ public sealed class ChatEntry
             ? ChatTimestampSource.Application
             : TimestampPrefix.IsMatch(Text)
                 ? ChatTimestampSource.VisibleChat
-                : ChatTimestampSource.LocalObservation;
+                : ChatTimestampSource.ServerObservation;
         PotentialDuplicateGroupId = potentialDuplicateGroupId;
         IsPotentialDuplicate = potentialDuplicateGroupId is not null;
         IsPotentialDuplicateReviewClone = isPotentialDuplicateReviewClone;

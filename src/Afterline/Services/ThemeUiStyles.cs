@@ -117,7 +117,8 @@ public static class ThemeUiStyles
                         <Border x:Name="ActiveRail"
                                 Width="2"
                                 HorizontalAlignment="Left"
-                                Background="{TemplateBinding BorderBrush}"
+                                Background="{DynamicResource Accent}"
+                                Visibility="Collapsed"
                                 CornerRadius="1"/>
                         <Grid Margin="{TemplateBinding Padding}">
                             <Grid.ColumnDefinitions>
@@ -142,6 +143,10 @@ public static class ThemeUiStyles
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter Property="Opacity" Value="0.72"/>
+                        </Trigger>
+                        <Trigger Property="CommandParameter" Value="Selected">
+                            <Setter TargetName="ActiveRail" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="Label" Property="TextElement.Foreground" Value="{DynamicResource Text}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.42"/>

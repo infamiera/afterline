@@ -34,10 +34,35 @@ public partial class MainWindow
             _sidebarExpandedMargin = sidebarGrid.Margin;
         }
 
+        EnsureModernNavigationScrollV090(navigationPanel, sidebarGrid);
+
         AddModernSystemNavigationV090(navigationPanel);
         RestyleModernNavigationV090(navigationPanel);
         RestyleModernUpdateAreaV090();
         UpdateModernNavigationSelectionV090(FindVisibleMainPageV090());
+        RoundNestedPanelCornersV090(rootGrid);
+    }
+
+    private static void EnsureModernNavigationScrollV090(
+        StackPanel navigationPanel,
+        Grid sidebarGrid)
+    {
+        if (navigationPanel.Parent is ScrollViewer)
+            return;
+
+        int row = Grid.GetRow(navigationPanel);
+        sidebarGrid.Children.Remove(navigationPanel);
+        var scroll = new ScrollViewer
+        {
+            Content = navigationPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            CanContentScroll = true,
+            Margin = new Thickness(0, 0, -7, 0),
+            Padding = new Thickness(0, 0, 7, 0)
+        };
+        Grid.SetRow(scroll, row);
+        sidebarGrid.Children.Add(scroll);
     }
 
     private void AddModernSystemNavigationV090(StackPanel navigationPanel)
@@ -180,6 +205,7 @@ public partial class MainWindow
         {
             button.BorderBrush = Brushes.Transparent;
             button.FontWeight = FontWeights.Normal;
+            button.CommandParameter = null;
         }
 
         string? label = page switch
@@ -200,8 +226,56 @@ public partial class MainWindow
             button => string.Equals(button.Content?.ToString(), label, StringComparison.Ordinal));
         if (selected is null) return;
 
-        selected.SetResourceReference(Control.BorderBrushProperty, "Accent");
+        selected.CommandParameter = "Selected";
         selected.FontWeight = FontWeights.SemiBold;
+    }
+
+    private static void RoundNestedPanelCornersV090(DependencyObject root)
+    {
+        if (root is Border outer &&
+            outer.Child is Grid grid &&
+            outer.CornerRadius.TopLeft > 0)
+        {
+            int lastRow = Math.Max(0, grid.RowDefinitions.Count - 1);
+            Border[] edgeRows = grid.Children
+                .OfType<Border>()
+                .Where(inner => Grid.GetRow(inner) is 0 || Grid.GetRow(inner) == lastRow)
+                .ToArray();
+            if (edgeRows.Length > 0)
+                outer.ClipToBounds = true;
+
+            foreach (Border inner in edgeRows)
+            {
+                int row = Grid.GetRow(inner);
+                if (row == 0)
+                {
+                    inner.CornerRadius = new CornerRadius(
+                        outer.CornerRadius.TopLeft,
+                        outer.CornerRadius.TopRight,
+                        0,
+                        0);
+                }
+                if (row == lastRow)
+                {
+                    inner.CornerRadius = new CornerRadius(
+                        inner.CornerRadius.TopLeft,
+                        inner.CornerRadius.TopRight,
+                        outer.CornerRadius.BottomRight,
+                        outer.CornerRadius.BottomLeft);
+                }
+            }
+        }
+
+        try
+        {
+            int children = VisualTreeHelper.GetChildrenCount(root);
+            for (int index = 0; index < children; index++)
+                RoundNestedPanelCornersV090(VisualTreeHelper.GetChild(root, index));
+        }
+        catch (InvalidOperationException)
+        {
+            // Some WPF content objects are DependencyObjects without visual children.
+        }
     }
 
     private void VerifyModernThemeAndChatIsolationV090()

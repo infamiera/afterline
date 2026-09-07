@@ -28,7 +28,14 @@ public partial class MainWindow
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(9, 6, 9, 6)));
         style.Setters.Add(new Setter(Control.FontSizeProperty, 11.0));
-        style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 360.0));
+        style.Setters.Add(new Setter(FrameworkElement.MaxWidthProperty, 440.0));
+        var tooltipText = new FrameworkElementFactory(typeof(TextBlock));
+        tooltipText.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding());
+        tooltipText.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        tooltipText.SetValue(FrameworkElement.MaxWidthProperty, 420.0);
+        style.Setters.Add(new Setter(
+            ContentControl.ContentTemplateProperty,
+            new DataTemplate { VisualTree = tooltipText }));
         Application.Current.Resources[typeof(ToolTip)] = style;
 
         if (_editorPage is not null)
