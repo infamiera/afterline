@@ -8,6 +8,7 @@ on:
     branches: [ canary ]
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -314,5 +315,40 @@ jobs:
             if ($asset.name -match '^Afterline-v.+-Canary-\d+-[0-9a-f]+-Windows-x64\.exe(?:\.sha256)?$') {
               gh release delete-asset canary $asset.name --yes
               if ($LASTEXITCODE -ne 0) { throw "Unable to remove stale Canary asset $($asset.name)." }
+            }
+          }
+
+      - name: Prune historical Canary workflow runs
+        if: github.event_name == 'push' && github.ref == 'refs/heads/canary' && success()
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Keep the two newest successful Canary validations and the newest
+          # completed non-successful run for diagnostics. The current run is
+          # still in progress here, so it is never a deletion candidate.
+          $completed = @(
+            gh api --paginate `
+              "repos/$env:GITHUB_REPOSITORY/actions/workflows/windows-build.yml/runs?per_page=100" `
+              --jq '.workflow_runs[] | select(.status == "completed")' |
+              Where-Object { $_ } |
+              ForEach-Object { $_ | ConvertFrom-Json }
+          )
+
+          $ordered = @($completed | Sort-Object { [DateTimeOffset]$_.updated_at } -Descending)
+          $successful = @($ordered | Where-Object { $_.conclusion -eq "success" })
+          $diagnostic = @($ordered | Where-Object { $_.conclusion -ne "success" })
+          $keepIds = @(
+            $successful | Select-Object -First 2 | ForEach-Object { [Int64]$_.id }
+            $diagnostic | Select-Object -First 1 | ForEach-Object { [Int64]$_.id }
+          )
+          $stale = @($ordered | Where-Object { $keepIds -notcontains [Int64]$_.id })
+
+          Write-Host "Keeping $($keepIds.Count) recent Canary workflow run(s); pruning $($stale.Count) historical completed run(s)."
+          foreach ($run in $stale) {
+            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/runs/$($run.id)"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to delete historical Canary workflow run $($run.id)."
             }
           }

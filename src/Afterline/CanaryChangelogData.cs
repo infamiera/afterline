@@ -8,6 +8,11 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "08/SEP/2026", new[]
         {
+            "Canary housekeeping — Retains recent successful validation and one diagnostic run while automatically pruning older completed Canary workflow history.",
+            "Trusted update handoff — Removes Windows' browser download marker from checksum-verified update files and the installed executable so self-updates no longer trigger the repeated Open File security warning."
+        }, ChangelogChannel.Canary, 241),
+        new("0.7.0", "08/SEP/2026", new[]
+        {
             "Immediate chat capture — Reacts directly to FiveM chat changes instead of waiting for the previous polling interval, keeping Live Chat and saved logs current under normal and high system load.",
             "Ordered delivery — Queues complete chat snapshots in sequence so rapid message bursts are processed without allowing command responses or reconnect activity to consume chat events.",
             "Capture recovery — Reconciles the complete visible chat every two seconds as a safety net when FiveM reloads or replaces its NUI frame.",

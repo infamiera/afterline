@@ -37,6 +37,12 @@ public static class CanaryUpdateInstaller
         if (!File.Exists(download.FilePath))
             throw new FileNotFoundException("The verified update executable is unavailable.", download.FilePath);
 
+        // A manually selected release can carry Windows' Zone.Identifier stream
+        // from the browser. It has already passed the official SHA-256 check at
+        // this point, so remove that marker before it can be copied into either
+        // the detached helper or the installed executable.
+        RemoveInternetZoneMark(download.FilePath);
+
         Directory.CreateDirectory(AppPaths.UpdatesDirectory);
         string helperPath = Path.Combine(
             AppPaths.UpdatesDirectory,
@@ -46,6 +52,7 @@ public static class CanaryUpdateInstaller
             () => File.Copy(targetPath, helperPath, overwrite: true),
             FileRetryWindow,
             "Afterline could not prepare its detached updater helper.");
+        RemoveInternetZoneMark(helperPath);
 
         var start = new ProcessStartInfo
         {
@@ -283,6 +290,7 @@ public static class CanaryUpdateInstaller
             () => File.Copy(sourcePath, stagePath, overwrite: false),
             retryWindow,
             "The verified update could not be staged beside Afterline.exe.");
+        RemoveInternetZoneMark(stagePath);
 
         string stageHash = RetryFileOperation(
             () => ComputeSha256(stagePath),
@@ -307,6 +315,10 @@ public static class CanaryUpdateInstaller
             () => File.Replace(stagePath, targetPath, backupPath, ignoreMetadataErrors: true),
             retryWindow,
             "Windows kept Afterline.exe locked. The existing executable was left unchanged.");
+        // File.Replace can preserve alternate data streams from the original
+        // install. Clear the browser download marker only after the trusted
+        // staged payload has replaced the target.
+        RemoveInternetZoneMark(targetPath);
 
         journal = journal with { State = "Replaced", UpdatedUtc = DateTimeOffset.UtcNow };
         TryWriteJournal(journal);
@@ -498,6 +510,36 @@ public static class CanaryUpdateInstaller
         }
         while (DateTime.UtcNow < deadline);
         return false;
+    }
+
+    private static void RemoveInternetZoneMark(string path)
+    {
+        if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+
+        try
+        {
+            // Zone.Identifier is the NTFS alternate data stream Windows adds to
+            // files obtained through a browser. Deleting this stream does not
+            // alter the executable bytes that were SHA-256 verified above.
+            File.Delete(path + ":Zone.Identifier");
+        }
+        catch (FileNotFoundException)
+        {
+            // No internet-zone marker was present.
+        }
+        catch (DirectoryNotFoundException)
+        {
+            // The update transaction already removed the temporary file.
+        }
+        catch (IOException)
+        {
+            // A missing alternate stream can also surface as an IOException.
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            DiagnosticLogger.Info($"Afterline could not clear the Windows download marker: {ex.Message}");
+        }
     }
 
     private static string ComputeSha256(string path)
