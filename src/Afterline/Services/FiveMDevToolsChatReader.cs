@@ -1,17 +1,24 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using Afterline.Models;
 
 namespace Afterline.Services;
+
+internal sealed record ObservedChatSnapshot(
+    IReadOnlyList<CapturedChatLine> Lines,
+    DateTimeOffset ObservedAtUtc);
 
 public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 {
     private static readonly Uri TargetsUri = new("http://127.0.0.1:13172/json");
     private const string RootUiUrl = "nui://game/ui/root.html";
     private const string ClientFramePrefix = "https://cfx-nui-client/";
+    private const string ChatChangedBinding = "afterlineChatChanged";
 
     private const string ReadChatExpression = """
         JSON.stringify((function(){
@@ -33,6 +40,43 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             } catch (_) {
               return {Red:255,Green:255,Blue:255,Alpha:255,Italic:false};
             }
+          }
+          function readPseudoColor(node,pseudo){
+            try {
+              var computed=window.getComputedStyle(node,pseudo);
+              var value=computed.color||'';
+              var values=value.match(/[\d.]+/g)||[];
+              var italic=computed.fontStyle==='italic'||computed.fontStyle==='oblique';
+              if(values.length<3) return {Red:168,Green:178,Blue:190,Alpha:255,Italic:italic};
+              return {
+                Red:Math.max(0,Math.min(255,Math.round(Number(values[0])))),
+                Green:Math.max(0,Math.min(255,Math.round(Number(values[1])))),
+                Blue:Math.max(0,Math.min(255,Math.round(Number(values[2])))),
+                Alpha:values.length>3?Math.max(0,Math.min(255,Math.round(Number(values[3])*255))):255,
+                Italic:italic
+              };
+            } catch (_) {
+              return {Red:168,Green:178,Blue:190,Alpha:255,Italic:false};
+            }
+          }
+          function hiddenTimestamp(row){
+            var nodes=[row].concat(Array.from(row.querySelectorAll('*')));
+            var pattern=/\b\d{1,2}:\d{2}:\d{2}\b/;
+            for(var i=0;i<nodes.length;i++){
+              var node=nodes[i];
+              var attributes=Array.from(node.attributes||[]);
+              for(var j=0;j<attributes.length;j++){
+                var attributeMatch=String(attributes[j].value||'').match(pattern);
+                if(attributeMatch) return {value:attributeMatch[0],color:readColor(node)};
+              }
+              var before=String(window.getComputedStyle(node,'::before').content||'');
+              var beforeMatch=before.match(pattern);
+              if(beforeMatch) return {value:beforeMatch[0],color:readPseudoColor(node,'::before')};
+              var after=String(window.getComputedStyle(node,'::after').content||'');
+              var afterMatch=after.match(pattern);
+              if(afterMatch) return {value:afterMatch[0],color:readPseudoColor(node,'::after')};
+            }
+            return null;
           }
           function sameColor(left,right){
             return left.Red===right.Red&&left.Green===right.Green&&left.Blue===right.Blue&&
@@ -83,15 +127,43 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
               }
             });
             var legacyText=(row.innerText||'').replace(/\s+/g,' ').trim();
-            return text===legacyText
+            var result=text===legacyText
               ? {Text:text,ColorRuns:runs}
               : {Text:legacyText,ColorRuns:[]};
+            if(!/^\[\d{1,2}:\d{2}:\d{2}\]/.test(result.Text)){
+              var hidden=hiddenTimestamp(row);
+              if(hidden){
+                var prefix='['+hidden.value+'] ';
+                result.ColorRuns=result.ColorRuns.map(function(run){
+                  run.Start+=prefix.length;
+                  return run;
+                });
+                result.ColorRuns.unshift({Start:0,Length:prefix.length,Red:hidden.color.Red,Green:hidden.color.Green,Blue:hidden.color.Blue,Alpha:hidden.color.Alpha,Italic:hidden.color.Italic});
+                result.Text=prefix+result.Text;
+              }
+            }
+            return result;
           }
           return Array.from(document.querySelectorAll('.chat__messages > li'))
             .map(readRow)
             .filter(function(line){return line.Text.length>0;});
         })())
         """;
+
+    private static readonly string InstallChatObserverExpression =
+        "(function(){" +
+        "var binding=window['" + ChatChangedBinding + "'];" +
+        "if(typeof binding!=='function') return false;" +
+        "var previous=window.__afterlineChatObserver;" +
+        "if(previous){try{previous.chatObserver&&previous.chatObserver.disconnect();}catch(_){}try{previous.rootObserver&&previous.rootObserver.disconnect();}catch(_){}try{previous.messageHandler&&window.removeEventListener('message',previous.messageHandler,true);}catch(_){}}" +
+        "var state={chat:null,chatObserver:null,rootObserver:null,messageHandler:null,timer:0,frame:0,firstMutationAt:0};" +
+        "function emit(){state.timer=0;state.frame=0;state.firstMutationAt=0;try{var lines=" + ReadChatExpression + ";binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:lines}));}catch(_){}}" +
+        "function schedule(){var now=Date.now();if(!state.firstMutationAt)state.firstMutationAt=now;if(state.timer)clearTimeout(state.timer);if(state.frame)cancelAnimationFrame(state.frame);var remaining=Math.max(0,200-(now-state.firstMutationAt));var quietDelay=Math.min(50,remaining);state.timer=setTimeout(function(){state.timer=0;state.frame=requestAnimationFrame(emit);},quietDelay);}" +
+        "function attach(){var chat=document.querySelector('.chat__messages');if(chat===state.chat)return;if(state.chatObserver)state.chatObserver.disconnect();state.chat=chat;state.chatObserver=null;if(chat){state.chatObserver=new MutationObserver(schedule);state.chatObserver.observe(chat,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','style','data-time','data-timestamp','title']});schedule();}}" +
+        "state.rootObserver=new MutationObserver(attach);state.rootObserver.observe(document.documentElement,{childList:true,subtree:true});" +
+        "state.messageHandler=schedule;window.addEventListener('message',state.messageHandler,true);" +
+        "window.__afterlineChatObserver=state;attach();return true;" +
+        "})()";
 
     private const string LegacyReadChatExpression =
         "JSON.stringify(Array.from(document.querySelectorAll('.chat__messages > li'))" +
@@ -144,10 +216,17 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private static readonly JsonElement EmptyResult = CreateEmptyResult();
 
     private readonly HttpClient _http;
+    private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonElement>> _pendingRequests = new();
+    private readonly SemaphoreSlim _connectionGate = new(1, 1);
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
+    private readonly Channel<ObservedChatSnapshot> _observedSnapshots = Channel.CreateUnbounded<ObservedChatSnapshot>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
     private readonly Dictionary<string, string> _resolvedNames = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ServerTimeZoneHint> _resolvedTimeZones = new(StringComparer.OrdinalIgnoreCase);
     private readonly byte[] _receiveBuffer = new byte[8192];
     private ClientWebSocket? _socket;
+    private CancellationTokenSource? _connectionCts;
+    private Task? _receivePump;
     private int _contextId;
     private int _requestId;
     private ServerSessionInfo _currentServer = ServerSessionInfo.Unknown;
@@ -156,6 +235,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private string? _lastTimeZoneResolutionAddress;
     private DateTime _lastTimeZoneResolutionAttemptUtc = DateTime.MinValue;
     private bool _exactColorFallbackLogged;
+    private bool _observerFallbackLogged;
+    private bool _eventCaptureAvailable;
     private string[] _lastExactVisibleText = Array.Empty<string>();
 
     public ServerSessionInfo CurrentServer => _currentServer;
@@ -212,6 +293,39 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line => new CapturedChatLine(line.Trim()))
             .ToArray();
+    }
+
+    public async Task<ObservedChatSnapshot?> WaitForVisibleLinesChangedAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        await EnsureConnectedAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(_currentServer.Address))
+            return null;
+
+        if (!_eventCaptureAvailable)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
+            return null;
+        }
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linked.CancelAfter(timeout);
+        try
+        {
+            ObservedChatSnapshot snapshot = await _observedSnapshots.Reader.ReadAsync(linked.Token);
+            CapturedChatLine[] normalized = snapshot.Lines
+                .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+                .Select(NormalizeCapturedLine)
+                .ToArray();
+            _lastExactVisibleText = normalized.Select(line => line.Text).ToArray();
+            return new ObservedChatSnapshot(normalized, snapshot.ObservedAtUtc);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     private async Task<CapturedChatLine[]> StabilizeNewChatRowsAsync(
@@ -322,9 +436,12 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         return valueElement.GetString();
     }
 
-    public Task ResetAsync()
+    public async Task ResetAsync()
     {
+        CancellationTokenSource? connectionCts = Interlocked.Exchange(ref _connectionCts, null);
+        Task? receivePump = Interlocked.Exchange(ref _receivePump, null);
         ClientWebSocket? socket = Interlocked.Exchange(ref _socket, null);
+        connectionCts?.Cancel();
         if (socket is not null)
         {
             try
@@ -340,6 +457,21 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             }
         }
 
+        if (receivePump is not null)
+        {
+            try { await receivePump; }
+            catch { }
+        }
+        connectionCts?.Dispose();
+
+        var resetException = new IOException("FiveM DevTools connection was reset.");
+        foreach ((int id, TaskCompletionSource<JsonElement> completion) in _pendingRequests)
+        {
+            if (_pendingRequests.TryRemove(id, out _))
+                completion.TrySetException(resetException);
+        }
+        while (_observedSnapshots.Reader.TryRead(out _)) { }
+
         _contextId = 0;
         _requestId = 0;
         _currentServer = ServerSessionInfo.Unknown;
@@ -348,12 +480,27 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         _lastTimeZoneResolutionAddress = null;
         _lastTimeZoneResolutionAttemptUtc = DateTime.MinValue;
         _lastExactVisibleText = Array.Empty<string>();
-        return Task.CompletedTask;
+        _eventCaptureAvailable = false;
     }
 
     private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
     {
         if (_socket?.State == WebSocketState.Open && _contextId != 0) return;
+
+        await _connectionGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_socket?.State == WebSocketState.Open && _contextId != 0) return;
+            await EnsureConnectedCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            _connectionGate.Release();
+        }
+    }
+
+    private async Task EnsureConnectedCoreAsync(CancellationToken cancellationToken)
+    {
         await ResetAsync();
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -381,9 +528,13 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         if (!IsLoopback(socketUri))
             throw new IOException("Refusing a non-local FiveM DevTools WebSocket endpoint.");
 
-        _socket = new ClientWebSocket();
-        _socket.Options.Proxy = null;
-        await _socket.ConnectAsync(socketUri, linked.Token);
+        var socket = new ClientWebSocket();
+        socket.Options.Proxy = null;
+        await socket.ConnectAsync(socketUri, linked.Token);
+        _socket = socket;
+        var connectionCts = new CancellationTokenSource();
+        _connectionCts = connectionCts;
+        _receivePump = Task.Run(() => ReceivePumpAsync(socket, connectionCts.Token));
 
         JsonElement frameTree = await RequestAsync("Page.getFrameTree", new { }, linked.Token);
         string? frameId = FindClientFrameId(frameTree);
@@ -401,6 +552,41 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             throw new IOException("FiveM chat execution context is unavailable.");
 
         _contextId = context.GetInt32();
+
+        try
+        {
+            await RequestAsync("Runtime.enable", new { }, linked.Token);
+            await RequestAsync("Runtime.addBinding", new
+            {
+                name = ChatChangedBinding,
+                executionContextId = _contextId
+            }, linked.Token);
+
+            JsonElement observer = await RequestAsync("Runtime.evaluate", new
+            {
+                expression = InstallChatObserverExpression,
+                contextId = _contextId,
+                returnByValue = true
+            }, linked.Token);
+            _eventCaptureAvailable =
+                observer.TryGetProperty("result", out JsonElement observerResult) &&
+                observerResult.TryGetProperty("value", out JsonElement observerValue) &&
+                observerValue.ValueKind == JsonValueKind.True;
+            if (!_eventCaptureAvailable)
+                throw new IOException("FiveM chat observer could not be installed.");
+
+            _observerFallbackLogged = false;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _eventCaptureAvailable = false;
+            if (!_observerFallbackLogged)
+            {
+                _observerFallbackLogged = true;
+                DiagnosticLogger.Warn(
+                    $"Immediate FiveM chat events are unavailable; using rapid reconciliation capture. {ex.Message}");
+            }
+        }
     }
 
     private async Task RefreshServerInfoAsync(CancellationToken cancellationToken)
@@ -682,21 +868,36 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
     private async Task<JsonElement> RequestAsync(string method, object parameters, CancellationToken cancellationToken)
     {
-        if (_socket is null || _socket.State != WebSocketState.Open)
+        ClientWebSocket? socket = _socket;
+        if (socket is null || socket.State != WebSocketState.Open)
             throw new IOException("FiveM DevTools is not connected.");
 
         int id = Interlocked.Increment(ref _requestId);
         byte[] payload = JsonSerializer.SerializeToUtf8Bytes(new { id, method, @params = parameters });
+        var completion = new TaskCompletionSource<JsonElement>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_pendingRequests.TryAdd(id, completion))
+            throw new IOException("FiveM DevTools request identifier collision.");
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linked.CancelAfter(TimeSpan.FromSeconds(2));
-        await _socket.SendAsync(payload.AsMemory(), WebSocketMessageType.Text, true, linked.Token);
-
-        while (true)
+        try
         {
-            JsonElement response = await ReceiveAsync(linked.Token);
-            if (!response.TryGetProperty("id", out JsonElement responseId) || responseId.GetInt32() != id)
-                continue;
+            await _sendGate.WaitAsync(linked.Token);
+            try
+            {
+                await socket.SendAsync(
+                    payload.AsMemory(),
+                    WebSocketMessageType.Text,
+                    true,
+                    linked.Token);
+            }
+            finally
+            {
+                _sendGate.Release();
+            }
+
+            JsonElement response = await completion.Task.WaitAsync(linked.Token);
 
             if (response.TryGetProperty("error", out _))
                 throw new IOException($"FiveM DevTools rejected {method}.");
@@ -705,13 +906,153 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
                 ? result.Clone()
                 : EmptyResult;
         }
+        finally
+        {
+            _pendingRequests.TryRemove(id, out _);
+        }
     }
 
-    private async Task<JsonElement> ReceiveAsync(CancellationToken cancellationToken)
+    private async Task ReceivePumpAsync(
+        ClientWebSocket socket,
+        CancellationToken cancellationToken)
     {
-        if (_socket is null) throw new IOException("FiveM DevTools is not connected.");
+        Exception? failure = null;
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested &&
+                   socket.State == WebSocketState.Open)
+            {
+                JsonElement message = await ReceiveAsync(socket, cancellationToken);
+                if (message.TryGetProperty("id", out JsonElement responseId) &&
+                    responseId.TryGetInt32(out int id) &&
+                    _pendingRequests.TryRemove(id, out TaskCompletionSource<JsonElement>? completion))
+                {
+                    completion.TrySetResult(message);
+                    continue;
+                }
 
-        ValueWebSocketReceiveResult first = await _socket.ReceiveAsync(
+                HandleProtocolEvent(message);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            Exception reason = failure ?? new IOException("FiveM DevTools connection closed.");
+            foreach ((int id, TaskCompletionSource<JsonElement> completion) in _pendingRequests)
+            {
+                if (_pendingRequests.TryRemove(id, out _))
+                    completion.TrySetException(reason);
+            }
+
+            if (failure is not null)
+            {
+                try { socket.Abort(); }
+                catch { }
+            }
+        }
+    }
+
+    private void HandleProtocolEvent(JsonElement message)
+    {
+        if (!message.TryGetProperty("method", out JsonElement method) ||
+            !string.Equals(method.GetString(), "Runtime.bindingCalled", StringComparison.Ordinal) ||
+            !message.TryGetProperty("params", out JsonElement parameters) ||
+            !parameters.TryGetProperty("name", out JsonElement name) ||
+            !string.Equals(name.GetString(), ChatChangedBinding, StringComparison.Ordinal) ||
+            !parameters.TryGetProperty("payload", out JsonElement payloadElement))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!TryDecodeObserverPayload(
+                    payloadElement.GetString() ?? string.Empty,
+                    out ObservedChatSnapshot? snapshot) ||
+                snapshot is null)
+                return;
+
+            _observedSnapshots.Writer.TryWrite(snapshot);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("FiveM chat-change event could not be decoded.", ex);
+        }
+    }
+
+    private static bool TryDecodeObserverPayload(
+        string payload,
+        out ObservedChatSnapshot? snapshot)
+    {
+        snapshot = null;
+        try
+        {
+            ObserverEnvelope? envelope = JsonSerializer.Deserialize<ObserverEnvelope>(payload);
+            if (envelope is null || string.IsNullOrWhiteSpace(envelope.LinesJson))
+                return false;
+
+            CapturedChatLine[] lines = JsonSerializer.Deserialize<CapturedChatLine[]>(
+                envelope.LinesJson) ?? Array.Empty<CapturedChatLine>();
+            DateTimeOffset observedAt = envelope.ObservedAtUnixMilliseconds > 0
+                ? DateTimeOffset.FromUnixTimeMilliseconds(envelope.ObservedAtUnixMilliseconds)
+                : DateTimeOffset.UtcNow;
+            snapshot = new ObservedChatSnapshot(lines, observedAt);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static void RunEventCaptureSmokeTest()
+    {
+        var line = new CapturedChatLine(
+            "[15:27:41] (( test ))",
+            new[] { new ChatColorRun(0, 23, 220, 30, 40) });
+        const long observedMilliseconds = 1_788_797_261_250;
+        string payload = JsonSerializer.Serialize(new ObserverEnvelope
+        {
+            ObservedAtUnixMilliseconds = observedMilliseconds,
+            LinesJson = JsonSerializer.Serialize(new[] { line })
+        });
+
+        if (!TryDecodeObserverPayload(payload, out ObservedChatSnapshot? snapshot) ||
+            snapshot is null ||
+            snapshot.ObservedAtUtc != DateTimeOffset.FromUnixTimeMilliseconds(observedMilliseconds) ||
+            snapshot.Lines.Count != 1 ||
+            snapshot.Lines[0].Text != line.Text ||
+            snapshot.Lines[0].ColorRuns.Count != 1)
+        {
+            throw new InvalidOperationException("Immediate FiveM chat event decoding failed.");
+        }
+
+        string[] requiredObserverFeatures =
+        {
+            "new MutationObserver",
+            "requestAnimationFrame",
+            "ObservedAtUnixMilliseconds:Date.now()",
+            "getComputedStyle(node,'::before')",
+            ChatChangedBinding
+        };
+        if (requiredObserverFeatures.Any(feature =>
+                !InstallChatObserverExpression.Contains(feature, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("Immediate FiveM chat observer is incomplete.");
+        }
+    }
+
+    private async Task<JsonElement> ReceiveAsync(
+        ClientWebSocket socket,
+        CancellationToken cancellationToken)
+    {
+        ValueWebSocketReceiveResult first = await socket.ReceiveAsync(
             _receiveBuffer.AsMemory(),
             cancellationToken);
         if (first.MessageType == WebSocketMessageType.Close)
@@ -729,7 +1070,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         while (true)
         {
-            ValueWebSocketReceiveResult result = await _socket.ReceiveAsync(
+            ValueWebSocketReceiveResult result = await socket.ReceiveAsync(
                 _receiveBuffer.AsMemory(),
                 cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close)
@@ -742,6 +1083,12 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         using JsonDocument doc = JsonDocument.Parse(
             stream.GetBuffer().AsMemory(0, checked((int)stream.Length)));
         return doc.RootElement.Clone();
+    }
+
+    private sealed class ObserverEnvelope
+    {
+        public long ObservedAtUnixMilliseconds { get; set; }
+        public string LinesJson { get; set; } = string.Empty;
     }
 
     private static JsonElement CreateEmptyResult()
@@ -779,6 +1126,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await ResetAsync();
+        _connectionGate.Dispose();
+        _sendGate.Dispose();
         _http.Dispose();
     }
 

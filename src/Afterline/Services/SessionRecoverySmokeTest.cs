@@ -15,6 +15,7 @@ internal static class SessionRecoverySmokeTest
         ApplicationHealthMonitor.RunPersistenceSmokeTest(archiveRoot);
         DiagnosticLogger.RunPreviousSessionSnapshotSmokeTest(archiveRoot);
         CaptureReplayGuard.RunSmokeTest();
+        FiveMDevToolsChatReader.RunEventCaptureSmokeTest();
         VerifyTimestampToggleOverlap();
         ServerTimeService.RunSmokeTest();
         VerifyTimestampProvenance();

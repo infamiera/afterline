@@ -256,7 +256,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
     private async Task WorkerAsync()
     {
-        int unchangedPolls = 0;
+        DateTime lastReconciliationUtc = DateTime.MinValue;
         while (!_cts.IsCancellationRequested)
         {
             try
@@ -268,7 +268,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
                 if (!fiveMRunning)
                 {
-                    unchangedPolls = 0;
                     await HandleFiveMAbsentAsync(settings);
                     await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
                     continue;
@@ -276,18 +275,27 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
                 if (!settings.AutoCapture)
                 {
-                    unchangedPolls = 0;
                     SetState(CaptureState.WaitingForFiveM);
                     await Task.Delay(TimeSpan.FromSeconds(3), _cts.Token);
                     continue;
                 }
 
-                int captured = 0;
                 await _captureGate.WaitAsync(_cts.Token);
                 try
                 {
-                    IReadOnlyList<CapturedChatLine> current =
+                    TimeSpan reconciliationRemaining = TimeSpan.FromSeconds(2) -
+                        (DateTime.UtcNow - lastReconciliationUtc);
+                    ObservedChatSnapshot? observedSnapshot = reconciliationRemaining > TimeSpan.Zero
+                        ? await _reader.WaitForVisibleLinesChangedAsync(
+                            reconciliationRemaining,
+                            _cts.Token)
+                        : null;
+                    IReadOnlyList<CapturedChatLine> current = observedSnapshot?.Lines ??
                         await _reader.ReadVisibleLinesAsync(_cts.Token);
+                    if (observedSnapshot is null)
+                        lastReconciliationUtc = DateTime.UtcNow;
+                    DateTimeOffset observedAtUtc = observedSnapshot?.ObservedAtUtc ??
+                        DateTimeOffset.UtcNow;
                     LastSuccessfulReadAt = DateTime.Now;
                     string[] currentText = current.Select(line => line.Text).ToArray();
                     bool visibleChatChanged = !_previousVisible.SequenceEqual(
@@ -314,10 +322,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     SetState(CaptureState.Capturing);
                     LastError = null;
 
-                    captured = await CaptureAvailableLinesAsync(
+                    await CaptureAvailableLinesAsync(
                         current,
                         settings,
-                        _cts.Token);
+                        _cts.Token,
+                        observedAtUtc);
                     if (visibleChatChanged)
                         await TryMarkRawSnapshotProcessedAsync(_cts.Token);
                 }
@@ -328,7 +337,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 catch (Exception ex)
                 {
                     LastError = ex.Message;
-                    LogCaptureFailure("Automatic FiveM chat polling failed; capture will retry.", ex);
+                    LogCaptureFailure("Automatic FiveM chat capture failed; capture will retry.", ex);
                     await _reader.ResetAsync();
                     await HandleNuiUnavailableCoreAsync(
                         settings,
@@ -339,11 +348,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     _captureGate.Release();
                 }
 
-                unchangedPolls = captured > 0 ? 0 : Math.Min(unchangedPolls + 1, 20);
-                TimeSpan nextPoll = unchangedPolls >= 10
-                    ? TimeSpan.FromSeconds(1)
-                    : TimeSpan.FromMilliseconds(500);
-                await Task.Delay(nextPoll, _cts.Token);
             }
             catch (OperationCanceledException) when (_cts.IsCancellationRequested)
             {
@@ -363,7 +367,8 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     private async Task<int> CaptureAvailableLinesAsync(
         IReadOnlyList<CapturedChatLine> current,
         AppSettings settings,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DateTimeOffset? observedAtUtc = null)
     {
         string[] currentText = current.Select(line => line.Text).ToArray();
         if (_previousVisible.SequenceEqual(currentText, StringComparer.Ordinal))
@@ -405,7 +410,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     settings,
                     _currentServer,
                     newest.Text,
-                    DateTimeOffset.UtcNow))
+                    observedAtUtc ?? DateTimeOffset.UtcNow))
             {
                 PersistServerClockSettings(settings);
             }
@@ -417,7 +422,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             DateTime observedAt = ServerTimeService.Resolve(
                 settings,
                 _currentServer,
-                DateTimeOffset.UtcNow).ServerTime;
+                observedAtUtc ?? DateTimeOffset.UtcNow).ServerTime;
             bool potentialDuplicate = replay.IsReplay &&
                                       pendingIndex >= replay.CandidateStartIndex &&
                                       pendingIndex < replay.CandidateStartIndex + replay.CandidateCount;
