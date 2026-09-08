@@ -52,6 +52,10 @@ internal sealed class AboutWindow : Window
 
         body.Children.Add(CreateProjectCard());
 
+        body.Children.Add(CreateCard(
+            "Windows security notice",
+            "Only run Afterline downloaded from the Official Project above. Windows may show an Open File security notice for an older install because it still has a browser download mark. If you confirmed it is the official file, use Properties → Unblock once. Verified Afterline updates now remove that marker automatically. Windows may still say Unknown Publisher until the app is code-signed."));
+
         var disclaimer = new Border
         {
             Style = (Style)FindResource("CardStyle"),

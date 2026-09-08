@@ -50,6 +50,10 @@ Development builds are produced by GitHub Actions as a self-contained Windows x6
 
 Public releases are published from version tags such as `v0.6.0`. The release workflow publishes both the Windows executable and a matching `.sha256` checksum file. Afterline's in-app updater reads the latest public GitHub Release, downloads only after the user chooses `Update now`, verifies the executable against that checksum, safely replaces the running build and restarts the application. If replacement fails, the updater attempts to restore the previous executable.
 
+### Windows security notice
+
+Only run Afterline downloaded from this official project. Windows can show an **Open File – Security Warning** for an older install because the file still has a browser download mark. Once you have confirmed it came from this repository, open the file’s **Properties** and select **Unblock** once. Verified Afterline updates remove that marker automatically going forward. Windows may still display **Unknown Publisher** until Afterline is code-signed.
+
 ## Data and privacy
 
 Afterline stores chatlogs and application data locally. Chatlogs are ordinary text files in the directory selected by the user. Captured chat is not uploaded by Afterline, and the application does not include telemetry or cloud chat syncing.

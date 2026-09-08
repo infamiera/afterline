@@ -8,6 +8,10 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "08/SEP/2026", new[]
         {
+            "Windows security guidance — Adds a concise official-download and security-notice explanation in About and the GitHub README."
+        }, ChangelogChannel.Canary, 242),
+        new("0.7.0", "08/SEP/2026", new[]
+        {
             "Canary housekeeping — Retains recent successful validation and one diagnostic run while automatically pruning older completed Canary workflow history.",
             "Trusted update handoff — Removes Windows' browser download marker from checksum-verified update files and the installed executable so self-updates no longer trigger the repeated Open File security warning."
         }, ChangelogChannel.Canary, 241),
