@@ -12,7 +12,7 @@ internal static class CanaryChangelogData
             "Ordered delivery — Queues complete chat snapshots in sequence so rapid message bursts are processed without allowing command responses or reconnect activity to consume chat events.",
             "Capture recovery — Reconciles the complete visible chat every two seconds as a safety net when FiveM reloads or replaces its NUI frame.",
             "Server presentation — Reads server-rendered timestamps exposed through hidden chat metadata and preserves the exact observed time and per-character colors of newly captured lines."
-        }, ChangelogChannel.Canary, 239),
+        }, ChangelogChannel.Canary, 240),
         new("0.7.0", "07/SEP/2026", new[]
         {
             "Theme consistency — Keeps cards, nested panels, controls and tooltips synchronized with live theme changes throughout Afterline.",

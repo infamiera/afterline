@@ -295,7 +295,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             .ToArray();
     }
 
-    public async Task<ObservedChatSnapshot?> WaitForVisibleLinesChangedAsync(
+    internal async Task<ObservedChatSnapshot?> WaitForVisibleLinesChangedAsync(
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
