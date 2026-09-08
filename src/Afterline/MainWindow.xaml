@@ -374,7 +374,7 @@
                                     <Button Grid.Column="2" Content="Re-do" Padding="10,5" Margin="8,0,0,0" Click="RedoScreenshotHotkeyV076_Click"/>
                                 </Grid>
                             </Border>
-                            <CheckBox x:Name="ScreenshotCaptureNotificationCheckV076" Content="Show a notification after capture" Margin="250,0,0,0"/>
+                            <CheckBox x:Name="ScreenshotCaptureNotificationCheckV076" Content="Show a notification after capture" Margin="250,0,0,0" Checked="ScreenshotCaptureNotificationCheck_Changed" Unchecked="ScreenshotCaptureNotificationCheck_Changed"/>
                             <TextBlock Text="Off by default. When enabled, Afterline uses the Windows notification area after the PNG is saved, without taking focus away from the game. Click it to open the file location." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="250,4,0,10"/>
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>

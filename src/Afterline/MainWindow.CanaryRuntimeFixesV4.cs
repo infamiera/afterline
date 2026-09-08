@@ -685,7 +685,7 @@ public partial class MainWindow
             // All Canary installs now use the detached, retrying updater. This avoids
             // the legacy self-copy race that could leave the UI saying Updating while
             // no replacement/restart completed.
-            CanaryUpdateInstaller.LaunchUpdater(download);
+            await CanaryUpdateInstaller.LaunchUpdaterAsync(download);
 
             try { await _capture.DisposeAsync(); }
             catch (Exception ex) { DiagnosticLogger.Error("Capture shutdown during Canary update failed.", ex); }

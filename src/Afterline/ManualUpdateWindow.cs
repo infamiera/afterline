@@ -90,7 +90,7 @@ internal sealed class ManualUpdateWindow : Window
             }
             if (matched is null) throw new InvalidDataException("This file does not match a current official release. Download it again using the links above.");
             if (MessageBox.Show(this, "Install this verified Afterline release and restart? Save any Editor work first.", "Confirm update", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
-            CanaryUpdateInstaller.LaunchUpdater(new UpdateDownloadResult(staged, hash, matched.LatestVersion!));
+            await CanaryUpdateInstaller.LaunchUpdaterAsync(new UpdateDownloadResult(staged, hash, matched.LatestVersion!));
             staged = null;
             if (Owner is MainWindow main) main.PrepareManualUpdateExit();
             Application.Current.Shutdown();

@@ -876,17 +876,32 @@ public partial class MainWindow
 
     private void ShowScreenshotSavedNotificationV076(string path)
     {
+        // Windows 11 can silently suppress legacy tray balloons. The in-app
+        // notification is the dependable confirmation, while the tray balloon
+        // remains a best-effort extra for users who are in the game.
+        ShowInAppFileNotification("Screenshot saved", $"{Path.GetFileName(path)} was saved locally.", path);
         if (_trayIcon is null)
-        {
-            ShowInAppFileNotification("Screenshot saved", $"{Path.GetFileName(path)} was saved locally.", path);
             return;
-        }
 
         _lastExportPath = Path.GetFullPath(path);
         _trayIcon.BalloonTipTitle = "Screenshot saved";
         _trayIcon.BalloonTipText = $"{Path.GetFileName(path)} was saved locally. Click to open its location.";
         _trayIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
         _trayIcon.ShowBalloonTip(8_000);
+    }
+
+    private void ScreenshotCaptureNotificationCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_settings is null) return;
+        try
+        {
+            _settings.ScreenshotCaptureNotificationEnabled = ScreenshotCaptureNotificationCheckV076.IsChecked == true;
+            _settingsService.Save(_settings);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to persist the screen-capture notification preference.", ex);
+        }
     }
 
     private void BrowseScreenshotFolder_Click(object sender, RoutedEventArgs e)

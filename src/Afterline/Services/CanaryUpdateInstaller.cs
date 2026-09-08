@@ -29,6 +29,12 @@ public static class CanaryUpdateInstaller
         string SourceHash,
         string PreviousHash);
 
+    public static Task LaunchUpdaterAsync(UpdateDownloadResult download)
+        // Preparing the detached copy can involve a sizeable single-file
+        // executable. Keep that disk work off WPF's dispatcher so clicking
+        // Update immediately remains responsive on a busy PC.
+        => Task.Run(() => LaunchUpdater(download));
+
     public static void LaunchUpdater(UpdateDownloadResult download)
     {
         string? targetPath = Environment.ProcessPath;

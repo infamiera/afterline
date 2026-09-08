@@ -75,14 +75,26 @@ internal sealed class ChangelogWindow : Window
             PanningMode = PanningMode.VerticalOnly,
             Content = releaseStack
         };
-        scroll.SetResourceReference(Control.BackgroundProperty, "Bg");
+        // Keep the viewport, including its empty area beside the cards, on an
+        // explicit dynamic surface. The stock ScrollViewer background otherwise
+        // exposes a stale palette during a live theme change.
+        scroll.SetResourceReference(Control.BackgroundProperty, "AfterlineInset");
+        scroll.SetResourceReference(Control.BorderBrushProperty, "Border");
+        scroll.BorderThickness = new Thickness(0);
+        var scrollHost = new Grid();
+        scrollHost.SetResourceReference(Panel.BackgroundProperty, "AfterlineInset");
+        scrollHost.Children.Add(scroll);
         var scrollFrame = new Border
         {
             CornerRadius = new CornerRadius(12),
-            ClipToBounds = true,
-            Child = scroll
+            BorderThickness = new Thickness(1),
+            Child = scrollHost
         };
-        scrollFrame.SetResourceReference(Border.BackgroundProperty, "Bg");
+        scrollFrame.SetResourceReference(Border.BackgroundProperty, "AfterlineInset");
+        scrollFrame.SetResourceReference(Border.BorderBrushProperty, "Border");
+        // The host grid allows the reusable rounded-clip helper to clip both the
+        // scrollbar track and viewport corners rather than leaving square pixels.
+        RoundedPanelClip.Attach(scrollFrame);
         Grid.SetRow(scrollFrame, 2);
         root.Children.Add(scrollFrame);
 
@@ -116,26 +128,7 @@ internal sealed class ChangelogWindow : Window
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
-        var badge = new Border
-        {
-            Background = (Brush)FindResource(entry.Channel == ChangelogChannel.Canary ? "Raised" : "Bg"),
-            BorderBrush = (Brush)FindResource(entry.Channel == ChangelogChannel.Canary ? "Border" : "Accent"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(9, 3, 9, 3),
-            Margin = new Thickness(12, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
-            {
-                Text = entry.Channel == ChangelogChannel.Canary ? "CANARY" : "STABLE",
-                Foreground = (Brush)FindResource(entry.Channel == ChangelogChannel.Canary ? "MutedText" : "Accent"),
-                FontSize = 9,
-                FontWeight = FontWeights.Bold,
-                TextAlignment = TextAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
-        };
+        var badge = CreateChannelBadge(entry.Channel);
         Grid.SetColumn(badge, 1);
         header.Children.Add(badge);
         content.Children.Add(header);
@@ -184,19 +177,50 @@ internal sealed class ChangelogWindow : Window
 
         var card = new Border
         {
-            Style = (Style)FindResource("CardStyle"),
             Margin = new Thickness(0, 0, 10, 12),
             Padding = new Thickness(18),
             Child = content
         };
-        if (entry.Channel == ChangelogChannel.Stable)
-        {
-            Brush border = ((Brush)FindResource("Accent")).Clone();
-            border.Opacity = 0.48;
-            card.BorderBrush = border;
-            card.BorderThickness = new Thickness(1.25);
-        }
+        card.SetResourceReference(FrameworkElement.StyleProperty, "CardStyle");
+        card.SetResourceReference(Border.BackgroundProperty, "Panel");
+        card.SetResourceReference(Border.BorderBrushProperty, "Border");
         return card;
+    }
+
+    private static Border CreateChannelBadge(ChangelogChannel channel)
+    {
+        bool canary = channel == ChangelogChannel.Canary;
+        Color accent = canary
+            ? Color.FromRgb(0xE5, 0xB5, 0x68)
+            : Color.FromRgb(0xC8, 0xD0, 0xDC);
+        Color background = canary
+            ? Color.FromRgb(0x3D, 0x32, 0x18)
+            : Color.FromRgb(0x2C, 0x31, 0x3A);
+        var accentBrush = new SolidColorBrush(accent);
+        var backgroundBrush = new SolidColorBrush(background);
+        accentBrush.Freeze();
+        backgroundBrush.Freeze();
+
+        return new Border
+        {
+            Background = backgroundBrush,
+            BorderBrush = accentBrush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(9, 3, 9, 3),
+            Margin = new Thickness(12, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = canary ? "CANARY" : "STABLE",
+                Foreground = accentBrush,
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
     }
 
     private Brush CategoryBrush(string category)

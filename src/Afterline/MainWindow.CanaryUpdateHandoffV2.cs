@@ -98,7 +98,7 @@ public partial class MainWindow
         {
             UpdateDownloadResult download = await _updateService.DownloadVerifiedAsync(release, CancellationToken.None);
             SetUpdateBuildLines(GetCurrentBuildVersion() + " Canary", "Verified · restarting…");
-            CanaryUpdateInstaller.LaunchUpdater(download);
+            await CanaryUpdateInstaller.LaunchUpdaterAsync(download);
 
             try { await _capture.DisposeAsync(); }
             catch (Exception ex) { DiagnosticLogger.Error("Capture shutdown during channel update failed.", ex); }

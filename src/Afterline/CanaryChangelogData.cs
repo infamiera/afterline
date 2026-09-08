@@ -8,6 +8,15 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "08/SEP/2026", new[]
         {
+            "Stable candidate — This Canary is the likely Stable release candidate. We are gathering feedback before Stable; only important fixes will be added during this feedback period.",
+            "Smoother updates — Moves detached-updater preparation away from the interface thread so Update remains responsive while Windows copies the replacement helper.",
+            "Capture confirmation — Always shows Afterline's reliable in-app saved notification, with the Windows tray balloon retained as an additional best-effort confirmation.",
+            "Streamer persistence — Saves Streamer mode and screen-capture notification preferences as soon as they are changed, including when an update is started immediately afterward.",
+            "Changelog surfaces — Rebuilds the Changelog viewport so cards, empty space, rounded corners and scrollbar tracks stay synchronized with the active theme.",
+            "Release indicators — Keeps CANARY gold and STABLE silver regardless of the selected theme."
+        }, ChangelogChannel.Canary, 243),
+        new("0.7.0", "08/SEP/2026", new[]
+        {
             "Windows security guidance — Adds a concise official-download and security-notice explanation in About and the GitHub README."
         }, ChangelogChannel.Canary, 242),
         new("0.7.0", "08/SEP/2026", new[]

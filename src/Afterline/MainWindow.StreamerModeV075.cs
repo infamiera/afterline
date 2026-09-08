@@ -14,6 +14,20 @@ public partial class MainWindow
     {
         if (_settings is null) return;
         ApplyStreamerModePresentationV075();
+        PersistStreamerModePreferenceV075();
+    }
+
+    private void PersistStreamerModePreferenceV075()
+    {
+        try
+        {
+            _settings.StreamerModeEnabled = StreamerModeCheck?.IsChecked == true;
+            _settingsService.Save(_settings);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to persist the Streamer mode preference.", ex);
+        }
     }
 
     private void ApplyStreamerModePresentationV075()
