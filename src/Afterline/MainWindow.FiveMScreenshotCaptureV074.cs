@@ -263,23 +263,29 @@ public partial class MainWindow
         _fiveMScreenshotCaptureInProgressV074 = true;
         bool restoreAfterline = GameWindowCaptureService.IsAfterlineForeground();
         WindowState previousWindowState = WindowState;
+        IntPtr gameWindow = IntPtr.Zero;
         try
         {
             if (restoreAfterline)
             {
-                if (!GameWindowCaptureService.TryFindGameWindowForAfterlineCapture(out IntPtr gameWindow, out string reason))
+                if (!GameWindowCaptureService.TryFindGameWindowForAfterlineCapture(out gameWindow, out string reason))
                     throw new InvalidOperationException(reason);
 
                 SetFiveMScreenshotStatusV074("Switching briefly to the game window…");
                 Hide();
                 if (!GameWindowCaptureService.ActivateGameWindow(gameWindow))
                     throw new InvalidOperationException("Afterline found the game but Windows would not activate its window for capture.");
-                await Task.Delay(220);
+                await Task.Delay(300);
+            }
+            else if (!GameWindowCaptureService.TryGetForegroundGameWindow(out gameWindow, out string reason))
+            {
+                throw new InvalidOperationException(reason);
             }
 
             SetFiveMScreenshotStatusV074("Capturing the foreground FiveM game window…");
             GameWindowCaptureService.CaptureResult result = await Task.Run(
-                () => GameWindowCaptureService.CaptureForegroundGameWindow(
+                () => GameWindowCaptureService.CaptureGameWindow(
+                    gameWindow,
                     _settings.ScreenshotFolder,
                     _settings.ScreenshotFormat,
                     _settings.ScreenshotJpegQuality));
@@ -294,6 +300,7 @@ public partial class MainWindow
         {
             DiagnosticLogger.Error("FiveM screenshot capture failed.", ex);
             SetFiveMScreenshotStatusV074(ex.Message);
+            ShowScreenshotCaptureFailureNotificationV076(ex.Message);
         }
         finally
         {
@@ -890,6 +897,20 @@ public partial class MainWindow
         _trayIcon.BalloonTipTitle = "Screenshot saved";
         _trayIcon.BalloonTipText = $"{Path.GetFileName(path)} was saved locally. Click to open its location.";
         _trayIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
+        _trayIcon.ShowBalloonTip(8_000);
+    }
+
+    private void ShowScreenshotCaptureFailureNotificationV076(string message)
+    {
+        // A global hotkey is usually pressed while the game is foreground, so
+        // the Gallery status line is not visible. Surface a clear local error
+        // through the tray as well as the diagnostic log.
+        if (_trayIcon is null)
+            return;
+
+        _trayIcon.BalloonTipTitle = "Screen capture was not saved";
+        _trayIcon.BalloonTipText = message.Length > 240 ? message[..240] : message;
+        _trayIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Warning;
         _trayIcon.ShowBalloonTip(8_000);
     }
 

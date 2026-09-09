@@ -53,6 +53,31 @@ public static class GameWindowCaptureService
         return selectedWindow != IntPtr.Zero;
     }
 
+    /// <summary>
+    /// Gets the exact game window that owned the foreground at the instant a
+    /// global hotkey was received. The capture path deliberately keeps this
+    /// handle instead of querying foreground again later: Steam, overlays and
+    /// Windows focus transitions may occur between the key press and the copy.
+    /// </summary>
+    public static bool TryGetForegroundGameWindow(out IntPtr gameWindow, out string reason)
+    {
+        gameWindow = GetForegroundWindow();
+        reason = "Bring FiveM, GTA5, or GTAVLauncher to the foreground before capturing.";
+        if (gameWindow == IntPtr.Zero || !IsWindowVisible(gameWindow) || IsIconic(gameWindow))
+        {
+            gameWindow = IntPtr.Zero;
+            return false;
+        }
+
+        if (!TryGetSupportedGameWindow(gameWindow, out _, out _, out reason))
+        {
+            gameWindow = IntPtr.Zero;
+            return false;
+        }
+
+        return true;
+    }
+
     public static bool ActivateGameWindow(IntPtr gameWindow)
     {
         if (gameWindow == IntPtr.Zero || !IsWindowVisible(gameWindow)) return false;
@@ -68,7 +93,19 @@ public static class GameWindowCaptureService
         if (string.IsNullOrWhiteSpace(destinationFolder))
             throw new ArgumentException("Choose a screenshot folder first.", nameof(destinationFolder));
 
-        if (!TryGetSupportedForegroundWindow(out Rectangle bounds, out string title, out string reason))
+        if (!TryGetForegroundGameWindow(out IntPtr gameWindow, out string reason))
+            throw new InvalidOperationException(reason);
+
+        return CaptureGameWindow(gameWindow, destinationFolder, format, jpegQuality);
+    }
+
+    public static CaptureResult CaptureGameWindow(
+        IntPtr gameWindow,
+        string destinationFolder,
+        string format = "PNG",
+        int jpegQuality = 95)
+    {
+        if (!TryGetSupportedGameWindow(gameWindow, out Rectangle bounds, out string title, out string reason))
             throw new InvalidOperationException(reason);
 
         Directory.CreateDirectory(destinationFolder);
@@ -85,16 +122,31 @@ public static class GameWindowCaptureService
             // arbitrary desktop image: the bounds belong to the game window
             // that was just verified as foreground.
             using var image = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
-            using (Graphics graphics = Graphics.FromImage(image))
+            bool receivedFrame = false;
+            for (int attempt = 0; attempt < 4; attempt++)
             {
-                graphics.CopyFromScreen(
-                    bounds.Location,
-                    Point.Empty,
-                    bounds.Size,
-                    CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt);
+                using (Graphics graphics = Graphics.FromImage(image))
+                {
+                    graphics.CopyFromScreen(
+                        bounds.Location,
+                        Point.Empty,
+                        bounds.Size,
+                        CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt);
+                }
+
+                if (HasMeaningfulPixels(image))
+                {
+                    receivedFrame = true;
+                    break;
+                }
+
+                // A just-activated DirectX window can produce one stale black
+                // desktop-composition frame. Retrying briefly is bounded and
+                // occurs only when the user explicitly requests a capture.
+                if (attempt < 3) Thread.Sleep(55);
             }
 
-            if (!HasMeaningfulPixels(image))
+            if (!receivedFrame)
             {
                 throw new InvalidOperationException(
                     "Windows returned a blank game frame, so Afterline did not save a false screenshot. " +
@@ -165,15 +217,15 @@ public static class GameWindowCaptureService
         return nonBlack > 0;
     }
 
-    private static bool TryGetSupportedForegroundWindow(
+    private static bool TryGetSupportedGameWindow(
+        IntPtr window,
         out Rectangle clientBounds,
         out string title,
         out string reason)
     {
-        IntPtr window = GetForegroundWindow();
         clientBounds = Rectangle.Empty;
         title = string.Empty;
-        reason = "Bring FiveM, GTA5, or GTAVLauncher to the foreground before capturing.";
+        reason = "Afterline could not use that game window for capture.";
 
         if (window == IntPtr.Zero || !IsWindowVisible(window) || IsIconic(window))
             return false;

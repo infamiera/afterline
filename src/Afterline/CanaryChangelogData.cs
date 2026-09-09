@@ -8,6 +8,13 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "10/SEP/2026", new[]
         {
+            "Screen-capture handoff — Locks the verified FiveM game window at the moment a global hotkey is pressed, avoiding focus-race failures before the client rectangle is copied.",
+            "Frame recovery — Retries a just-activated game frame briefly before rejecting it as blank, without falling back to desktop or another application capture.",
+            "Capture feedback — Shows a tray warning when a background hotkey capture cannot be saved, rather than leaving the failure only in the hidden Gallery status.",
+            "Timestamp guidance — Recommends /timestamp on in-game and clearly warns that receipt-time fallbacks should not be used for sequencing."
+        }, ChangelogChannel.Canary, 256),
+        new("0.7.0", "10/SEP/2026", new[]
+        {
             "Live chat recovery — Refreshes the active server before waiting for direct FiveM chat events, so new rows no longer require Parse current chat to appear.",
             "Timestamp provenance — Preserves per-row timestamps exposed by the rendered chat and labels receipt-time fallback rows as [captured] instead of presenting them as server time.",
             "Game capture rebuild — Separates screenshots from chat capture and uses the verified foreground game client rectangle; blank GPU frames are rejected instead of being saved to Gallery."
