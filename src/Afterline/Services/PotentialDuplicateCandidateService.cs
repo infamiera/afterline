@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Afterline.Models;
 
 namespace Afterline.Services;
@@ -19,6 +20,9 @@ public sealed class PotentialDuplicateCandidate
 public sealed class PotentialDuplicateCandidateService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly Regex TimestampPrefix = new(
+        @"^\[\d{1,2}:\d{2}:\d{2}\]\s*",
+        RegexOptions.Compiled);
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     internal async Task<PotentialDuplicateCandidate> RecordAsync(
@@ -73,18 +77,16 @@ public sealed class PotentialDuplicateCandidateService
         IReadOnlyList<ExistingLogReplayMatch> matches,
         CancellationToken cancellationToken)
     {
-        if (matches.Count == 0)
-            return Array.Empty<PotentialDuplicateCandidate>();
-
         var recorded = new List<PotentialDuplicateCandidate>(matches.Count);
         List<PotentialDuplicateCandidate> candidates;
         await _gate.WaitAsync(cancellationToken);
         try
         {
             candidates = await ReadCoreAsync(cancellationToken);
+            var refreshedIds = new HashSet<Guid>();
             foreach (ExistingLogReplayMatch match in matches)
             {
-                var candidate = new PotentialDuplicateCandidate
+                var refreshed = new PotentialDuplicateCandidate
                 {
                     Id = Guid.NewGuid(),
                     DetectedAt = DateTime.Now,
@@ -95,18 +97,42 @@ public sealed class PotentialDuplicateCandidateService
                     HistoricalLines = allLines.Skip(match.HistoricalStartIndex).Take(match.CandidateCount).ToList()
                 };
 
-                // Re-running a manual scan during a busy session must not
-                // create the same review card again and again.
-                bool alreadyPending = candidates.Any(existing =>
+                // Rebase old cards against the file currently on disk. This
+                // repairs candidates saved by earlier builds with a different
+                // timestamp representation and prevents review-card buildup.
+                PotentialDuplicateCandidate? existing = candidates.FirstOrDefault(existing =>
                     !existing.Reviewed &&
                     !existing.Removed &&
+                    !refreshedIds.Contains(existing.Id) &&
                     string.Equals(existing.JournalPath, journalPath, StringComparison.OrdinalIgnoreCase) &&
-                    existing.Lines.SequenceEqual(candidate.Lines, StringComparer.Ordinal));
-                if (alreadyPending)
-                    continue;
+                    SameBodies(existing.Lines, refreshed.Lines));
+                if (existing is not null)
+                {
+                    existing.DetectedAt = refreshed.DetectedAt;
+                    existing.ServerName = refreshed.ServerName;
+                    existing.Evidence = refreshed.Evidence;
+                    existing.Lines = refreshed.Lines;
+                    existing.HistoricalLines = refreshed.HistoricalLines;
+                    refreshedIds.Add(existing.Id);
+                    recorded.Add(existing);
+                }
+                else
+                {
+                    candidates.Add(refreshed);
+                    refreshedIds.Add(refreshed.Id);
+                    recorded.Add(refreshed);
+                }
+            }
 
-                candidates.Add(candidate);
-                recorded.Add(candidate);
+            // Any unmatched pending card is stale rather than a new deletion
+            // target. Marking its metadata reviewed never changes chat text.
+            foreach (PotentialDuplicateCandidate stale in candidates.Where(candidate =>
+                         !candidate.Reviewed &&
+                         !candidate.Removed &&
+                         string.Equals(candidate.JournalPath, journalPath, StringComparison.OrdinalIgnoreCase) &&
+                         !refreshedIds.Contains(candidate.Id)))
+            {
+                stale.Reviewed = true;
             }
 
             await WriteCoreAsync(candidates, cancellationToken);
@@ -116,15 +142,18 @@ public sealed class PotentialDuplicateCandidateService
             _gate.Release();
         }
 
-        // Include previous unresolved matches too, so a later scan reopens the
-        // same complete review instead of claiming there is nothing to inspect.
-        return candidates
-            .Where(candidate =>
-                !candidate.Reviewed &&
-                !candidate.Removed &&
-                string.Equals(candidate.JournalPath, journalPath, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        return recorded;
     }
+
+    private static bool SameBodies(
+        IReadOnlyList<string> left,
+        IReadOnlyList<string> right)
+        => left.Count == right.Count && left
+            .Select(NormalizeBody)
+            .SequenceEqual(right.Select(NormalizeBody), StringComparer.Ordinal);
+
+    private static string NormalizeBody(string line)
+        => TimestampPrefix.Replace(line ?? string.Empty, string.Empty).Trim();
 
     public async Task<IReadOnlyList<PotentialDuplicateCandidate>> ReadPendingAsync(
         string? journalPath,

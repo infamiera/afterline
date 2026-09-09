@@ -279,7 +279,10 @@ public partial class MainWindow
 
             SetFiveMScreenshotStatusV074("Capturing the foreground FiveM game window…");
             FiveMScreenshotCaptureService.CaptureResult result = await Task.Run(
-                () => FiveMScreenshotCaptureService.CaptureForegroundWindow(_settings.ScreenshotFolder));
+                () => FiveMScreenshotCaptureService.CaptureForegroundWindow(
+                    _settings.ScreenshotFolder,
+                    _settings.ScreenshotFormat,
+                    _settings.ScreenshotJpegQuality));
             ScreenshotGalleryIndexService.Record(result.FilePath);
             CaptureFeedbackSoundService.Play(_settings.ScreenshotCaptureSound, _settings.ScreenshotCaptureSoundVolume);
             SetFiveMScreenshotStatusV074($"Saved {Path.GetFileName(result.FilePath)} · {result.PixelWidth:N0} × {result.PixelHeight:N0}px");

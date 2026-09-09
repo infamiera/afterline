@@ -97,10 +97,23 @@ internal sealed class PotentialDuplicateReviewWindow : Window
         var removeSelected = new MenuItem
         {
             Header = "Remove selected highlighted line(s)…",
-            Padding = new Thickness(12, 7, 12, 7)
+            Padding = new Thickness(12, 7, 12, 7),
+            Foreground = (Brush)owner.FindResource("Text"),
+            Background = (Brush)owner.FindResource("Raised")
         };
         removeSelected.Click += (_, _) => RequestRemoval(allCurrentLines: false);
-        _suspectedList.ContextMenu = new ContextMenu { Items = { removeSelected } };
+        var rowMenu = new ContextMenu
+        {
+            Background = (Brush)owner.FindResource("Raised"),
+            Foreground = (Brush)owner.FindResource("Text"),
+            BorderBrush = (Brush)owner.FindResource("Border"),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(4)
+        };
+        rowMenu.SetResourceReference(FrameworkElement.StyleProperty, typeof(ContextMenu));
+        removeSelected.SetResourceReference(FrameworkElement.StyleProperty, typeof(MenuItem));
+        rowMenu.Items.Add(removeSelected);
+        _suspectedList.ContextMenu = rowMenu;
         Grid.SetColumn(suspected, 2);
         comparison.Children.Add(suspected);
         Grid.SetRow(comparison, 2);

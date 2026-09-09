@@ -62,6 +62,10 @@ public sealed class SettingsService
             settings.ScreenshotHotkey = string.IsNullOrWhiteSpace(settings.ScreenshotHotkey)
                 ? "Ctrl+Shift+F12"
                 : settings.ScreenshotHotkey.Trim();
+            settings.ScreenshotFormat = string.Equals(settings.ScreenshotFormat, "JPEG", StringComparison.OrdinalIgnoreCase)
+                ? "JPEG"
+                : "PNG";
+            settings.ScreenshotJpegQuality = Math.Clamp(settings.ScreenshotJpegQuality, 70, 100);
             settings.ArchiveFilterMode = settings.ArchiveFilterMode switch
             {
                 "All" => "All",

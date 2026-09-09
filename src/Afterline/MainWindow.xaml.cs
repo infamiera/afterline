@@ -75,7 +75,6 @@ public partial class MainWindow : Window
         _capture.MessageCaptured += Capture_MessageCaptured;
         _capture.StateChanged += Capture_StateChanged;
         _capture.SessionFinalized += Capture_SessionFinalized;
-        _capture.PotentialDuplicateDetected += Capture_PotentialDuplicateDetected;
         _processor.Processed += Processor_Processed;
 
         Loaded += MainWindow_Loaded;
@@ -86,6 +85,22 @@ public partial class MainWindow : Window
 
     private void AmeCaptureInfoLink_Click(object sender, RoutedEventArgs e)
         => new AmeCaptureInfoWindow(this).ShowDialog();
+
+    private void GitHubIssuesLink_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://github.com/infamiera/afterline/issues",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to open the Afterline GitHub issues page.", ex);
+        }
+    }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
@@ -579,6 +594,9 @@ public partial class MainWindow : Window
         SelectComboItem(ScreenshotCaptureSoundBox, _settings.ScreenshotCaptureSound);
         ScreenshotCaptureSoundVolumeSlider.Value = Math.Clamp(_settings.ScreenshotCaptureSoundVolume, 0, 100);
         ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(ScreenshotCaptureSoundVolumeSlider.Value):0}%";
+        SelectComboItem(ScreenshotFormatBox, _settings.ScreenshotFormat == "JPEG" ? "JPEG (smaller files)" : "PNG (lossless)");
+        ScreenshotJpegQualitySlider.Value = Math.Clamp(_settings.ScreenshotJpegQuality, 70, 100);
+        ScreenshotJpegQualityText.Text = $"{Math.Round(ScreenshotJpegQualitySlider.Value):0}% · used only for JPEG";
         StreamerModeCheck.IsChecked = _settings.StreamerModeEnabled;
         ShowLiveChatCheck.IsChecked = _settings.ShowLiveChat;
         ArchiveRootBox.Text = _settings.ArchiveRoot;
@@ -621,6 +639,12 @@ public partial class MainWindow : Window
     {
         if (ScreenshotCaptureSoundVolumeText is not null)
             ScreenshotCaptureSoundVolumeText.Text = $"{Math.Round(e.NewValue):0}%";
+    }
+
+    private void ScreenshotJpegQualitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (ScreenshotJpegQualityText is not null)
+            ScreenshotJpegQualityText.Text = $"{Math.Round(e.NewValue):0}% · used only for JPEG";
     }
 
     private void PlayScreenshotCaptureSound_Click(object sender, RoutedEventArgs e)
@@ -898,6 +922,8 @@ public partial class MainWindow : Window
             _settings.ScreenshotCaptureNotificationEnabled = ScreenshotCaptureNotificationCheckV076.IsChecked == true;
             _settings.ScreenshotCaptureSound = (ScreenshotCaptureSoundBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "Shutter";
             _settings.ScreenshotCaptureSoundVolume = Math.Clamp((int)Math.Round(ScreenshotCaptureSoundVolumeSlider.Value), 0, 100);
+            _settings.ScreenshotFormat = (ScreenshotFormatBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString()?.StartsWith("JPEG", StringComparison.OrdinalIgnoreCase) == true ? "JPEG" : "PNG";
+            _settings.ScreenshotJpegQuality = Math.Clamp((int)Math.Round(ScreenshotJpegQualitySlider.Value), 70, 100);
             _settings.StreamerModeEnabled = StreamerModeCheck.IsChecked == true;
             _settings.ReconnectGraceMinutes = ComboInt(ReconnectBox, 5);
             _settings.ProcessingIntervalMinutes = ComboInt(ProcessingBox, 1);

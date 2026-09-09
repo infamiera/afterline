@@ -13,6 +13,7 @@ namespace Afterline.Services;
 public static class FiveMScreenshotCaptureService
 {
     private const int MinimumCaptureDimension = 160;
+    private const uint PwRenderFullContent = 0x00000002;
 
     public sealed record CaptureResult(string FilePath, int PixelWidth, int PixelHeight, string WindowTitle);
 
@@ -62,7 +63,10 @@ public static class FiveMScreenshotCaptureService
         return SetForegroundWindow(gameWindow);
     }
 
-    public static CaptureResult CaptureForegroundWindow(string destinationFolder)
+    public static CaptureResult CaptureForegroundWindow(
+        string destinationFolder,
+        string format = "PNG",
+        int jpegQuality = 95)
     {
         if (string.IsNullOrWhiteSpace(destinationFolder))
             throw new ArgumentException("Choose a screenshot folder first.", nameof(destinationFolder));
@@ -72,29 +76,43 @@ public static class FiveMScreenshotCaptureService
 
         Directory.CreateDirectory(destinationFolder);
         string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
-        string filePath = Path.Combine(destinationFolder, $"Afterline_FiveM_{timestamp}.png");
+        bool useJpeg = string.Equals(format, "JPEG", StringComparison.OrdinalIgnoreCase);
+        string filePath = Path.Combine(destinationFolder, $"Afterline_FiveM_{timestamp}.{(useJpeg ? "jpg" : "png")}");
         string temporary = filePath + ".writing";
 
         try
         {
-            // Screen captures are fully opaque. A premultiplied-alpha surface can
-            // retain invalid alpha/color values from some DWM/game compositions,
-            // producing bright speckles around hair, foliage and other thin detail.
-            // A 24-bit RGB target preserves the exact desktop pixels without an
-            // alpha conversion; PNG encoding remains lossless.
+            // Render the verified game window itself. This deliberately avoids a
+            // desktop-region fallback, which can include unrelated overlays.
             using var image = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
             using (Graphics graphics = Graphics.FromImage(image))
             {
-                graphics.CopyFromScreen(
-                    bounds.Left,
-                    bounds.Top,
-                    0,
-                    0,
-                    bounds.Size,
-                    CopyPixelOperation.SourceCopy);
+                IntPtr hdc = graphics.GetHdc();
+                try
+                {
+                    if (!PrintWindow(window, hdc, PwRenderFullContent))
+                        throw new InvalidOperationException("Windows could not render a game-only frame. The capture was not saved.");
+                }
+                finally
+                {
+                    graphics.ReleaseHdc(hdc);
+                }
             }
 
-            image.Save(temporary, ImageFormat.Png);
+            if (useJpeg)
+            {
+                ImageCodecInfo encoder = ImageCodecInfo.GetImageEncoders()
+                    .First(item => item.FormatID == ImageFormat.Jpeg.Guid);
+                using var parameters = new EncoderParameters(1);
+                parameters.Param[0] = new EncoderParameter(
+                    System.Drawing.Imaging.Encoder.Quality,
+                    (long)Math.Clamp(jpegQuality, 70, 100));
+                image.Save(temporary, encoder, parameters);
+            }
+            else
+            {
+                image.Save(temporary, ImageFormat.Png);
+            }
             File.Move(temporary, filePath, overwrite: false);
             return new CaptureResult(filePath, bounds.Width, bounds.Height, title);
         }
@@ -236,6 +254,10 @@ public static class FiveMScreenshotCaptureService
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint flags);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);

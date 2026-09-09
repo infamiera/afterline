@@ -30,6 +30,8 @@ public sealed class AppSettings
     public bool ScreenshotCaptureNotificationEnabled { get; set; }
     public string ScreenshotCaptureSound { get; set; } = "Shutter";
     public int ScreenshotCaptureSoundVolume { get; set; } = 60;
+    public string ScreenshotFormat { get; set; } = "PNG";
+    public int ScreenshotJpegQuality { get; set; } = 95;
     public int MaxLiveMessages { get; set; } = 2000;
     public int ReconnectGraceMinutes { get; set; } = 0;
     public int ProcessingIntervalMinutes { get; set; } = 1;

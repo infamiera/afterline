@@ -51,7 +51,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
     public event EventHandler<string>? SessionFinalized;
     public event EventHandler<ServerSessionChangedEventArgs>? ServerSessionChanged;
     public event EventHandler? CachedSessionReplayStarting;
-    public event EventHandler<PotentialDuplicateCandidate>? PotentialDuplicateDetected;
     public event EventHandler? ServerClockChanged;
 
     public CaptureCoordinator(
@@ -417,16 +416,17 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             }
         }
 
-        // A confirmed replay is held for explicit user review. Keeping the
-        // authoritative record intact until the user decides is safer than
-        // silently removing material that could be legitimate RP context.
-        Guid? candidateId = replay.IsReplay ? Guid.NewGuid() : null;
+        // A confirmed replay has a long ordered body match, varied content and
+        // collapsed replacement timestamps. It is safe to keep it out of the
+        // journal entirely. Ambiguous batches never reach this branch and are
+        // retained for the user to review instead.
+        bool preventConfirmedReplay = replay.IsReplay;
         var committedPendingText = new List<string>(pending.Length);
-        if (replay.IsReplay)
+        if (preventConfirmedReplay)
         {
             DiagnosticLogger.Warn(
-                $"Potential FiveM chat-buffer replay detected: {replay.CandidateCount:N0} row(s), " +
-                $"{replay.Evidence}. Awaiting user review.");
+                $"Prevented confirmed FiveM chat-buffer replay: {replay.CandidateCount:N0} row(s), " +
+                replay.Evidence);
         }
 
         int captured = 0;
@@ -446,6 +446,13 @@ public sealed class CaptureCoordinator : IAsyncDisposable
 
         for (int pendingIndex = 0; pendingIndex < pending.Length; pendingIndex++)
         {
+            if (preventConfirmedReplay &&
+                pendingIndex >= replay.CandidateStartIndex &&
+                pendingIndex < replay.CandidateStartIndex + replay.CandidateCount)
+            {
+                continue;
+            }
+
             CapturedChatLine line = pending[pendingIndex];
             DateTime observedAt = ServerTimeService.Resolve(
                 settings,
@@ -454,12 +461,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             var entry = new ChatEntry(
                 InferVisibleTimestamp(line.Text, observedAt),
                 line.Text,
-                capturedColorRuns: line.ColorRuns,
-                potentialDuplicateGroupId: replay.IsReplay &&
-                                           pendingIndex >= replay.CandidateStartIndex &&
-                                           pendingIndex < replay.CandidateStartIndex + replay.CandidateCount
-                    ? candidateId
-                    : null);
+                capturedColorRuns: line.ColorRuns);
 
             if (!_journal.HasActiveSession)
             {
@@ -496,28 +498,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         }
 
         _replayGuard.RecordCommitted(committedPendingText);
-
-        if (replay.IsReplay && candidateId is Guid id && _journal.ActiveFile is string journalPath)
-        {
-            try
-            {
-                PotentialDuplicateCandidate candidate = await _potentialDuplicates.RecordAsync(
-                    id,
-                    journalPath,
-                    _currentServer ?? ServerSessionInfo.Unknown,
-                    pendingReplayText,
-                    committedTail,
-                    replay,
-                    cancellationToken);
-                PotentialDuplicateDetected?.Invoke(this, candidate);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                DiagnosticLogger.Error(
-                    "Potential duplicate review data could not be saved; all chatlog rows remain untouched.",
-                    ex);
-            }
-        }
 
         _previousVisible = currentText.ToList();
         if (_journal.HasActiveSession)

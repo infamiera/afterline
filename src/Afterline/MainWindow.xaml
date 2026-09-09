@@ -111,15 +111,21 @@
                     <Border Grid.Column="2" Style="{StaticResource CardStyle}">
                         <StackPanel>
                             <TextBlock Text="CURRENT SESSION" Foreground="{DynamicResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="SessionCountText" Text="0 messages" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="SessionCountText" Text="0 messages" FontSize="20" FontWeight="SemiBold"/>
+                                <TextBlock Grid.Column="1" Text="Protected" Foreground="{DynamicResource Success}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </Grid>
                             <TextBlock x:Name="SessionTimeText" Text="No active session" Foreground="{DynamicResource MutedText}" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="AutosaveText" Text="Waiting for first chat message" Foreground="{DynamicResource MutedText}" FontSize="11" Margin="0,5,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
-                    <Border Grid.Column="4" Style="{StaticResource CardStyle}">
+                    <Border Grid.Column="4" Style="{StaticResource CardStyle}" BorderBrush="{DynamicResource Warning}">
                         <StackPanel>
-                            <TextBlock Text="AUTOSAVE" Foreground="{DynamicResource MutedText}" FontSize="11" FontWeight="SemiBold"/>
-                            <TextBlock Text="Protected" Foreground="{StaticResource Success}" FontSize="20" FontWeight="SemiBold" Margin="0,8,0,0"/>
-                            <TextBlock x:Name="AutosaveText" Text="Waiting for first chat message" Foreground="{DynamicResource MutedText}" Margin="0,8,0,0"/>
+                            <TextBlock Text="KNOWN ISSUES" Foreground="{DynamicResource Warning}" FontSize="11" FontWeight="SemiBold"/>
+                            <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"><Run Text="• /ame from other players cannot currently be logged. "/><Hyperlink Click="AmeCaptureInfoLink_Click" Foreground="{DynamicResource Accent}">Find out why.</Hyperlink></TextBlock>
+                            <TextBlock Text="• Chat logging can still produce duplicates. Use Check for duplicates in Live Chat or Log Reader." TextWrapping="Wrap" Margin="0,6,0,0"/>
+                            <TextBlock Foreground="{DynamicResource MutedText}" FontSize="10.5" TextWrapping="Wrap" Margin="0,10,0,0">Please report reproducible issues on <Hyperlink Click="GitHubIssuesLink_Click" Foreground="{DynamicResource Accent}">GitHub Issues</Hyperlink>.</TextBlock>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -363,6 +369,24 @@
                             <TextBlock Text="Screen capture" FontSize="18" FontWeight="SemiBold"/>
                             <CheckBox x:Name="ScreenshotCaptureEnabledCheck" Content="Enable screen capture" Margin="0,14,0,0" Checked="ScreenshotCaptureEnabledCheck_Changed" Unchecked="ScreenshotCaptureEnabledCheck_Changed"/>
                             <TextBlock Text="Afterline captures only the foreground FiveM game subprocess, GTA5.exe, or GTAVLauncher.exe. It never falls back to the desktop or another app." Foreground="{DynamicResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,10"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Capture target" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="Game window only" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="Keeps the capture tied to the verified FiveM/GTA client area." Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="File format" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="ScreenshotFormatBox" Grid.Column="1"><ComboBoxItem Content="PNG (lossless)"/><ComboBoxItem Content="JPEG (smaller files)"/></ComboBox>
+                                <TextBlock Grid.Column="2" Text="Native game-window resolution is always preserved." Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0" TextWrapping="Wrap"/>
+                            </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="JPEG quality" VerticalAlignment="Center"/>
+                                <Slider x:Name="ScreenshotJpegQualitySlider" Grid.Column="1" Minimum="70" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="ScreenshotJpegQualitySlider_ValueChanged"/>
+                                <TextBlock x:Name="ScreenshotJpegQualityText" Grid.Column="2" Foreground="{DynamicResource MutedText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                            </Grid>
                             <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Capture hotkey" VerticalAlignment="Center"/>
