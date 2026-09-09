@@ -92,13 +92,19 @@ internal sealed class CaptureReplayGuard
              incomingStart <= incoming.Count - MinimumReplayLines;
              incomingStart++)
         {
-            // This inexpensive early gate keeps normal chat capture O(n). Only a
-            // suspicious collapsed batch is compared with retained history.
-            if (!LooksLikeRestampedWindow(incoming, incomingBodies, incomingStart))
-                continue;
-
             if (!historyStarts.TryGetValue(incomingBodies[incomingStart], out List<int>? starts))
                 continue;
+
+            // A collapsed timestamp window is the normal corruption signature.
+            // An exact timestamp-identical replay is also decisive, however it
+            // has a normal timestamp span and must not be discarded by that
+            // early gate.  The exact comparison below makes that path safe:
+            // it needs a long, ordered, varied sequence rather than a repeated
+            // message or a similar chat scene.
+            bool hasCollapsedTimestampWindow = LooksLikeRestampedWindow(
+                incoming,
+                incomingBodies,
+                incomingStart);
 
             int checkedStarts = 0;
             foreach (int start in starts)
@@ -137,12 +143,14 @@ internal sealed class CaptureReplayGuard
                 // common capture-corruption shape after an alt-tab/reconnect;
                 // normal visible-buffer refreshes are already removed by the
                 // overlap checkpoint before they reach this guard.
-                if (!exact && !HasRestampedReplayEvidence(
-                                   history,
-                                   start,
-                                   incoming,
-                                   incomingStart,
-                                   length))
+                if (!exact &&
+                    (!hasCollapsedTimestampWindow ||
+                     !HasRestampedReplayEvidence(
+                         history,
+                         start,
+                         incoming,
+                         incomingStart,
+                         length)))
                     continue;
 
                 if (length > bestLength)
