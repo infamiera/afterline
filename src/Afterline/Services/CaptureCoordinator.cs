@@ -505,7 +505,7 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     id,
                     journalPath,
                     _currentServer ?? ServerSessionInfo.Unknown,
-                    pending,
+                    pendingReplayText,
                     committedTail,
                     replay,
                     cancellationToken);
@@ -550,7 +550,11 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             throw new ArgumentException("A chatlog path is required.", nameof(journalPath));
 
         string[] lines = await File.ReadAllLinesAsync(journalPath, cancellationToken);
-        IReadOnlyList<ExistingLogReplayMatch> matches = CaptureReplayGuard.FindInExistingLog(lines);
+        // The comparison can be sizeable for long chatlogs. Keep it off the UI
+        // thread; the caller remains responsive while file content is checked.
+        IReadOnlyList<ExistingLogReplayMatch> matches = await Task.Run(
+            () => CaptureReplayGuard.FindInExistingLog(lines),
+            cancellationToken);
         return await _potentialDuplicates.RecordExistingLogMatchesAsync(
             journalPath,
             serverName,

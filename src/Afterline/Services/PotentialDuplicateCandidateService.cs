@@ -25,7 +25,7 @@ public sealed class PotentialDuplicateCandidateService
         Guid candidateId,
         string journalPath,
         ServerSessionInfo server,
-        IReadOnlyList<CapturedChatLine> incoming,
+        IReadOnlyList<string> incoming,
         IReadOnlyList<string> committedHistory,
         CaptureReplayDecision decision,
         CancellationToken cancellationToken)
@@ -41,10 +41,9 @@ public sealed class PotentialDuplicateCandidateService
             Lines = incoming
                 .Skip(decision.CandidateStartIndex)
                 .Take(decision.CandidateCount)
-                // NUI rows can arrive without their own visible timestamp.
-                // Store the same resolved fallback used by replay detection so
-                // the comparison window never disguises a timestamp collapse.
-                .Select(line => CaptureReplayGuard.WithFallbackTimestamp(line.Text, detectedAt))
+                // These are the timestamp-normalized values that were written
+                // to the journal, so a confirmed cleanup can match precisely.
+                .Select(line => line)
                 .ToList(),
             HistoricalLines = committedHistory
                 .Skip(decision.HistoricalStartIndex)
@@ -78,10 +77,11 @@ public sealed class PotentialDuplicateCandidateService
             return Array.Empty<PotentialDuplicateCandidate>();
 
         var recorded = new List<PotentialDuplicateCandidate>(matches.Count);
+        List<PotentialDuplicateCandidate> candidates;
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            List<PotentialDuplicateCandidate> candidates = await ReadCoreAsync(cancellationToken);
+            candidates = await ReadCoreAsync(cancellationToken);
             foreach (ExistingLogReplayMatch match in matches)
             {
                 var candidate = new PotentialDuplicateCandidate
@@ -94,6 +94,17 @@ public sealed class PotentialDuplicateCandidateService
                     Lines = allLines.Skip(match.CandidateStartIndex).Take(match.CandidateCount).ToList(),
                     HistoricalLines = allLines.Skip(match.HistoricalStartIndex).Take(match.CandidateCount).ToList()
                 };
+
+                // Re-running a manual scan during a busy session must not
+                // create the same review card again and again.
+                bool alreadyPending = candidates.Any(existing =>
+                    !existing.Reviewed &&
+                    !existing.Removed &&
+                    string.Equals(existing.JournalPath, journalPath, StringComparison.OrdinalIgnoreCase) &&
+                    existing.Lines.SequenceEqual(candidate.Lines, StringComparer.Ordinal));
+                if (alreadyPending)
+                    continue;
+
                 candidates.Add(candidate);
                 recorded.Add(candidate);
             }
@@ -105,7 +116,14 @@ public sealed class PotentialDuplicateCandidateService
             _gate.Release();
         }
 
-        return recorded;
+        // Include previous unresolved matches too, so a later scan reopens the
+        // same complete review instead of claiming there is nothing to inspect.
+        return candidates
+            .Where(candidate =>
+                !candidate.Reviewed &&
+                !candidate.Removed &&
+                string.Equals(candidate.JournalPath, journalPath, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<PotentialDuplicateCandidate>> ReadPendingAsync(

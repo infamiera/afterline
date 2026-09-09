@@ -243,6 +243,15 @@ public partial class MainWindow
         };
         parseButton.Click += ParseCurrentChat_Click;
 
+        var duplicateCheckButton = new Button
+        {
+            Content = "Check for duplicates",
+            Padding = new Thickness(10, 6, 10, 6),
+            Margin = new Thickness(0, 0, 10, 6),
+            ToolTip = "Scans the current chatlog in the background. Capture continues normally and no review window opens while you are playing."
+        };
+        duplicateCheckButton.Click += CheckLiveChatForDuplicates_Click;
+
         var exportButton = new Button
         {
             Content = "Save copy to Downloads",
@@ -262,6 +271,7 @@ public partial class MainWindow
         };
 
         actions.Children.Add(parseButton);
+        actions.Children.Add(duplicateCheckButton);
         actions.Children.Add(exportButton);
         actions.Children.Add(_liveActionStatus);
         Grid.SetRow(actions, 1);
@@ -550,6 +560,45 @@ public partial class MainWindow
         catch (Exception ex)
         {
             if (_liveActionStatus is not null) _liveActionStatus.Text = "Unable to parse current chat: " + ex.Message;
+        }
+        finally
+        {
+            if (actionButton is not null) actionButton.IsEnabled = true;
+        }
+    }
+
+    private async void CheckLiveChatForDuplicates_Click(object sender, RoutedEventArgs e)
+    {
+        Button? actionButton = sender as Button;
+        if (actionButton is not null) actionButton.IsEnabled = false;
+
+        try
+        {
+            string? activePath = _journal.ActiveFile;
+            if (string.IsNullOrWhiteSpace(activePath) || !File.Exists(activePath))
+            {
+                if (_liveActionStatus is not null)
+                    _liveActionStatus.Text = "No active chatlog is available to check yet.";
+                return;
+            }
+
+            if (_liveActionStatus is not null)
+                _liveActionStatus.Text = "Checking the current chatlog in the background… capture continues.";
+            IReadOnlyList<PotentialDuplicateCandidate> candidates =
+                await _capture.ScanExistingChatlogForPotentialDuplicatesAsync(
+                    activePath,
+                    _capture.CurrentServer?.DisplayName ?? "Unknown Server",
+                    CancellationToken.None);
+            if (_liveActionStatus is not null)
+                _liveActionStatus.Text = candidates.Count == 0
+                    ? "No confirmed replayed chat scenes were found."
+                    : $"Found {candidates.Count:N0} confirmed replay scene{(candidates.Count == 1 ? string.Empty : "s")}. Review them after the active session ends.";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to scan the active Live Chat chatlog for duplicates.", ex);
+            if (_liveActionStatus is not null)
+                _liveActionStatus.Text = "Unable to check for duplicates: " + ex.Message;
         }
         finally
         {

@@ -192,9 +192,22 @@ internal sealed class CaptureReplayGuard
 
         var matches = new List<ExistingLogReplayMatch>();
         for (int candidateWindowStart = MinimumReplayLines;
-             candidateWindowStart <= lines.Count - MinimumReplayLines;
-             candidateWindowStart++)
+             candidateWindowStart <= lines.Count - MinimumReplayLines;)
         {
+            // A repeated timestamp is ordinary during an active conversation.
+            // It becomes worth inspecting only at the start of a collapsed,
+            // varied batch; one 100-line window also searches for an interior
+            // replay, so scanning every row in the same batch wastes CPU.
+            bool collapsedBatchStart = StartsCollapsedBatch(lines, candidateWindowStart);
+            bool periodicCollapsedSample =
+                (candidateWindowStart - MinimumReplayLines) % HistoryLimit == 0 &&
+                IsCollapsedWindow(lines, candidateWindowStart);
+            if (!collapsedBatchStart && !periodicCollapsedSample)
+            {
+                candidateWindowStart++;
+                continue;
+            }
+
             int candidateLength = Math.Min(HistoryLimit, lines.Count - candidateWindowStart);
             string[] candidateWindow = lines
                 .Skip(candidateWindowStart)
@@ -211,7 +224,10 @@ internal sealed class CaptureReplayGuard
                 .ToArray();
             CaptureReplayDecision decision = EvaluateAgainst(historyWindow, candidateWindow);
             if (!decision.IsReplay)
+            {
+                candidateWindowStart += candidateLength;
                 continue;
+            }
 
             int absoluteCandidateStart = candidateWindowStart + decision.CandidateStartIndex;
             matches.Add(new ExistingLogReplayMatch(
@@ -222,7 +238,7 @@ internal sealed class CaptureReplayGuard
 
             // The entire confirmed candidate range is one scene. Continuing
             // inside it would only create duplicate review prompts.
-            candidateWindowStart = absoluteCandidateStart + decision.CandidateCount - 1;
+            candidateWindowStart = absoluteCandidateStart + decision.CandidateCount;
         }
 
         return matches;
@@ -381,6 +397,42 @@ internal sealed class CaptureReplayGuard
         => CountDistinctBodies(bodies, start, MinimumReplayLines) >= MinimumDistinctBodies &&
            TryGetTimestampSpan(lines, start, MinimumReplayLines, out TimeSpan span) &&
            span <= MaximumRestampedSpan;
+
+    private static bool StartsCollapsedBatch(
+        IReadOnlyList<string> lines,
+        int start)
+    {
+        if (start > lines.Count - MinimumReplayLines)
+            return false;
+
+        if (!IsCollapsedWindow(lines, start))
+            return false;
+
+        // A normal multi-line conversation can share one timestamp. It is only
+        // a candidate batch if the preceding window was not already collapsed.
+        if (start == 0 || start < MinimumReplayLines)
+            return true;
+        return !IsCollapsedWindow(lines, start - 1);
+    }
+
+    private static bool IsCollapsedWindow(
+        IReadOnlyList<string> lines,
+        int start)
+    {
+        if (start < 0 || start > lines.Count - MinimumReplayLines)
+            return false;
+
+        string[] candidateLines = lines
+            .Skip(start)
+            .Take(MinimumReplayLines)
+            .ToArray();
+        string[] bodies = candidateLines
+            .Select(NormalizeBody)
+            .ToArray();
+        if (!LooksLikeRestampedWindow(candidateLines, bodies, 0))
+            return false;
+        return true;
+    }
 
     private static string BuildEvidence(
         IReadOnlyList<string> historyBodies,

@@ -21,6 +21,7 @@ internal sealed class PotentialDuplicateReviewWindow : Window
     private int _candidateIndex;
 
     public bool RemoveRequested { get; private set; }
+    public bool ResolveAllRequested { get; private set; }
     public IReadOnlyDictionary<Guid, IReadOnlyList<int>> SelectedReplayLineIndexes { get; private set; } =
         new Dictionary<Guid, IReadOnlyList<int>>();
 
@@ -120,8 +121,20 @@ internal sealed class PotentialDuplicateReviewWindow : Window
         };
         remove.SetResourceReference(FrameworkElement.StyleProperty, "PrimaryButton");
         remove.Click += (_, _) => RequestRemoval(allCurrentLines: true);
+        var resolveAll = new Button
+        {
+            Content = "Resolve all confirmed replays…",
+            Padding = new Thickness(14, 7, 14, 7),
+            Margin = new Thickness(8, 0, 0, 0),
+            IsEnabled = cleanupAvailable,
+            ToolTip = cleanupAvailable
+                ? "Removes every currently confirmed replay only when each exact range occurs once. A complete backup is created first."
+                : "End the active FiveM session before changing its chatlog."
+        };
+        resolveAll.Click += (_, _) => RequestResolveAll();
         actions.Children.Add(keep);
         actions.Children.Add(remove);
+        actions.Children.Add(resolveAll);
         Grid.SetRow(actions, 4);
         root.Children.Add(actions);
 
@@ -172,6 +185,19 @@ internal sealed class PotentialDuplicateReviewWindow : Window
         {
             [candidate.Id] = selected
         };
+        RemoveRequested = true;
+        DialogResult = true;
+        Close();
+    }
+
+    private void RequestResolveAll()
+    {
+        var selections = new Dictionary<Guid, IReadOnlyList<int>>();
+        foreach (PotentialDuplicateCandidate candidate in _candidates)
+            selections[candidate.Id] = Enumerable.Range(0, candidate.Lines.Count).ToArray();
+
+        SelectedReplayLineIndexes = selections;
+        ResolveAllRequested = true;
         RemoveRequested = true;
         DialogResult = true;
         Close();

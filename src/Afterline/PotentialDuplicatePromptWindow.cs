@@ -33,7 +33,7 @@ internal sealed class PotentialDuplicatePromptWindow : Window
 
         var body = new TextBlock
         {
-            Text = $"Afterline found {lineCount:N0} line{(lineCount == 1 ? string.Empty : "s")} that match a recent chat scene but were received with an unusual timestamp pattern. Nothing has been removed.\n\nIgnore keeps every line and dismisses this notice. Investigate opens a scrollable comparison first; you can keep the lines there or continue to Live Chat for the final review and removal step.",
+            Text = $"Afterline found {lineCount:N0} line{(lineCount == 1 ? string.Empty : "s")} that match a recent, ordered chat scene and were received with an unusual timestamp pattern. A shared timestamp alone does not qualify. Nothing has been removed.\n\nIgnore keeps every line and dismisses this notice. Investigate opens a side-by-side comparison, where you can keep lines, remove selected rows, or resolve every confirmed replay with one protected action.",
             TextWrapping = TextWrapping.Wrap,
             Foreground = (Brush)owner.FindResource("MutedText"),
             LineHeight = 19
