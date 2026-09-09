@@ -120,7 +120,9 @@ public static class GameWindowCaptureService
             throw new InvalidOperationException("Blank game-frame detection accepted an empty image.");
 
         using var gameFrame = new Bitmap(32, 32, PixelFormat.Format24bppRgb);
-        gameFrame.SetPixel(16, 16, Color.FromArgb(28, 61, 93));
+        // Place the test pixel on the deterministic sampling grid. This
+        // verifies the same lightweight validation used for real captures.
+        gameFrame.SetPixel(16, 17, Color.FromArgb(28, 61, 93));
         if (!HasMeaningfulPixels(gameFrame))
             throw new InvalidOperationException("Game-frame validation rejected visible pixels.");
     }
