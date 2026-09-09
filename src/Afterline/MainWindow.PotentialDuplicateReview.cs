@@ -111,17 +111,69 @@ public partial class MainWindow
             await _capture.ReadPotentialDuplicatesAsync(journalPath, CancellationToken.None);
         if (candidates.Count == 0) return;
 
-        int lineCount = candidates.Sum(candidate => candidate.Lines.Count);
-        MessageBoxResult result = System.Windows.MessageBox.Show(
-            this,
-            $"Afterline found {lineCount:N0} line{(lineCount == 1 ? string.Empty : "s")} that may be a replayed duplicate.\n\n" +
-            "Nothing has been removed. Would you like to review the highlighted lines in Live Chat?",
-            "Potential duplicate chat lines",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (result != MessageBoxResult.Yes) return;
+        await PresentPotentialDuplicatePromptAsync(journalPath, candidates);
+    }
 
-        ShowPotentialDuplicateReview(journalPath, candidates);
+    private async void Capture_PotentialDuplicateDetected(object? sender, PotentialDuplicateCandidate candidate)
+    {
+        await Dispatcher.InvokeAsync(async () =>
+        {
+            IReadOnlyList<PotentialDuplicateCandidate> candidates =
+                await _capture.ReadPotentialDuplicatesAsync(candidate.JournalPath, CancellationToken.None);
+            await PresentPotentialDuplicatePromptAsync(candidate.JournalPath, candidates);
+        }).Task.Unwrap();
+    }
+
+    private async Task PresentPotentialDuplicatePromptAsync(
+        string journalPath,
+        IReadOnlyList<PotentialDuplicateCandidate> candidates)
+    {
+        if (candidates.Count == 0) return;
+        int lineCount = candidates.Sum(candidate => candidate.Lines.Count);
+        var prompt = new PotentialDuplicatePromptWindow(this, lineCount);
+        if (prompt.ShowDialog() == true)
+        {
+            var investigation = new PotentialDuplicateReviewWindow(this, candidates);
+            bool? decision = investigation.ShowDialog();
+            if (decision == true && investigation.OpenLiveChatReview)
+            {
+                ShowPotentialDuplicateReview(journalPath, candidates);
+                return;
+            }
+
+            await MarkPotentialDuplicatesKeptAsync(candidates);
+            return;
+        }
+
+        await MarkPotentialDuplicatesKeptAsync(candidates);
+    }
+
+    private async Task MarkPotentialDuplicatesKeptAsync(
+        IReadOnlyList<PotentialDuplicateCandidate> candidates)
+    {
+        HashSet<Guid> candidateIds = candidates.Select(candidate => candidate.Id).ToHashSet();
+        await _capture.MarkPotentialDuplicatesReviewedAsync(
+            candidateIds,
+            removed: false,
+            CancellationToken.None);
+        ClearPotentialDuplicateFlags(candidateIds);
+
+        // The capture notification can arrive before the final message-added dispatcher work.
+        // Run once more after that queue has drained so "Ignore" cannot leave a stale highlight.
+        await Dispatcher.InvokeAsync(
+            () => ClearPotentialDuplicateFlags(candidateIds),
+            System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private void ClearPotentialDuplicateFlags(IReadOnlySet<Guid> candidateIds)
+    {
+        foreach (ChatEntry entry in LiveMessages.Where(
+                     entry => entry.PotentialDuplicateGroupId is Guid id && candidateIds.Contains(id)))
+        {
+            entry.ClearPotentialDuplicateFlag();
+        }
+
+        _liveChatView?.Refresh();
     }
 
     private void RefreshPotentialDuplicateReviewAvailability(string journalPath)

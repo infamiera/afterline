@@ -24,29 +24,22 @@ public partial class MainWindow
         {
             _roleplayColorsCheck.Content = "Automatic chat colors";
             _roleplayColorsCheck.ToolTip = "Infer RP colors when FiveM does not provide exact colors. Exact server and faction colors are always preserved.";
-            _roleplayColorsCheck.Checked += UnifiedChatColorToggle_Changed;
-            _roleplayColorsCheck.Unchecked += UnifiedChatColorToggle_Changed;
         }
 
         if (_logReaderRpCheck is not null)
         {
             _logReaderRpCheck.Content = "Automatic chat colors";
             _logReaderRpCheck.ToolTip = "Infer RP colors when the archive has no exact colors. Exact server and faction colors are always preserved.";
-            _logReaderRpCheck.Checked += UnifiedChatColorToggle_Changed;
-            _logReaderRpCheck.Unchecked += UnifiedChatColorToggle_Changed;
         }
     }
 
-    private void UnifiedChatColorToggle_Changed(object sender, RoutedEventArgs e)
+    private void RefreshAutomaticChatColorPresentation()
     {
-        _ = Dispatcher.BeginInvoke(new Action(() =>
-        {
-            ApplyUnifiedLiveChatTemplate();
-            ApplyUnifiedLogReaderTemplate();
-            LiveChatList.Items.Refresh();
-            _logReaderView?.Refresh();
-            _logReaderList?.Items.Refresh();
-        }));
+        ApplyUnifiedLiveChatTemplate();
+        ApplyUnifiedLogReaderTemplate();
+        LiveChatList.Items.Refresh();
+        _logReaderView?.Refresh();
+        _logReaderList?.Items.Refresh();
     }
 
     private void ApplyUnifiedLiveChatTemplate()

@@ -22,8 +22,10 @@ public partial class MainWindow
     private TextBlock? _logReaderPathText;
     private TextBlock? _logReaderStatusText;
     private CheckBox? _logReaderOocCheck;
+    private CheckBox? _logReaderIcCheck;
     private CheckBox? _logReaderRpCheck;
     private CheckBox? _logReaderTimestampCheck;
+    private WrapPanel? _logReaderActions;
     private Button? _logReaderJumpTopButton;
     private Button? _logReaderJumpBottomButton;
     private string? _logReaderCurrentPath;
@@ -72,6 +74,7 @@ public partial class MainWindow
         var header = new Grid();
         header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
@@ -92,14 +95,24 @@ public partial class MainWindow
         };
         fileInfo.Children.Add(_logReaderTitleText);
         fileInfo.Children.Add(_logReaderPathText);
+        fileInfo.Children.Add(CreateAmeCaptureNotice());
         header.Children.Add(fileInfo);
 
-        var options = new WrapPanel
+        var options = new StackPanel
         {
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Width = 190
         };
         Grid.SetColumn(options, 1);
+
+        options.Children.Add(new TextBlock
+        {
+            Text = "DISPLAY",
+            FontSize = 10,
+            Foreground = (Brush)FindResource("MutedText"),
+            Margin = new Thickness(0, 0, 0, 5)
+        });
 
         _logReaderOocCheck = new CheckBox
         {
@@ -107,10 +120,22 @@ public partial class MainWindow
             IsChecked = _settings.ShowOocChat,
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0)
+            Margin = new Thickness(0, 0, 0, 5)
         };
         _logReaderOocCheck.Checked += LogReaderOocCheck_Changed;
         _logReaderOocCheck.Unchecked += LogReaderOocCheck_Changed;
+
+        _logReaderIcCheck = new CheckBox
+        {
+            Content = "Show IC chat",
+            IsChecked = _settings.ShowIcChat,
+            VerticalAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 5),
+            ToolTip = "Show or hide in-character chat. This never changes the saved chatlog."
+        };
+        _logReaderIcCheck.Checked += LogReaderIcCheck_Changed;
+        _logReaderIcCheck.Unchecked += LogReaderIcCheck_Changed;
 
         _logReaderRpCheck = new CheckBox
         {
@@ -118,7 +143,7 @@ public partial class MainWindow
             IsChecked = _settings.ColorizeRoleplayLines,
             VerticalAlignment = VerticalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0)
+            Margin = new Thickness(0, 0, 0, 5)
         };
         _logReaderRpCheck.Checked += LogReaderRpCheck_Changed;
         _logReaderRpCheck.Unchecked += LogReaderRpCheck_Changed;
@@ -135,9 +160,20 @@ public partial class MainWindow
         _logReaderTimestampCheck.Unchecked += LogReaderTimestampCheck_Changed;
 
         options.Children.Add(_logReaderOocCheck);
+        options.Children.Add(_logReaderIcCheck);
         options.Children.Add(_logReaderRpCheck);
         options.Children.Add(_logReaderTimestampCheck);
         header.Children.Add(options);
+
+        _logReaderActions = new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Margin = new Thickness(0, 10, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetRow(_logReaderActions, 1);
+        Grid.SetColumnSpan(_logReaderActions, 2);
+        header.Children.Add(_logReaderActions);
 
         _logReaderStatusText = new TextBlock
         {
@@ -146,7 +182,7 @@ public partial class MainWindow
             FontSize = 11,
             Margin = new Thickness(0, 10, 0, 0)
         };
-        Grid.SetRow(_logReaderStatusText, 1);
+        Grid.SetRow(_logReaderStatusText, 2);
         Grid.SetColumnSpan(_logReaderStatusText, 2);
         header.Children.Add(_logReaderStatusText);
 
@@ -176,7 +212,9 @@ public partial class MainWindow
 
         _logReaderView = CollectionViewSource.GetDefaultView(_logReaderLines);
         _logReaderView.Filter = item =>
-            item is not LogReaderLineItem line || _settings.ShowOocChat || !line.IsOocLine;
+            item is not LogReaderLineItem line ||
+            line.Entry.IsSystemMessage ||
+            (line.IsOocLine ? _settings.ShowOocChat : _settings.ShowIcChat);
         _logReaderList.ItemsSource = _logReaderView;
 
         var body = new Grid();
@@ -501,6 +539,76 @@ public partial class MainWindow
         SaveLivePresentationSettings();
     }
 
+    private void LogReaderIcCheck_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_logReaderIcCheck is null) return;
+        bool value = _logReaderIcCheck.IsChecked == true;
+        _settings.ShowIcChat = value;
+        if (_showIcChatCheckV076 is not null && _showIcChatCheckV076.IsChecked != value)
+            _showIcChatCheckV076.IsChecked = value;
+        _liveChatView?.Refresh();
+        _logReaderView?.Refresh();
+        UpdateVisibleLiveCount();
+        UpdateLogReaderStatus();
+        SaveLivePresentationSettings();
+    }
+
+    private async void CheckOpenedLogForDuplicates_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_logReaderCurrentPath))
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                "Open a chatlog before running a duplicate check.",
+                "Check for duplicates",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        Button? button = sender as Button;
+        if (button is not null) button.IsEnabled = false;
+        try
+        {
+            if (_logReaderStatusText is not null)
+                _logReaderStatusText.Text = "Checking the opened chatlog for potential duplicate scenes…";
+            IReadOnlyList<PotentialDuplicateCandidate> candidates =
+                await _capture.ScanExistingChatlogForPotentialDuplicatesAsync(
+                    _logReaderCurrentPath,
+                    _logReaderCurrentServer,
+                    CancellationToken.None);
+            if (candidates.Count == 0)
+            {
+                UpdateLogReaderStatus();
+                System.Windows.MessageBox.Show(
+                    this,
+                    "No potential duplicate replay scenes were found. The check only flags long, ordered scenes with collapsed replacement timestamps; ordinary repeated messages are retained.",
+                    "Check for duplicates",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            await PresentPotentialDuplicatePromptAsync(_logReaderCurrentPath, candidates);
+            UpdateLogReaderStatus();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to scan the opened Log Reader chatlog for duplicates.", ex);
+            System.Windows.MessageBox.Show(
+                this,
+                "Afterline could not check this chatlog for duplicates. The file was left unchanged.\n\n" + ex.Message,
+                "Check for duplicates",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            UpdateLogReaderStatus();
+        }
+        finally
+        {
+            if (button is not null) button.IsEnabled = true;
+        }
+    }
+
     private void LogReaderRpCheck_Changed(object sender, RoutedEventArgs e)
     {
         if (_logReaderRpCheck is null) return;
@@ -509,8 +617,7 @@ public partial class MainWindow
         ChatEntry.ColorizeRoleplayLines = value;
         if (_roleplayColorsCheck is not null && _roleplayColorsCheck.IsChecked != value)
             _roleplayColorsCheck.IsChecked = value;
-        _liveChatView?.Refresh();
-        _logReaderList?.Items.Refresh();
+        RefreshAutomaticChatColorPresentation();
         SaveLivePresentationSettings();
     }
 

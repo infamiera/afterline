@@ -13,11 +13,19 @@ internal sealed record CaptureReplayDecision(
     public bool IsReplay => CandidateStartIndex >= 0 && CandidateCount > 0;
 }
 
+internal sealed record ExistingLogReplayMatch(
+    int CandidateStartIndex,
+    int CandidateCount,
+    int HistoricalStartIndex,
+    string Evidence);
+
 internal sealed class CaptureReplayGuard
 {
     internal const int MinimumReplayLines = 20;
+    internal const int HistoryLimit = 100;
     private const int MinimumDistinctBodies = 10;
-    private const int HistoryLimit = 2500;
+    private const int ContextRows = 3;
+    private const int MaximumHistoricalStartsPerLine = 64;
     private static readonly TimeSpan MaximumRestampedSpan = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MinimumHistoricalSpan = TimeSpan.FromSeconds(15);
     private static readonly Regex TimestampPrefix = new(
@@ -49,6 +57,22 @@ internal sealed class CaptureReplayGuard
     public CaptureReplayDecision Evaluate(IReadOnlyList<string> incoming)
         => EvaluateAgainst(_committedHistory, incoming);
 
+    // FiveM does not guarantee that every NUI row includes its displayed time.
+    // For those rows, use Afterline's resolved server time (or UTC fallback) so
+    // replay comparison always has one consistent time basis.
+    internal static string[] WithFallbackTimestamps(
+        IEnumerable<string> lines,
+        DateTime observedAt)
+        => lines.Select(line => WithFallbackTimestamp(line, observedAt)).ToArray();
+
+    internal static string WithFallbackTimestamp(string line, DateTime observedAt)
+    {
+        string safeLine = line ?? string.Empty;
+        return TimestampPrefix.IsMatch(safeLine)
+            ? safeLine
+            : $"[{observedAt:HH:mm:ss}] {safeLine}";
+    }
+
     public static CaptureReplayDecision EvaluateAgainst(
         IReadOnlyList<string> history,
         IReadOnlyList<string> incoming)
@@ -58,20 +82,30 @@ internal sealed class CaptureReplayGuard
 
         string[] historyBodies = history.Select(NormalizeBody).ToArray();
         string[] incomingBodies = incoming.Select(NormalizeBody).ToArray();
+        Dictionary<string, List<int>> historyStarts = BuildHistoryIndex(historyBodies);
         int bestIncomingStart = -1;
         int bestLength = 0;
         int bestStart = -1;
+        string bestEvidence = string.Empty;
 
         for (int incomingStart = 0;
              incomingStart <= incoming.Count - MinimumReplayLines;
              incomingStart++)
         {
-            for (int start = 0; start <= history.Count - MinimumReplayLines; start++)
+            // This inexpensive early gate keeps normal chat capture O(n). Only a
+            // suspicious collapsed batch is compared with retained history.
+            if (!LooksLikeRestampedWindow(incoming, incomingBodies, incomingStart))
+                continue;
+
+            if (!historyStarts.TryGetValue(incomingBodies[incomingStart], out List<int>? starts))
+                continue;
+
+            int checkedStarts = 0;
+            foreach (int start in starts)
             {
-                if (!string.Equals(
-                        historyBodies[start],
-                        incomingBodies[incomingStart],
-                        StringComparison.Ordinal))
+                if (checkedStarts++ >= MaximumHistoricalStartsPerLine)
+                    break;
+                if (start > history.Count - MinimumReplayLines)
                     continue;
 
                 int length = 0;
@@ -95,16 +129,15 @@ internal sealed class CaptureReplayGuard
                     CountDistinctBodies(incomingBodies, incomingStart, length) < MinimumDistinctBodies)
                     continue;
 
-                // Identical text and timestamps are not sufficient proof: the game
-                // may legitimately emit the same content more than once. Only the
-                // observed corruption signature (an old varied timeline collapsed
-                // into a new two-second window) is eligible for suppression.
+                // The corruption signature must include timestamp collapse. An
+                // identical timeline remains unsuppressed: the regular visible
+                // overlap checkpoint handles it without risking a valid repeat.
                 if (exact || !HasRestampedReplayEvidence(
-                        history,
-                        start,
-                        incoming,
-                        incomingStart,
-                        length))
+                                 history,
+                                 start,
+                                 incoming,
+                                 incomingStart,
+                                 length))
                     continue;
 
                 if (length > bestLength)
@@ -112,6 +145,13 @@ internal sealed class CaptureReplayGuard
                     bestIncomingStart = incomingStart;
                     bestLength = length;
                     bestStart = start;
+                    bestEvidence = BuildEvidence(
+                        historyBodies,
+                        start,
+                        incomingBodies,
+                        incomingStart,
+                        length,
+                        exact);
                 }
             }
         }
@@ -123,7 +163,7 @@ internal sealed class CaptureReplayGuard
             bestIncomingStart,
             bestLength,
             bestStart,
-            "ordered sequence with collapsed replacement timestamps");
+            bestEvidence);
     }
 
     public static bool LooksLikeRestampedBatch(IReadOnlyList<string> lines)
@@ -134,17 +174,58 @@ internal sealed class CaptureReplayGuard
         string[] bodies = lines.Select(NormalizeBody).ToArray();
         for (int start = 0; start <= lines.Count - MinimumReplayLines; start++)
         {
-            if (CountDistinctBodies(bodies, start, MinimumReplayLines) >= MinimumDistinctBodies &&
-                TryGetTimestampSpan(
-                    lines,
-                    start,
-                    MinimumReplayLines,
-                    out TimeSpan span) &&
-                span <= MaximumRestampedSpan)
+            if (LooksLikeRestampedWindow(lines, bodies, start))
                 return true;
         }
 
         return false;
+    }
+
+    // Manual log review deliberately uses the same 100-line context as live
+    // capture. This prevents a similar line or scene from hours earlier from
+    // being treated as a duplicate just because its text happens to match.
+    public static IReadOnlyList<ExistingLogReplayMatch> FindInExistingLog(
+        IReadOnlyList<string> lines)
+    {
+        if (lines.Count < MinimumReplayLines * 2)
+            return Array.Empty<ExistingLogReplayMatch>();
+
+        var matches = new List<ExistingLogReplayMatch>();
+        for (int candidateWindowStart = MinimumReplayLines;
+             candidateWindowStart <= lines.Count - MinimumReplayLines;
+             candidateWindowStart++)
+        {
+            int candidateLength = Math.Min(HistoryLimit, lines.Count - candidateWindowStart);
+            string[] candidateWindow = lines
+                .Skip(candidateWindowStart)
+                .Take(candidateLength)
+                .ToArray();
+            string[] candidateBodies = candidateWindow.Select(NormalizeBody).ToArray();
+            if (!LooksLikeRestampedWindow(candidateWindow, candidateBodies, 0))
+                continue;
+
+            int historyStart = Math.Max(0, candidateWindowStart - HistoryLimit);
+            string[] historyWindow = lines
+                .Skip(historyStart)
+                .Take(candidateWindowStart - historyStart)
+                .ToArray();
+            CaptureReplayDecision decision = EvaluateAgainst(historyWindow, candidateWindow);
+            if (!decision.IsReplay)
+                continue;
+
+            int absoluteCandidateStart = candidateWindowStart + decision.CandidateStartIndex;
+            matches.Add(new ExistingLogReplayMatch(
+                absoluteCandidateStart,
+                decision.CandidateCount,
+                historyStart + decision.HistoricalStartIndex,
+                decision.Evidence));
+
+            // The entire confirmed candidate range is one scene. Continuing
+            // inside it would only create duplicate review prompts.
+            candidateWindowStart = absoluteCandidateStart + decision.CandidateCount - 1;
+        }
+
+        return matches;
     }
 
     internal static void RunSmokeTest()
@@ -176,6 +257,15 @@ internal sealed class CaptureReplayGuard
         CaptureReplayDecision replay = EvaluateAgainst(history, restamped);
         if (!replay.IsReplay || replay.CandidateStartIndex != 0 || replay.CandidateCount != bodies.Length)
             throw new InvalidOperationException("A proven restamped chat-buffer replay was not detected.");
+
+        // Rows without a visible FiveM timestamp use Afterline's resolved server
+        // clock (UTC when no server clock is available) for the same safeguard.
+        string[] fallbackTimedReplay = WithFallbackTimestamps(
+            bodies,
+            historicalStart.AddMinutes(51));
+        if (!EvaluateAgainst(history, fallbackTimedReplay).IsReplay)
+            throw new InvalidOperationException(
+                "A replay using the resolved server/UTC timestamp fallback was not detected.");
 
         string[] repeatedSpam = Enumerable.Range(0, 24)
             .Select(index => $"[14:53:{index:00}] (( PM from (196) Player: hi ))")
@@ -223,6 +313,12 @@ internal sealed class CaptureReplayGuard
         if (EvaluateAgainst(largeHistory, unrelatedIncoming).IsReplay)
             throw new InvalidOperationException(
                 "The replay guard produced a false positive against 10,000 legitimate historical lines.");
+
+        string[] fullLog = history.Concat(restamped).ToArray();
+        ExistingLogReplayMatch existing = FindInExistingLog(fullLog).SingleOrDefault()
+            ?? throw new InvalidOperationException("The existing-log duplicate scan did not find a proven replay.");
+        if (existing.CandidateStartIndex != bodies.Length || existing.CandidateCount != bodies.Length)
+            throw new InvalidOperationException("The existing-log duplicate scan returned an unsafe range.");
     }
 
     private static bool HasRestampedReplayEvidence(
@@ -260,6 +356,66 @@ internal sealed class CaptureReplayGuard
             .Distinct(StringComparer.Ordinal)
             .Take(MinimumDistinctBodies)
             .Count();
+
+    private static Dictionary<string, List<int>> BuildHistoryIndex(
+        IReadOnlyList<string> bodies)
+    {
+        var result = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        for (int index = 0; index < bodies.Count; index++)
+        {
+            string body = bodies[index];
+            if (!result.TryGetValue(body, out List<int>? indexes))
+            {
+                indexes = new List<int>();
+                result[body] = indexes;
+            }
+            indexes.Add(index);
+        }
+        return result;
+    }
+
+    private static bool LooksLikeRestampedWindow(
+        IReadOnlyList<string> lines,
+        IReadOnlyList<string> bodies,
+        int start)
+        => CountDistinctBodies(bodies, start, MinimumReplayLines) >= MinimumDistinctBodies &&
+           TryGetTimestampSpan(lines, start, MinimumReplayLines, out TimeSpan span) &&
+           span <= MaximumRestampedSpan;
+
+    private static string BuildEvidence(
+        IReadOnlyList<string> historyBodies,
+        int historyStart,
+        IReadOnlyList<string> incomingBodies,
+        int incomingStart,
+        int length,
+        bool exact)
+    {
+        int leading = 0;
+        for (int offset = 1; offset <= ContextRows && historyStart >= offset && incomingStart >= offset; offset++)
+        {
+            if (!string.Equals(historyBodies[historyStart - offset], incomingBodies[incomingStart - offset], StringComparison.Ordinal))
+                break;
+            leading++;
+        }
+
+        int trailing = 0;
+        for (int offset = 0;
+             offset < ContextRows && historyStart + length + offset < historyBodies.Count && incomingStart + length + offset < incomingBodies.Count;
+             offset++)
+        {
+            if (!string.Equals(
+                    historyBodies[historyStart + length + offset],
+                    incomingBodies[incomingStart + length + offset],
+                    StringComparison.Ordinal))
+                break;
+            trailing++;
+        }
+
+        string kind = exact
+            ? "ordered exact replay"
+            : "ordered replay with collapsed replacement timestamps";
+        return $"{kind}; {leading} previous and {trailing} following scene anchor(s) matched";
+    }
 
     private static string NormalizeBody(string line)
         => TimestampPrefix.Replace(line ?? string.Empty, string.Empty).Trim();

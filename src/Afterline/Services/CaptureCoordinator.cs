@@ -377,31 +377,49 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         int overlap = FindOverlap(_previousVisible, currentText);
         CapturedChatLine[] pending = current.Skip(overlap).ToArray();
         string[] pendingText = pending.Select(line => line.Text).ToArray();
-        CaptureReplayDecision inMemoryReplay = _replayGuard.Evaluate(pendingText);
+        DateTime replayObservedAt = ServerTimeService.Resolve(
+            settings,
+            _currentServer,
+            observedAtUtc ?? DateTimeOffset.UtcNow).ServerTime;
+        string[] pendingReplayText = CaptureReplayGuard.WithFallbackTimestamps(
+            pendingText,
+            replayObservedAt);
+        CaptureReplayDecision inMemoryReplay = _replayGuard.Evaluate(pendingReplayText);
         CaptureReplayDecision replay = CaptureReplayDecision.None;
         IReadOnlyList<string> committedTail = Array.Empty<string>();
 
-        if (inMemoryReplay.IsReplay || CaptureReplayGuard.LooksLikeRestampedBatch(pendingText))
+        if (inMemoryReplay.IsReplay || CaptureReplayGuard.LooksLikeRestampedBatch(pendingReplayText))
         {
             try
             {
                 committedTail = await _journal.ReadRecentCommittedLinesAsync(
-                    2500,
+                    CaptureReplayGuard.HistoryLimit,
                     cancellationToken);
-                replay = CaptureReplayGuard.EvaluateAgainst(committedTail, pendingText);
+                replay = CaptureReplayGuard.EvaluateAgainst(committedTail, pendingReplayText);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // A journal read is required before suppression. If confirmation
-                // fails, retain the complete candidate batch.
+                // A journal read is required before marking a candidate. If
+                // confirmation fails, retain the complete batch unmarked.
                 DiagnosticLogger.Error(
                     "Capture replay candidate could not be confirmed against the active chatlog; every row was retained.",
                     ex);
             }
         }
 
-        int captured = 0;
+        // A confirmed replay is held for explicit user review. Keeping the
+        // authoritative record intact until the user decides is safer than
+        // silently removing material that could be legitimate RP context.
         Guid? candidateId = replay.IsReplay ? Guid.NewGuid() : null;
+        var committedPendingText = new List<string>(pending.Length);
+        if (replay.IsReplay)
+        {
+            DiagnosticLogger.Warn(
+                $"Potential FiveM chat-buffer replay detected: {replay.CandidateCount:N0} row(s), " +
+                $"{replay.Evidence}. Awaiting user review.");
+        }
+
+        int captured = 0;
 
         if (pending.Length > 0 && _previousVisible.Count > 0)
         {
@@ -423,14 +441,15 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 settings,
                 _currentServer,
                 observedAtUtc ?? DateTimeOffset.UtcNow).ServerTime;
-            bool potentialDuplicate = replay.IsReplay &&
-                                      pendingIndex >= replay.CandidateStartIndex &&
-                                      pendingIndex < replay.CandidateStartIndex + replay.CandidateCount;
             var entry = new ChatEntry(
                 InferVisibleTimestamp(line.Text, observedAt),
                 line.Text,
                 capturedColorRuns: line.ColorRuns,
-                potentialDuplicateGroupId: potentialDuplicate ? candidateId : null);
+                potentialDuplicateGroupId: replay.IsReplay &&
+                                           pendingIndex >= replay.CandidateStartIndex &&
+                                           pendingIndex < replay.CandidateStartIndex + replay.CandidateCount
+                    ? candidateId
+                    : null);
 
             if (!_journal.HasActiveSession)
             {
@@ -461,9 +480,12 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             LastCaptureAt = DateTime.Now;
             MessageCaptured?.Invoke(this, entry);
             captured++;
+            committedPendingText.Add(CaptureReplayGuard.WithFallbackTimestamp(
+                line.Text,
+                entry.CapturedAt));
         }
 
-        _replayGuard.RecordCommitted(pendingText);
+        _replayGuard.RecordCommitted(committedPendingText);
 
         if (replay.IsReplay && candidateId is Guid id && _journal.ActiveFile is string journalPath)
         {
@@ -477,14 +499,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                     committedTail,
                     replay,
                     cancellationToken);
-                DiagnosticLogger.Warn(
-                    $"Potential duplicate capture detected: {replay.CandidateCount:N0} row(s) were retained for user review.");
                 PotentialDuplicateDetected?.Invoke(this, candidate);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Candidate persistence must never interfere with the authoritative
-                // journal. Every captured line has already been retained.
                 DiagnosticLogger.Error(
                     "Potential duplicate review data could not be saved; all chatlog rows remain untouched.",
                     ex);
@@ -512,6 +530,24 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         bool removed,
         CancellationToken cancellationToken)
         => _potentialDuplicates.MarkReviewedAsync(candidateIds, removed, cancellationToken);
+
+    public async Task<IReadOnlyList<PotentialDuplicateCandidate>> ScanExistingChatlogForPotentialDuplicatesAsync(
+        string journalPath,
+        string serverName,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(journalPath))
+            throw new ArgumentException("A chatlog path is required.", nameof(journalPath));
+
+        string[] lines = await File.ReadAllLinesAsync(journalPath, cancellationToken);
+        IReadOnlyList<ExistingLogReplayMatch> matches = CaptureReplayGuard.FindInExistingLog(lines);
+        return await _potentialDuplicates.RecordExistingLogMatchesAsync(
+            journalPath,
+            serverName,
+            lines,
+            matches,
+            cancellationToken);
+    }
 
     private void LogCaptureFailure(string context, Exception exception)
     {

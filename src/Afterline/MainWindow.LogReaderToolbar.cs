@@ -13,13 +13,7 @@ public partial class MainWindow
     {
         if (_logReaderToolbarInitialized || _logReaderPage is null) return;
 
-        Border? headerCard = _logReaderPage.Children
-            .OfType<Border>()
-            .FirstOrDefault(border => Grid.GetRow(border) == 0);
-        if (headerCard?.Child is not Grid headerGrid) return;
-
-        WrapPanel? options = headerGrid.Children.OfType<WrapPanel>().FirstOrDefault();
-        if (options is null) return;
+        if (_logReaderActions is null) return;
 
         _logReaderToolbarInitialized = true;
 
@@ -56,9 +50,21 @@ public partial class MainWindow
         };
         exportHtmlButton.Click += ExportLogReaderHtml_Click;
 
-        options.Children.Insert(0, openFolderButton);
-        options.Children.Insert(0, archiveButton);
-        options.Children.Insert(Math.Min(2, options.Children.Count), exportHtmlButton);
+        var duplicateCheckButton = new Button
+        {
+            Content = "Check for duplicates",
+            Height = 34,
+            Padding = new Thickness(11, 6, 11, 6),
+            Margin = new Thickness(0, 0, 18, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Safely scan the opened .txt file for a replayed, restamped chat scene. Nothing is removed unless you later confirm it."
+        };
+        duplicateCheckButton.Click += CheckOpenedLogForDuplicates_Click;
+
+        _logReaderActions.Children.Add(archiveButton);
+        _logReaderActions.Children.Add(openFolderButton);
+        _logReaderActions.Children.Add(exportHtmlButton);
+        _logReaderActions.Children.Add(duplicateCheckButton);
     }
 
     private async void LogReaderArchive_Click(object sender, RoutedEventArgs e)

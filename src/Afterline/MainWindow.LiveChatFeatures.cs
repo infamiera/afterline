@@ -145,20 +145,28 @@ public partial class MainWindow
 
         headerGrid.Children.Remove(ShowLiveChatCheck);
 
-        var optionsPanel = new WrapPanel
+        var optionsPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Top,
+            Width = 190
         };
         Grid.SetColumn(optionsPanel, 1);
+
+        optionsPanel.Children.Add(new TextBlock
+        {
+            Text = "DISPLAY",
+            FontSize = 10,
+            Foreground = (System.Windows.Media.Brush)FindResource("MutedText"),
+            Margin = new Thickness(0, 0, 0, 5)
+        });
 
         _showOocChatCheck = new CheckBox
         {
             Content = "Show OOC chat",
             IsChecked = _settings.ShowOocChat,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 18, 0),
+            Margin = new Thickness(0, 0, 0, 5),
             ToolTip = "Show or hide OOC, private-message, INFO, MAPPING, SUCCESS, ERROR and related gameplay-status lines. Capture and archived logs are never affected."
         };
         _showOocChatCheck.Checked += ShowOocChatCheck_Changed;
@@ -169,7 +177,7 @@ public partial class MainWindow
             Content = "Show IC chat",
             IsChecked = _settings.ShowIcChat,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 18, 0),
+            Margin = new Thickness(0, 0, 0, 5),
             ToolTip = "Show or hide in-character chat. Turn this off to focus on OOC and Server Staff messages. Capture and archived logs are never affected."
         };
         _showIcChatCheckV076.Checked += ShowIcChatCheckV076_Changed;
@@ -180,7 +188,7 @@ public partial class MainWindow
             Content = "RP line colors",
             IsChecked = _settings.ColorizeRoleplayLines,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 18, 0)
+            Margin = new Thickness(0, 0, 0, 5)
         };
         _roleplayColorsCheck.Checked += RoleplayColorsCheck_Changed;
         _roleplayColorsCheck.Unchecked += RoleplayColorsCheck_Changed;
@@ -190,7 +198,7 @@ public partial class MainWindow
             Content = "Show timestamps",
             IsChecked = _settings.ShowLiveTimestamps,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 18, 0)
+            Margin = new Thickness(0, 0, 0, 5)
         };
         _showLiveTimestampsCheck.Checked += ShowLiveTimestampsCheck_Changed;
         _showLiveTimestampsCheck.Unchecked += ShowLiveTimestampsCheck_Changed;
@@ -200,14 +208,14 @@ public partial class MainWindow
             Content = "Auto-scroll",
             IsChecked = _settings.AutoScrollLiveChat,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 18, 0),
+            Margin = new Thickness(0, 0, 0, 5),
             ToolTip = "Keep Live Chat pinned to the newest message. Turn this off to scroll through earlier messages without being pulled back down."
         };
         _autoScrollLiveCheck.Checked += AutoScrollLiveCheck_Changed;
         _autoScrollLiveCheck.Unchecked += AutoScrollLiveCheck_Changed;
 
         ShowLiveChatCheck.VerticalAlignment = VerticalAlignment.Center;
-        ShowLiveChatCheck.Margin = new Thickness(0);
+        ShowLiveChatCheck.Margin = new Thickness(0, 0, 0, 5);
 
         optionsPanel.Children.Add(_showOocChatCheck);
         optionsPanel.Children.Add(_showIcChatCheckV076);
@@ -465,7 +473,7 @@ public partial class MainWindow
         if (_roleplayColorsCheck is null) return;
         _settings.ColorizeRoleplayLines = _roleplayColorsCheck.IsChecked == true;
         ChatEntry.ColorizeRoleplayLines = _settings.ColorizeRoleplayLines;
-        LiveChatList.Items.Refresh();
+        RefreshAutomaticChatColorPresentation();
         SaveLivePresentationSettings();
     }
 

@@ -17,6 +17,7 @@ internal static class SessionRecoverySmokeTest
         CaptureReplayGuard.RunSmokeTest();
         FiveMDevToolsChatReader.RunEventCaptureSmokeTest();
         VerifyTimestampToggleOverlap();
+        VerifyLeadingChevronActionColor();
         ServerTimeService.RunSmokeTest();
         VerifyTimestampProvenance();
         await PotentialDuplicateCleanupService.RunSmokeTestAsync(
@@ -324,6 +325,19 @@ internal static class SessionRecoverySmokeTest
         if (CaptureCoordinator.FindOverlapForSmokeTest(oldRepeated, genuinelyNewRepeated) != 0)
             throw new InvalidOperationException(
                 "A single legitimate repeated message was swallowed as a timestamp toggle.");
+    }
+
+    private static void VerifyLeadingChevronActionColor()
+    {
+        var entry = new ChatEntry(
+            DateTime.Today.AddHours(18),
+            "[18:00:00] > Bianca Yurei quietly checks the room.");
+        if (entry.Foreground is not SolidColorBrush brush ||
+            brush.Color != Color.FromRgb(0xC2, 0xA2, 0xDA))
+        {
+            throw new InvalidOperationException(
+                "Leading-chevron /ame rows did not receive the standard purple action color.");
+        }
     }
 
     private static void VerifyStreamerModeMasking()

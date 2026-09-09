@@ -63,6 +63,47 @@ public sealed class PotentialDuplicateCandidateService
         return candidate;
     }
 
+    internal async Task<IReadOnlyList<PotentialDuplicateCandidate>> RecordExistingLogMatchesAsync(
+        string journalPath,
+        string serverName,
+        IReadOnlyList<string> allLines,
+        IReadOnlyList<ExistingLogReplayMatch> matches,
+        CancellationToken cancellationToken)
+    {
+        if (matches.Count == 0)
+            return Array.Empty<PotentialDuplicateCandidate>();
+
+        var recorded = new List<PotentialDuplicateCandidate>(matches.Count);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            List<PotentialDuplicateCandidate> candidates = await ReadCoreAsync(cancellationToken);
+            foreach (ExistingLogReplayMatch match in matches)
+            {
+                var candidate = new PotentialDuplicateCandidate
+                {
+                    Id = Guid.NewGuid(),
+                    DetectedAt = DateTime.Now,
+                    JournalPath = journalPath,
+                    ServerName = serverName,
+                    Evidence = match.Evidence,
+                    Lines = allLines.Skip(match.CandidateStartIndex).Take(match.CandidateCount).ToList(),
+                    HistoricalLines = allLines.Skip(match.HistoricalStartIndex).Take(match.CandidateCount).ToList()
+                };
+                candidates.Add(candidate);
+                recorded.Add(candidate);
+            }
+
+            await WriteCoreAsync(candidates, cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        return recorded;
+    }
+
     public async Task<IReadOnlyList<PotentialDuplicateCandidate>> ReadPendingAsync(
         string? journalPath,
         CancellationToken cancellationToken)

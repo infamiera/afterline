@@ -75,6 +75,7 @@ public partial class MainWindow : Window
         _capture.MessageCaptured += Capture_MessageCaptured;
         _capture.StateChanged += Capture_StateChanged;
         _capture.SessionFinalized += Capture_SessionFinalized;
+        _capture.PotentialDuplicateDetected += Capture_PotentialDuplicateDetected;
         _processor.Processed += Processor_Processed;
 
         Loaded += MainWindow_Loaded;
@@ -82,6 +83,9 @@ public partial class MainWindow : Window
         StateChanged += MainWindow_StateChanged;
         _uiTimer.Tick += UiTimer_Tick;
     }
+
+    private void AmeCaptureInfoLink_Click(object sender, RoutedEventArgs e)
+        => new AmeCaptureInfoWindow(this).ShowDialog();
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {

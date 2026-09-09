@@ -209,6 +209,10 @@
                         <StackPanel>
                             <TextBlock Text="Live display" FontSize="17" FontWeight="SemiBold"/>
                             <TextBlock Text="Capture continues even when this display is disabled." Foreground="{DynamicResource MutedText}" Margin="0,4,0,0"/>
+                            <TextBlock Foreground="{DynamicResource Warning}" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0">
+                                <Run Text="NOTE: /ame lines from other players currently cannot be displayed in chat. "/>
+                                <Hyperlink Click="AmeCaptureInfoLink_Click" Foreground="{DynamicResource Accent}">Find out why</Hyperlink>
+                            </TextBlock>
                         </StackPanel>
                         <CheckBox Grid.Column="1" x:Name="ShowLiveChatCheck" Content="Show live chat" VerticalAlignment="Center" Checked="ShowLiveChatCheck_Changed" Unchecked="ShowLiveChatCheck_Changed"/>
                     </Grid>

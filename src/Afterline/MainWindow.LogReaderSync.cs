@@ -17,6 +17,12 @@ public partial class MainWindow
             _showOocChatCheck.Unchecked += LivePresentationChangedForReader;
         }
 
+        if (_showIcChatCheckV076 is not null)
+        {
+            _showIcChatCheckV076.Checked += LivePresentationChangedForReader;
+            _showIcChatCheckV076.Unchecked += LivePresentationChangedForReader;
+        }
+
         if (_roleplayColorsCheck is not null)
         {
             _roleplayColorsCheck.Checked += LivePresentationChangedForReader;
@@ -39,6 +45,8 @@ public partial class MainWindow
     {
         if (_logReaderOocCheck is not null && _logReaderOocCheck.IsChecked != _settings.ShowOocChat)
             _logReaderOocCheck.IsChecked = _settings.ShowOocChat;
+        if (_logReaderIcCheck is not null && _logReaderIcCheck.IsChecked != _settings.ShowIcChat)
+            _logReaderIcCheck.IsChecked = _settings.ShowIcChat;
         if (_logReaderRpCheck is not null && _logReaderRpCheck.IsChecked != _settings.ColorizeRoleplayLines)
             _logReaderRpCheck.IsChecked = _settings.ColorizeRoleplayLines;
         if (_logReaderTimestampCheck is not null && _logReaderTimestampCheck.IsChecked != _settings.ShowLiveTimestamps)
