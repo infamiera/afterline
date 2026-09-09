@@ -110,8 +110,9 @@ internal sealed class PotentialDuplicateReviewWindow : Window
             BorderThickness = new Thickness(1),
             Padding = new Thickness(4)
         };
-        rowMenu.SetResourceReference(FrameworkElement.StyleProperty, typeof(ContextMenu));
-        removeSelected.SetResourceReference(FrameworkElement.StyleProperty, typeof(MenuItem));
+        rowMenu.OverridesDefaultStyle = true;
+        rowMenu.Template = CreateThemedContextMenuTemplate();
+        removeSelected.Style = CreateThemedMenuItemStyle();
         rowMenu.Items.Add(removeSelected);
         _suspectedList.ContextMenu = rowMenu;
         Grid.SetColumn(suspected, 2);
@@ -214,6 +215,60 @@ internal sealed class PotentialDuplicateReviewWindow : Window
         RemoveRequested = true;
         DialogResult = true;
         Close();
+    }
+
+    private ControlTemplate CreateThemedContextMenuTemplate()
+    {
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetBinding(Border.BackgroundProperty, new Binding(nameof(Control.Background))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.SetBinding(Border.BorderBrushProperty, new Binding(nameof(Control.BorderBrush))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.SetBinding(Border.BorderThicknessProperty, new Binding(nameof(Control.BorderThickness))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.SetBinding(Border.PaddingProperty, new Binding(nameof(Control.Padding))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        border.AppendChild(new FrameworkElementFactory(typeof(ItemsPresenter)));
+        return new ControlTemplate(typeof(ContextMenu)) { VisualTree = border };
+    }
+
+    private Style CreateThemedMenuItemStyle()
+    {
+        var style = new Style(typeof(MenuItem));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, FindResource("Text")));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 7, 16, 7)));
+        style.Setters.Add(new Setter(FrameworkElement.OverridesDefaultStyleProperty, true));
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetBinding(Border.BackgroundProperty, new Binding(nameof(Control.Background))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.SetBinding(Border.PaddingProperty, new Binding(nameof(Control.Padding))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(4));
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetBinding(ContentPresenter.ContentProperty, new Binding(nameof(HeaderedContentControl.Header))
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent)
+        });
+        border.AppendChild(presenter);
+        style.Setters.Add(new Setter(Control.TemplateProperty, new ControlTemplate(typeof(MenuItem)) { VisualTree = border }));
+        var highlighted = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+        highlighted.Setters.Add(new Setter(Control.BackgroundProperty, FindResource("AfterlineControlHover")));
+        style.Triggers.Add(highlighted);
+        return style;
     }
 
     private static UIElement BuildScenePanel(

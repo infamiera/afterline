@@ -384,6 +384,39 @@ public sealed class CaptureCoordinator : IAsyncDisposable
             return 0;
 
         int overlap = FindOverlap(_previousVisible, currentText);
+        if (!_journal.HasActiveSession &&
+            _previousVisible.Count == 0 &&
+            _currentServer is not null)
+        {
+            DateTime baselineTime = ServerTimeService.Resolve(
+                settings,
+                _currentServer,
+                observedAtUtc ?? DateTimeOffset.UtcNow).ServerTime;
+            IReadOnlyList<string> existingTail = await _journal.ReadExistingArchiveTailAsync(
+                settings.ArchiveRoot,
+                _currentServer,
+                baselineTime,
+                250,
+                cancellationToken);
+            if (existingTail.Count > 0)
+            {
+                int sameDayOverlap = FindOverlap(existingTail, currentText);
+                if (sameDayOverlap > 0)
+                {
+                    overlap = Math.Max(overlap, sameDayOverlap);
+                }
+                else
+                {
+                    // The visible buffer predates this Afterline run but does
+                    // not belong to the tail of the same-day archive. Display
+                    // history remains available separately; only future FiveM
+                    // rows are eligible for this new journal segment.
+                    _previousVisible = currentText.ToList();
+                    _replayGuard.Reset(_previousVisible);
+                    return 0;
+                }
+            }
+        }
         CapturedChatLine[] pending = current.Skip(overlap).ToArray();
         string[] pendingText = pending.Select(line => line.Text).ToArray();
         DateTime replayObservedAt = ServerTimeService.Resolve(

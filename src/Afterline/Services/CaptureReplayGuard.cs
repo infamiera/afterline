@@ -195,14 +195,10 @@ internal sealed class CaptureReplayGuard
              candidateWindowStart <= lines.Count - MinimumReplayLines;)
         {
             // A repeated timestamp is ordinary during an active conversation.
-            // It becomes worth inspecting only at the start of a collapsed,
-            // varied batch; one 100-line window also searches for an interior
-            // replay, so scanning every row in the same batch wastes CPU.
-            bool collapsedBatchStart = StartsCollapsedBatch(lines, candidateWindowStart);
-            bool periodicCollapsedSample =
-                (candidateWindowStart - MinimumReplayLines) % HistoryLimit == 0 &&
-                IsCollapsedWindow(lines, candidateWindowStart);
-            if (!collapsedBatchStart && !periodicCollapsedSample)
+            // Inspect only compact, varied windows, but inspect every eligible
+            // start. Skipping a whole 100-row window after one non-match was
+            // able to hide a second replay later in the same collapsed batch.
+            if (!IsCollapsedWindow(lines, candidateWindowStart))
             {
                 candidateWindowStart++;
                 continue;
@@ -215,7 +211,10 @@ internal sealed class CaptureReplayGuard
                 .ToArray();
             string[] candidateBodies = candidateWindow.Select(NormalizeBody).ToArray();
             if (!LooksLikeRestampedWindow(candidateWindow, candidateBodies, 0))
+            {
+                candidateWindowStart++;
                 continue;
+            }
 
             int historyStart = Math.Max(0, candidateWindowStart - HistoryLimit);
             string[] historyWindow = lines
@@ -225,7 +224,7 @@ internal sealed class CaptureReplayGuard
             CaptureReplayDecision decision = EvaluateAgainst(historyWindow, candidateWindow);
             if (!decision.IsReplay)
             {
-                candidateWindowStart += candidateLength;
+                candidateWindowStart++;
                 continue;
             }
 
@@ -330,11 +329,16 @@ internal sealed class CaptureReplayGuard
             throw new InvalidOperationException(
                 "The replay guard produced a false positive against 10,000 legitimate historical lines.");
 
-        string[] fullLog = history.Concat(restamped).ToArray();
-        ExistingLogReplayMatch existing = FindInExistingLog(fullLog).SingleOrDefault()
-            ?? throw new InvalidOperationException("The existing-log duplicate scan did not find a proven replay.");
-        if (existing.CandidateStartIndex != bodies.Length || existing.CandidateCount != bodies.Length)
-            throw new InvalidOperationException("The existing-log duplicate scan returned an unsafe range.");
+        string[] fullLog = history.Concat(restamped).Concat(restamped).ToArray();
+        ExistingLogReplayMatch[] existing = FindInExistingLog(fullLog).ToArray();
+        if (existing.Length != 2 ||
+            existing[0].CandidateStartIndex != bodies.Length ||
+            existing[1].CandidateStartIndex != bodies.Length * 2 ||
+            existing.Any(match => match.CandidateCount != bodies.Length))
+        {
+            throw new InvalidOperationException(
+                "The existing-log duplicate scan did not return every proven replay range.");
+        }
     }
 
     private static bool HasRestampedReplayEvidence(
@@ -422,16 +426,22 @@ internal sealed class CaptureReplayGuard
         if (start < 0 || start > lines.Count - MinimumReplayLines)
             return false;
 
-        string[] candidateLines = lines
-            .Skip(start)
-            .Take(MinimumReplayLines)
-            .ToArray();
-        string[] bodies = candidateLines
-            .Select(NormalizeBody)
-            .ToArray();
-        if (!LooksLikeRestampedWindow(candidateLines, bodies, 0))
+        if (!TryGetTimestampSpan(lines, start, MinimumReplayLines, out TimeSpan span) ||
+            span > MaximumRestampedSpan)
             return false;
-        return true;
+
+        // This runs at every possible start during a manual review. Avoiding a
+        // short-lived array and LINQ chain per row keeps a 10,000-line scan
+        // friendly to a game running alongside Afterline.
+        var distinct = new HashSet<string>(StringComparer.Ordinal);
+        for (int offset = 0; offset < MinimumReplayLines; offset++)
+        {
+            distinct.Add(NormalizeBody(lines[start + offset]));
+            if (distinct.Count >= MinimumDistinctBodies)
+                return true;
+        }
+
+        return false;
     }
 
     private static string BuildEvidence(

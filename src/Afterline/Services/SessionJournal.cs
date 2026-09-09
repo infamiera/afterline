@@ -354,6 +354,29 @@ public sealed class SessionJournal
         }
     }
 
+    // A finalized same-day file is authoritative history, not new capture input.
+    // This lightweight tail read lets a fresh Afterline launch establish its
+    // baseline without replaying an earlier login into the active journal.
+    public Task<IReadOnlyList<string>> ReadExistingArchiveTailAsync(
+        string archiveRoot,
+        ServerSessionInfo server,
+        DateTime date,
+        int maximum,
+        CancellationToken cancellationToken)
+    {
+        maximum = Math.Clamp(maximum, 1, 5000);
+        return Task.Run<IReadOnlyList<string>>(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string path = GetArchivePath(archiveRoot, server.ArchiveLabel, date);
+            if (!File.Exists(path))
+                return Array.Empty<string>();
+            return File.ReadLines(path)
+                .TakeLast(maximum)
+                .ToArray();
+        }, cancellationToken);
+    }
+
     public async Task<string> ExportCurrentLogAsync(
         string archiveRoot,
         string downloadsFolder,

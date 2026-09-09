@@ -153,7 +153,10 @@ public partial class MainWindow
             {
                 IReadOnlyList<PotentialDuplicateCandidate> removalRanges =
                     BuildPotentialDuplicateRemovalRanges(candidates, investigation.SelectedReplayLineIndexes);
-                await RemovePotentialDuplicatesAsync(journalPath, removalRanges);
+                await RemovePotentialDuplicatesAsync(
+                    journalPath,
+                    removalRanges,
+                    investigation.ResolveAllRequested);
                 return;
             }
 
@@ -304,7 +307,8 @@ public partial class MainWindow
 
     private async Task<bool> RemovePotentialDuplicatesAsync(
         string journalPath,
-        IReadOnlyList<PotentialDuplicateCandidate> candidates)
+        IReadOnlyList<PotentialDuplicateCandidate> candidates,
+        bool resolveAllConfirmedReplays = false)
     {
         if (_journal.HasActiveSession && string.Equals(
                 _journal.ActiveFile,
@@ -336,7 +340,8 @@ public partial class MainWindow
             cleanup = await PotentialDuplicateCleanupService.RemoveAsync(
                 journalPath,
                 candidates,
-                CancellationToken.None);
+                CancellationToken.None,
+                resolveAllConfirmedReplays);
             await _capture.MarkPotentialDuplicatesReviewedAsync(
                 candidates.Select(candidate => candidate.Id),
                 removed: true,

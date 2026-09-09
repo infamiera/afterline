@@ -12,7 +12,8 @@ public static class PotentialDuplicateCleanupService
     public static async Task<PotentialDuplicateCleanupResult> RemoveAsync(
         string journalPath,
         IReadOnlyList<PotentialDuplicateCandidate> candidates,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool resolveAllConfirmedReplays = false)
     {
         if (!File.Exists(journalPath))
             throw new FileNotFoundException("The chatlog selected for duplicate review no longer exists.", journalPath);
@@ -65,6 +66,16 @@ public static class PotentialDuplicateCleanupService
             .Select((line, index) => (Line: line, OriginalIndex: index))
             .Where(item => !removals.Contains(item.OriginalIndex))
             .ToArray();
+        if (resolveAllConfirmedReplays)
+        {
+            // A single protected action must converge. Re-scan the remaining
+            // text until no independently confirmed replay remains, keeping all
+            // comparison work off the UI thread. The replay guard still requires
+            // ordered, varied text plus collapsed timestamp evidence.
+            retained = await Task.Run(
+                () => RemoveAllRemainingConfirmedReplays(retained),
+                cancellationToken);
+        }
         Directory.CreateDirectory(AppPaths.RecoveryBackupsDirectory);
         string stem = Path.GetFileNameWithoutExtension(journalPath);
         string backupPath = UniquePath(
@@ -107,7 +118,7 @@ public static class PotentialDuplicateCleanupService
                     ex);
             }
 
-            return new PotentialDuplicateCleanupResult(removals.Count, backupPath);
+            return new PotentialDuplicateCleanupResult(lines.Length - retained.Length, backupPath);
         }
         catch
         {
@@ -196,6 +207,40 @@ public static class PotentialDuplicateCleanupService
         string[] untouched = await File.ReadAllLinesAsync(ambiguousPath, cancellationToken);
         if (!rejected || !untouched.SequenceEqual(ambiguousLines, StringComparer.Ordinal))
             throw new InvalidOperationException("Ambiguous duplicate cleanup changed an authoritative chatlog.");
+
+        string exhaustivePath = Path.Combine(folder, "Chatlog [Exhaustive Review Smoke].txt");
+        string[] originalScene = Enumerable.Range(0, CaptureReplayGuard.MinimumReplayLines)
+            .Select(index => $"[18:{index / 60:00}:{index % 60:00}] Original scene row {index}.")
+            .ToArray();
+        string[] replayScene = Enumerable.Range(0, CaptureReplayGuard.MinimumReplayLines)
+            .Select(index => $"[19:00:{index / 12:00}] Original scene row {index}.")
+            .ToArray();
+        await File.WriteAllLinesAsync(
+            exhaustivePath,
+            originalScene.Concat(replayScene).Concat(replayScene),
+            new UTF8Encoding(false),
+            cancellationToken);
+        var firstReplay = new PotentialDuplicateCandidate
+        {
+            Id = Guid.NewGuid(),
+            JournalPath = exhaustivePath,
+            CandidateStartLine = originalScene.Length,
+            HistoricalStartLine = 0,
+            Lines = replayScene.ToList(),
+            HistoricalLines = originalScene.ToList()
+        };
+        PotentialDuplicateCleanupResult exhaustive = await RemoveAsync(
+            exhaustivePath,
+            new[] { firstReplay },
+            cancellationToken,
+            resolveAllConfirmedReplays: true);
+        string[] exhaustiveRepaired = await File.ReadAllLinesAsync(exhaustivePath, cancellationToken);
+        if (exhaustive.RemovedLineCount != replayScene.Length * 2 ||
+            !exhaustiveRepaired.SequenceEqual(originalScene, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Resolve all confirmed replays did not remove every independently proven replay in one pass.");
+        }
     }
 
     private static List<int> FindSequenceStarts(
@@ -264,6 +309,34 @@ public static class PotentialDuplicateCleanupService
                 return false;
         }
         return true;
+    }
+
+    private static (string Line, int OriginalIndex)[] RemoveAllRemainingConfirmedReplays(
+        (string Line, int OriginalIndex)[] initial)
+    {
+        var working = initial.ToList();
+        while (true)
+        {
+            IReadOnlyList<ExistingLogReplayMatch> matches = CaptureReplayGuard.FindInExistingLog(
+                working.Select(item => item.Line).ToArray());
+            if (matches.Count == 0)
+                return working.ToArray();
+
+            var remove = new HashSet<int>();
+            foreach (ExistingLogReplayMatch match in matches)
+            {
+                for (int offset = 0; offset < match.CandidateCount; offset++)
+                    remove.Add(match.CandidateStartIndex + offset);
+            }
+
+            if (remove.Count == 0)
+                return working.ToArray();
+            foreach (int index in remove.OrderByDescending(index => index))
+            {
+                if (index >= 0 && index < working.Count)
+                    working.RemoveAt(index);
+            }
+        }
     }
 
     private static string UniquePath(string folder, string baseName, string extension)
