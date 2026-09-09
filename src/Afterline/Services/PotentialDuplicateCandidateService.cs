@@ -11,6 +11,11 @@ public sealed class PotentialDuplicateCandidate
     public string JournalPath { get; set; } = string.Empty;
     public string ServerName { get; set; } = "Unknown Server";
     public string Evidence { get; set; } = string.Empty;
+    // These offsets identify the exact two ranges that the scanner compared.
+    // They let a later review remove the replay even when the same wording also
+    // appears elsewhere in a busy chatlog.
+    public int CandidateStartLine { get; set; } = -1;
+    public int HistoricalStartLine { get; set; } = -1;
     public List<string> Lines { get; set; } = new();
     public List<string> HistoricalLines { get; set; } = new();
     public bool Reviewed { get; set; }
@@ -42,6 +47,8 @@ public sealed class PotentialDuplicateCandidateService
             JournalPath = journalPath,
             ServerName = server.DisplayName,
             Evidence = decision.Evidence,
+            CandidateStartLine = -1,
+            HistoricalStartLine = -1,
             Lines = incoming
                 .Skip(decision.CandidateStartIndex)
                 .Take(decision.CandidateCount)
@@ -93,6 +100,8 @@ public sealed class PotentialDuplicateCandidateService
                     JournalPath = journalPath,
                     ServerName = serverName,
                     Evidence = match.Evidence,
+                    CandidateStartLine = match.CandidateStartIndex,
+                    HistoricalStartLine = match.HistoricalStartIndex,
                     Lines = allLines.Skip(match.CandidateStartIndex).Take(match.CandidateCount).ToList(),
                     HistoricalLines = allLines.Skip(match.HistoricalStartIndex).Take(match.CandidateCount).ToList()
                 };
@@ -111,6 +120,8 @@ public sealed class PotentialDuplicateCandidateService
                     existing.DetectedAt = refreshed.DetectedAt;
                     existing.ServerName = refreshed.ServerName;
                     existing.Evidence = refreshed.Evidence;
+                    existing.CandidateStartLine = refreshed.CandidateStartLine;
+                    existing.HistoricalStartLine = refreshed.HistoricalStartLine;
                     existing.Lines = refreshed.Lines;
                     existing.HistoricalLines = refreshed.HistoricalLines;
                     refreshedIds.Add(existing.Id);

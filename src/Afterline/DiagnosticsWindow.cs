@@ -9,7 +9,7 @@ namespace Afterline;
 
 internal sealed class DiagnosticsWindow : Window
 {
-    private const string DiscordInvite = "https://discord.gg/At2znTygfV";
+    private const string GitHubIssues = "https://github.com/infamiera/afterline/issues";
     private readonly TextBox _errorText;
     private readonly TextBlock _summary;
     private readonly TextBlock _exportStatus;
@@ -90,10 +90,10 @@ internal sealed class DiagnosticsWindow : Window
             Padding = new Thickness(14)
         };
         var supportCopy = new StackPanel();
-        supportCopy.Children.Add(CreateLinkLine("Join the Afterline Discord: ", DiscordInvite, DiscordInvite));
+        supportCopy.Children.Add(CreateLinkLine("Report an issue on ", "GitHub Issues", GitHubIssues));
         supportCopy.Children.Add(new TextBlock
         {
-            Text = "Send error reports in the #afterline forum channel on Discord.",
+            Text = "Attach an exported error report to a new GitHub issue when reporting a reproducible problem.",
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 7, 0, 0)
         });

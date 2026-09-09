@@ -6,6 +6,35 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "09/SEP/2026", new[]
+        {
+            "Duplicate resolution — Stores the exact scanner row for every confirmed replay, so Resolve all can remove the intended later range even when the earlier original has identical text.",
+            "Duplicate safeguards — Preserves the protected 100-line context fallback for older review cards and leaves a chatlog unchanged whenever a unique replay cannot be proven.",
+            "Changelog history — Restores the missing Canary #244 through #247 cards so every recent Canary build is represented in order.",
+            "Dashboard polish — Pins the issue-report guidance to the bottom of the Known Issues card."
+        }, ChangelogChannel.Canary, 248),
+        new("0.7.0", "09/SEP/2026", new[]
+        {
+            "Duplicate prevention — Blocks a confirmed, restamped FiveM chat-buffer replay before it reaches Live Chat or the active TXT journal, while retaining ordinary repeated roleplay lines.",
+            "Focused-window safety — Keeps the capture reader tied to FiveM's active NUI connection; tabbing into Afterline, another application, or an AFK screen does not pause or redirect capture.",
+            "Game capture — Adds lossless PNG or smaller JPEG output choices while preserving the native game-window resolution and never falling back to a desktop capture.",
+            "Dashboard — Combines session protection with autosave status and adds a Known Issues card with direct help and issue-report links."
+        }, ChangelogChannel.Canary, 247),
+        new("0.7.0", "09/SEP/2026", new[]
+        {
+            "Duplicate review — Adds side-by-side comparisons, jump controls, highlighted replay rows, right-click removal, and protected batch resolution for confirmed scenes.",
+            "Duplicate scanning — Moves archive checks off the interface thread and avoids re-scanning the interior of a confirmed scene, keeping busy-session review responsive."
+        }, ChangelogChannel.Canary, 246),
+        new("0.7.0", "09/SEP/2026", new[]
+        {
+            "Duplicate safety — Uses a 100-line ordered context, timestamp-collapse evidence, and the resolved server or UTC clock fallback before a scene can be treated as a replay.",
+            "Review controls — Adds manual duplicate checks in both Live Chat and Log Reader without interrupting live capture."
+        }, ChangelogChannel.Canary, 245),
+        new("0.7.0", "09/SEP/2026", new[]
+        {
+            "Live Chat presentation — Restores automatic chat colors, applies action-line colors consistently, and places display controls in a responsive side list.",
+            "Capture note — Explains the current /ame limitation in Live Chat and Log Reader without accessing FiveM memory, processes, or hooks."
+        }, ChangelogChannel.Canary, 244),
         new("0.7.0", "08/SEP/2026", new[]
         {
             "Stable candidate — This Canary is the likely Stable release candidate. We are gathering feedback before Stable; only important fixes will be added during this feedback period.",

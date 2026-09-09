@@ -397,6 +397,10 @@ public partial class MainWindow
                 {
                     Id = candidate.Id,
                     JournalPath = candidate.JournalPath,
+                    CandidateStartLine = candidate.CandidateStartLine < 0
+                        ? -1
+                        : candidate.CandidateStartLine + start,
+                    HistoricalStartLine = candidate.HistoricalStartLine,
                     Lines = candidate.Lines.Skip(start).Take(end - start + 1).ToList()
                 });
                 offset++;

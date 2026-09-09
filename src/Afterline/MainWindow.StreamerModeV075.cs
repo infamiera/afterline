@@ -44,7 +44,8 @@ public partial class MainWindow
         if (_logReaderPathText is not null)
             _logReaderPathText.Text = StreamerModePresentationService.PathForDisplay(_logReaderCurrentPath);
 
-        if (_editorProjectFolderPrivacyOverlayV075?.Child is TextBlock editorPath)
+        if (_settings is not null &&
+            _editorProjectFolderPrivacyOverlayV075?.Child is TextBlock editorPath)
         {
             editorPath.Text = StreamerModePresentationService.PathForDisplay(_settings.Editor.ProjectsFolder);
             _editorProjectFolderPrivacyOverlayV075.Visibility = enabled

@@ -38,16 +38,17 @@ public static class PotentialDuplicateCleanupService
             if (candidate.Lines.Count == 0)
                 throw new InvalidOperationException("A potential duplicate range contains no recoverable lines.");
 
-            List<int> matches = FindSequenceStarts(lines, candidate.Lines);
-            if (matches.Count != 1)
+            int? locatedStart = FindCandidateStart(lines, candidate);
+            if (locatedStart is null)
             {
+                List<int> matches = FindSequenceStarts(lines, candidate.Lines);
                 throw new InvalidOperationException(
                     matches.Count == 0
                         ? "A highlighted range no longer matches the chatlog. Nothing was changed."
                         : "A highlighted range is ambiguous in the chatlog. Nothing was changed.");
             }
 
-            int start = matches[0];
+            int start = locatedStart.Value;
             for (int index = 0; index < candidate.Lines.Count; index++)
             {
                 if (!removals.Add(start + index))
@@ -142,6 +143,8 @@ public static class PotentialDuplicateCleanupService
         {
             Id = Guid.NewGuid(),
             JournalPath = path,
+            CandidateStartLine = 4,
+            HistoricalStartLine = 2,
             Lines = new List<string> { original[4], original[5] }
         };
 
@@ -213,6 +216,54 @@ public static class PotentialDuplicateCleanupService
             if (match) starts.Add(start);
         }
         return starts;
+    }
+
+    private static int? FindCandidateStart(
+        IReadOnlyList<string> lines,
+        PotentialDuplicateCandidate candidate)
+    {
+        // Fresh scans persist the exact file row. Prefer it: a duplicate is
+        // expected to have an earlier textual twin, so text-only matching is
+        // inherently ambiguous for the very situation we are fixing.
+        if (candidate.CandidateStartLine >= 0 &&
+            SequenceMatches(lines, candidate.CandidateStartLine, candidate.Lines))
+            return candidate.CandidateStartLine;
+
+        List<int> matches = FindSequenceStarts(lines, candidate.Lines);
+        if (matches.Count == 1)
+            return matches[0];
+
+        // Upgrade cards created before offsets were stored. Only choose a
+        // later occurrence when exactly one candidate is paired with the saved
+        // earlier scene in the same 100-line comparison context. Otherwise
+        // remain safely ambiguous and leave the file untouched.
+        if (matches.Count > 1 && candidate.HistoricalLines.Count > 0)
+        {
+            List<int> historicalMatches = FindSequenceStarts(lines, candidate.HistoricalLines);
+            int[] paired = matches.Where(candidateStart => historicalMatches.Count(historyStart =>
+                    historyStart < candidateStart &&
+                    candidateStart - historyStart <= CaptureReplayGuard.HistoryLimit) == 1)
+                .ToArray();
+            if (paired.Length == 1)
+                return paired[0];
+        }
+
+        return null;
+    }
+
+    private static bool SequenceMatches(
+        IReadOnlyList<string> lines,
+        int start,
+        IReadOnlyList<string> sequence)
+    {
+        if (start < 0 || sequence.Count == 0 || start > lines.Count - sequence.Count)
+            return false;
+        for (int index = 0; index < sequence.Count; index++)
+        {
+            if (!string.Equals(lines[start + index], sequence[index], StringComparison.Ordinal))
+                return false;
+        }
+        return true;
     }
 
     private static string UniquePath(string folder, string baseName, string extension)

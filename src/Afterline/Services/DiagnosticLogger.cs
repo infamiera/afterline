@@ -198,10 +198,9 @@ public static class DiagnosticLogger
         report.AppendLine($"Previous-session-only errors included: {previousErrors.Count} (maximum {MaximumReportErrors})");
         report.AppendLine($"Current diagnostic timeline lines included: {currentTimeline.Count} (maximum {MaximumDiagnosticTimelineLines})");
         report.AppendLine($"Previous-session-only timeline lines included: {previousTimeline.Count} (maximum {MaximumDiagnosticTimelineLines})");
-        report.AppendLine("Discord: https://discord.gg/At2znTygfV");
-        report.AppendLine("Support channel: #afterline forum channel on Discord");
+        report.AppendLine("Issue tracker: https://github.com/infamiera/afterline/issues");
         report.AppendLine();
-        report.AppendLine("Send this report only in the #afterline forum channel on Discord.");
+        report.AppendLine("Attach this report to a new GitHub issue when reporting a reproducible problem.");
         report.AppendLine("Common Windows user-profile paths have been redacted automatically.");
         report.AppendLine(new string('-', 78));
         if (errors.Count == 0 && previousErrors.Count == 0)

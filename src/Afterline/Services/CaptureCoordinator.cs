@@ -1066,6 +1066,31 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         IReadOnlyList<string> newLines)
         => FindOverlap(oldLines, newLines);
 
+    // The capture loop deliberately has no dependency on Afterline's foreground
+    // state. This regression check models tabbing away and back while FiveM keeps
+    // exposing its complete visible buffer: retained rows must overlap and only
+    // the genuinely new row may be delivered.
+    internal static void RunFocusIndependentContinuitySmokeTest()
+    {
+        string[] beforeFocusChange =
+        {
+            "[20:14:01] Mina says: First.",
+            "[20:14:02] Samayo says: Second.",
+            "[20:14:03] Bianca says: Third."
+        };
+        string[] whileAfterlineIsFocused = beforeFocusChange.ToArray();
+        string[] afterFocusReturnsToFiveM = beforeFocusChange
+            .Append("[20:14:04] Mina says: Fourth.")
+            .ToArray();
+
+        if (FindOverlap(beforeFocusChange, whileAfterlineIsFocused) != beforeFocusChange.Length ||
+            FindOverlap(whileAfterlineIsFocused, afterFocusReturnsToFiveM) != beforeFocusChange.Length)
+        {
+            throw new InvalidOperationException(
+                "Capture continuity changed across an application focus transition.");
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();

@@ -635,8 +635,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         ServerTimeZoneHint timeZone = _resolvedTimeZones.TryGetValue(
             normalizedAddress,
-            out ServerTimeZoneHint cachedTimeZone)
-            ? cachedTimeZone
+            out ServerTimeZoneHint? cachedTimeZone)
+            ? cachedTimeZone ?? ServerTimeZoneHint.Empty
             : ServerTimeZoneHint.Empty;
         bool shouldResolveTimeZone = timeZone == ServerTimeZoneHint.Empty &&
             (!string.Equals(
