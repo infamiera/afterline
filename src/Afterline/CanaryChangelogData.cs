@@ -6,6 +6,12 @@ internal static class CanaryChangelogData
     // The workflow run number is the public Canary build identity.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.0", "10/SEP/2026", new[]
+        {
+            "Live chat recovery — Refreshes the active server before waiting for direct FiveM chat events, so new rows no longer require Parse current chat to appear.",
+            "Timestamp provenance — Preserves per-row timestamps exposed by the rendered chat and labels receipt-time fallback rows as [captured] instead of presenting them as server time.",
+            "Game capture rebuild — Separates screenshots from chat capture and uses the verified foreground game client rectangle; blank GPU frames are rejected instead of being saved to Gallery."
+        }, ChangelogChannel.Canary, 254),
         new("0.7.0", "09/SEP/2026", new[]
         {
             "Duplicate resolution — Stores the exact scanner row for every confirmed replay, so Resolve all can remove the intended later range even when the earlier original has identical text.",

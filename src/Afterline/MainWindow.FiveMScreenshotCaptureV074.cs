@@ -261,25 +261,25 @@ public partial class MainWindow
     {
         if (!_settings.EnableFiveMScreenshotCapture || _fiveMScreenshotCaptureInProgressV074) return;
         _fiveMScreenshotCaptureInProgressV074 = true;
-        bool restoreAfterline = FiveMScreenshotCaptureService.IsAfterlineForeground();
+        bool restoreAfterline = GameWindowCaptureService.IsAfterlineForeground();
         WindowState previousWindowState = WindowState;
         try
         {
             if (restoreAfterline)
             {
-                if (!FiveMScreenshotCaptureService.TryFindGameWindowForAfterlineCapture(out IntPtr gameWindow, out string reason))
+                if (!GameWindowCaptureService.TryFindGameWindowForAfterlineCapture(out IntPtr gameWindow, out string reason))
                     throw new InvalidOperationException(reason);
 
                 SetFiveMScreenshotStatusV074("Switching briefly to the game window…");
                 Hide();
-                if (!FiveMScreenshotCaptureService.ActivateGameWindow(gameWindow))
+                if (!GameWindowCaptureService.ActivateGameWindow(gameWindow))
                     throw new InvalidOperationException("Afterline found the game but Windows would not activate its window for capture.");
                 await Task.Delay(220);
             }
 
             SetFiveMScreenshotStatusV074("Capturing the foreground FiveM game window…");
-            FiveMScreenshotCaptureService.CaptureResult result = await Task.Run(
-                () => FiveMScreenshotCaptureService.CaptureForegroundWindow(
+            GameWindowCaptureService.CaptureResult result = await Task.Run(
+                () => GameWindowCaptureService.CaptureForegroundGameWindow(
                     _settings.ScreenshotFolder,
                     _settings.ScreenshotFormat,
                     _settings.ScreenshotJpegQuality));

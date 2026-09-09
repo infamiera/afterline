@@ -389,6 +389,20 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                             eventCheckpointId);
                         ObserveReaderGeneration(observedSnapshot.ReaderGeneration, false);
                     }
+                    else if (observedSnapshot is null)
+                    {
+                        // Event capture can be temporarily unavailable while
+                        // FiveM reloads its NUI. Reconciliation must remain a
+                        // real capture path, not merely a health probe. The
+                        // overlap and replay safeguards still apply, and rows
+                        // without a source timestamp are visibly marked as
+                        // capture-time estimates.
+                        await CaptureAvailableLinesAsync(
+                            current,
+                            settings,
+                            _cts.Token,
+                            observedAtUtc);
+                    }
                     if (isDirectEvent)
                     {
                         await TryMarkEventCheckpointProcessedAsync(
@@ -483,12 +497,6 @@ public sealed class CaptureCoordinator : IAsyncDisposable
         CapturedChatLine[] pending = isEventStream
             ? confirmedAddedLines!.ToArray()
             : current.Skip(overlap).ToArray();
-        // A multi-row catch-up with no per-row visible timestamp preserves the
-        // chat's order, but does not contain enough information to recreate
-        // when each event occurred. Do not label every row with one snapshot
-        // time as though it were its in-game time.
-        bool isTimestamplessBacklog = !isEventStream && pending.Length > 1 &&
-            pending.All(line => !VisibleTimestampPrefix.IsMatch(line.Text));
         string[] pendingText = pending.Select(line => line.Text).ToArray();
         DateTime replayObservedAt = ServerTimeService.Resolve(
             settings,
@@ -575,7 +583,10 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 InferVisibleTimestamp(line.Text, observedAt),
                 line.Text,
                 capturedColorRuns: line.ColorRuns,
-                isEstimatedCaptureTime: isTimestamplessBacklog);
+                // Source chat may omit its own event timestamp. Preserve the
+                // event/server observation time, but label it as captured so
+                // it is never mistaken for a server-provided clock.
+                isEstimatedCaptureTime: !VisibleTimestampPrefix.IsMatch(line.Text));
 
             if (!_journal.HasActiveSession)
             {

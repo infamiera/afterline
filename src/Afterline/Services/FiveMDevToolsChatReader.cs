@@ -170,6 +170,10 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             }
             return result;
           }
+          // Reuse the exact row decoder for observer-delivered additions.
+          // It retains timestamps rendered through data attributes/pseudo
+          // elements and captures colour runs without re-reading a viewport.
+          window.__afterlineReadChatRow=readRow;
           return Array.from(document.querySelectorAll('.chat__messages > li'))
             .map(readRow)
             .filter(function(line){return line.Text.length>0;});
@@ -186,8 +190,12 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         // Chat timestamps are only useful at the point a row arrives. Do not
         // debounce a busy scene: one animation frame lets FiveM finish the DOM
         // write while preserving the earliest practical observation time.
-        "function readAddedRow(row){var text=(row&&row.innerText?row.innerText:'').replace(/\\s+/g,' ').trim();return text?{Text:text,ColorRuns:[]}:null;}" +
-        "function emit(){state.frame=0;try{var baseline=state.isBaseline;var lines=baseline?" + ReadChatExpression + ":[];var added=[];if(!baseline){state.pendingRows.forEach(function(row){var line=readAddedRow(row);if(line)added.push(line);});}state.pendingRows=[];state.isBaseline=false;binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:lines,AddedLinesJson:JSON.stringify(added),IsBaseline:baseline}));}catch(_){}}" +
+        "function readAddedRow(row){try{var reader=window.__afterlineReadChatRow;if(typeof reader==='function'){var parsed=reader(row);if(parsed&&parsed.Text)return parsed;}}catch(_){}var text=(row&&row.innerText?row.innerText:'').replace(/\\s+/g,' ').trim();return text?{Text:text,ColorRuns:[]}:null;}" +
+        // If a new row arrives between attach and its first animation frame,
+        // emit it as an event instead of silently absorbing it into a viewport
+        // baseline. A player can scroll that viewport, but the mutation itself
+        // is authoritative that this row just appeared.
+        "function emit(){state.frame=0;try{var baseline=state.isBaseline&&state.pendingRows.length===0;var lines=baseline?" + ReadChatExpression + ":[];var added=[];if(!baseline){state.pendingRows.forEach(function(row){var line=readAddedRow(row);if(line)added.push(line);});}state.pendingRows=[];state.isBaseline=false;binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:lines,AddedLinesJson:JSON.stringify(added),IsBaseline:baseline}));}catch(_){}}" +
         "function schedule(){if(!state.frame)state.frame=requestAnimationFrame(emit);}" +
         "function attach(){var chat=document.querySelector('.chat__messages');if(chat===state.chat)return;if(state.chatObserver)state.chatObserver.disconnect();state.chat=chat;state.chatObserver=null;state.pendingRows=[];state.knownRows=new WeakSet();if(!chat){if(!state.unavailableReported){state.unavailableReported=true;binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:'[]',IsChatSurfaceUnavailable:true}));}return;}state.unavailableReported=false;Array.from(chat.children).forEach(function(node){if(node&&node.matches&&node.matches('li'))state.knownRows.add(node);});state.isBaseline=true;state.chatObserver=new MutationObserver(function(records){records.forEach(function(record){if(record.type!=='childList'||record.target!==state.chat)return;Array.from(record.addedNodes).forEach(function(node){if(!node||!node.matches||!node.matches('li')||state.knownRows.has(node))return;state.knownRows.add(node);if(state.pendingRows.indexOf(node)<0)state.pendingRows.push(node);});});if(state.pendingRows.length)schedule();});state.chatObserver.observe(chat,{childList:true});schedule();}" +
         "state.rootObserver=new MutationObserver(attach);state.rootObserver.observe(document.documentElement,{childList:true,subtree:true});" +
@@ -330,6 +338,10 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         await EnsureConnectedAsync(cancellationToken);
+        // EnsureConnected installs the observer before a server read. Without
+        // this refresh a healthy observer was incorrectly ignored until a
+        // manual Parse current chat call populated CurrentServer.
+        await RefreshServerInfoAsync(cancellationToken);
 
         if (string.IsNullOrWhiteSpace(_currentServer.Address))
             return null;
@@ -1125,6 +1137,8 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             "getComputedStyle(node,'::before')",
             "state.knownRows=new WeakSet()",
             "function readAddedRow(row)",
+            "window.__afterlineReadChatRow=readRow",
+            "state.isBaseline&&state.pendingRows.length===0",
             "var lines=baseline?",
             "AddedLinesJson:JSON.stringify(added)",
             "IsBaseline:baseline",

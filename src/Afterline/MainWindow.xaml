@@ -131,6 +131,7 @@
                             <StackPanel Grid.Row="1" Margin="0,8,0,0">
                                 <TextBlock TextWrapping="Wrap"><Run Text="• /ame from other players cannot currently be logged. "/><Hyperlink Click="AmeCaptureInfoLink_Click" Foreground="{DynamicResource Accent}">Find out why.</Hyperlink></TextBlock>
                                 <TextBlock Text="• Chat logging can still produce duplicates. Use Check for duplicates in Live Chat or Log Reader." TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="• Timestamps are currently unreliable when FiveM does not expose a per-line chat timestamp. [captured HH:MM:SS] is only Afterline's receipt estimate; do not rely on it for evidence or sequencing until proper timestamp support is available." TextWrapping="Wrap" Margin="0,6,0,0"/>
                                 <TextBlock Text="• Until a server-authorized chat bridge exists, client-side loggers must read FiveM's rendered chat. Rare UI reloads can leave a review gap; Afterline flags it rather than silently adding unreliable lines." TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                             <TextBlock Grid.Row="2" Foreground="{DynamicResource MutedText}" FontSize="10.5" TextWrapping="Wrap" Margin="0,10,0,0">Please report reproducible issues on <Hyperlink Click="GitHubIssuesLink_Click" Foreground="{DynamicResource Accent}">GitHub Issues</Hyperlink>.</TextBlock>

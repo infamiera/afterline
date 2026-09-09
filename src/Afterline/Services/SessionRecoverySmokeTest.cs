@@ -17,6 +17,7 @@ internal static class SessionRecoverySmokeTest
         CaptureReplayGuard.RunSmokeTest();
         CaptureCoordinator.RunFocusIndependentContinuitySmokeTest();
         FiveMDevToolsChatReader.RunEventCaptureSmokeTest();
+        GameWindowCaptureService.RunFrameValidationSmokeTest();
         RawCaptureFailsafeService.RunEventCheckpointSmokeTest();
         VerifyTimestampToggleOverlap();
         VerifyLeadingChevronActionColor();
