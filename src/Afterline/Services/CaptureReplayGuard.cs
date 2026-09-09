@@ -212,7 +212,9 @@ internal sealed class CaptureReplayGuard
             // start. Skipping a whole 100-row window after one non-match was
             // able to hide a second replay later in the same collapsed batch.
             bool collapsed = IsCollapsedWindow(lines, candidateWindowStart);
-            if (!collapsed && !MayStartExactReplay(lines, candidateWindowStart))
+            bool mayBeExactReplay = !collapsed &&
+                MayStartExactReplay(lines, candidateWindowStart);
+            if (!collapsed && !mayBeExactReplay)
             {
                 candidateWindowStart++;
                 continue;
@@ -223,12 +225,6 @@ internal sealed class CaptureReplayGuard
                 .Skip(candidateWindowStart)
                 .Take(candidateLength)
                 .ToArray();
-            string[] candidateBodies = candidateWindow.Select(NormalizeBody).ToArray();
-            if (!LooksLikeRestampedWindow(candidateWindow, candidateBodies, 0))
-            {
-                candidateWindowStart++;
-                continue;
-            }
 
             int historyStart = Math.Max(0, candidateWindowStart - HistoryLimit);
             string[] historyWindow = lines
