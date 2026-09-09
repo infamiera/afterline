@@ -132,12 +132,17 @@ internal sealed class CaptureReplayGuard
                 // The corruption signature must include timestamp collapse. An
                 // identical timeline remains unsuppressed: the regular visible
                 // overlap checkpoint handles it without risking a valid repeat.
-                if (exact || !HasRestampedReplayEvidence(
-                                 history,
-                                 start,
-                                 incoming,
-                                 incomingStart,
-                                 length))
+                // An exact, long, varied sequence includes identical displayed
+                // timestamps and is itself decisive replay evidence. This is a
+                // common capture-corruption shape after an alt-tab/reconnect;
+                // normal visible-buffer refreshes are already removed by the
+                // overlap checkpoint before they reach this guard.
+                if (!exact && !HasRestampedReplayEvidence(
+                                   history,
+                                   start,
+                                   incoming,
+                                   incomingStart,
+                                   length))
                     continue;
 
                 if (length > bestLength)
@@ -198,7 +203,8 @@ internal sealed class CaptureReplayGuard
             // Inspect only compact, varied windows, but inspect every eligible
             // start. Skipping a whole 100-row window after one non-match was
             // able to hide a second replay later in the same collapsed batch.
-            if (!IsCollapsedWindow(lines, candidateWindowStart))
+            bool collapsed = IsCollapsedWindow(lines, candidateWindowStart);
+            if (!collapsed && !MayStartExactReplay(lines, candidateWindowStart))
             {
                 candidateWindowStart++;
                 continue;
@@ -305,9 +311,9 @@ internal sealed class CaptureReplayGuard
             throw new InvalidOperationException("A single identical line was incorrectly treated as a replay.");
 
         string[] exactReplay = history.ToArray();
-        if (EvaluateAgainst(history, exactReplay).IsReplay)
+        if (!EvaluateAgainst(history, exactReplay).IsReplay)
             throw new InvalidOperationException(
-                "An exact multi-line sequence without timestamp-collapse evidence was incorrectly flagged.");
+                "An exact timestamp-identical replay was not detected.");
 
         string[] partialReplay = new[] { "[16:32:59] This is genuinely new before the replay." }
             .Concat(restamped)
@@ -338,6 +344,16 @@ internal sealed class CaptureReplayGuard
         {
             throw new InvalidOperationException(
                 "The existing-log duplicate scan did not return every proven replay range.");
+        }
+
+        string[] exactFullLog = history.Concat(history).ToArray();
+        ExistingLogReplayMatch[] exactExisting = FindInExistingLog(exactFullLog).ToArray();
+        if (exactExisting.Length != 1 ||
+            exactExisting[0].CandidateStartIndex != bodies.Length ||
+            exactExisting[0].CandidateCount != bodies.Length)
+        {
+            throw new InvalidOperationException(
+                "The existing-log duplicate scan did not detect an exact timestamp-identical replay.");
         }
     }
 
@@ -442,6 +458,58 @@ internal sealed class CaptureReplayGuard
         }
 
         return false;
+    }
+
+    private static bool MayStartExactReplay(
+        IReadOnlyList<string> lines,
+        int candidateStart)
+    {
+        if (candidateStart < MinimumReplayLines ||
+            candidateStart > lines.Count - MinimumReplayLines)
+            return false;
+
+        int firstHistoryIndex = Math.Max(0, candidateStart - HistoryLimit);
+        for (int historyStart = firstHistoryIndex; historyStart < candidateStart; historyStart++)
+        {
+            if (!string.Equals(lines[historyStart], lines[candidateStart], StringComparison.Ordinal))
+                continue;
+
+            int maximum = Math.Min(
+                candidateStart - historyStart,
+                lines.Count - candidateStart);
+            if (maximum < MinimumReplayLines)
+                continue;
+
+            int length = 0;
+            while (length < maximum &&
+                   string.Equals(lines[historyStart + length], lines[candidateStart + length], StringComparison.Ordinal))
+            {
+                length++;
+            }
+
+            if (length >= MinimumReplayLines &&
+                CountDistinctLineBodies(lines, candidateStart, length) >= MinimumDistinctBodies)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int CountDistinctLineBodies(
+        IReadOnlyList<string> lines,
+        int start,
+        int length)
+    {
+        var distinct = new HashSet<string>(StringComparer.Ordinal);
+        for (int offset = 0; offset < length; offset++)
+        {
+            distinct.Add(NormalizeBody(lines[start + offset]));
+            if (distinct.Count >= MinimumDistinctBodies)
+                break;
+        }
+        return distinct.Count;
     }
 
     private static string BuildEvidence(

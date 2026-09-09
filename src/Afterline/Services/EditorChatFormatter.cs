@@ -185,8 +185,8 @@ internal static class EditorChatFormatter
         if (trimmed.Equals("You locked the door lock.", StringComparison.OrdinalIgnoreCase))
             return FormatDoorActionLine(body, "locked", Red);
 
-        if (trimmed.StartsWith("Welcome to GTA World", StringComparison.OrdinalIgnoreCase))
-            return HighlightPhrase(body, "GTA World", Yellow, White);
+        if (trimmed.StartsWith("Welcome to ", StringComparison.OrdinalIgnoreCase))
+            return Single(body, Yellow);
 
         if (trimmed.StartsWith("Weather forecast:", StringComparison.OrdinalIgnoreCase))
             return Single(body, Blue);

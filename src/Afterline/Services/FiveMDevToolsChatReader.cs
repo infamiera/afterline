@@ -11,7 +11,11 @@ namespace Afterline.Services;
 
 internal sealed record ObservedChatSnapshot(
     IReadOnlyList<CapturedChatLine> Lines,
-    DateTimeOffset ObservedAtUtc);
+    DateTimeOffset ObservedAtUtc,
+    IReadOnlyList<CapturedChatLine>? AddedLines = null,
+    bool IsBaseline = false,
+    long ReaderGeneration = 0,
+    bool IsChatSurfaceUnavailable = false);
 
 public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 {
@@ -62,19 +66,41 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
           function hiddenTimestamp(row){
             var nodes=[row].concat(Array.from(row.querySelectorAll('*')));
             var pattern=/\b\d{1,2}:\d{2}:\d{2}\b/;
+            function timestampFromValue(value){
+              value=String(value||'').trim();
+              var formatted=value.match(pattern);
+              if(formatted) return formatted[0];
+              // Some chat resources retain the event clock as an epoch on
+              // data-time/data-timestamp rather than rendering it. Restrict
+              // this conversion to plausible Unix seconds/milliseconds so a
+              // player ID or arbitrary numeric message can never be treated
+              // as a clock.
+              if(!/^\d{10,13}$/.test(value)) return null;
+              var epoch=Number(value);
+              if(value.length===10) epoch*=1000;
+              var date=new Date(epoch);
+              if(isNaN(date.getTime()) || date.getUTCFullYear()<2020 || date.getUTCFullYear()>2100) return null;
+              return String(date.getHours()).padStart(2,'0')+':' +
+                String(date.getMinutes()).padStart(2,'0')+':' +
+                String(date.getSeconds()).padStart(2,'0');
+            }
             for(var i=0;i<nodes.length;i++){
               var node=nodes[i];
               var attributes=Array.from(node.attributes||[]);
               for(var j=0;j<attributes.length;j++){
-                var attributeMatch=String(attributes[j].value||'').match(pattern);
-                if(attributeMatch) return {value:attributeMatch[0],color:readColor(node)};
+                var attributeName=String(attributes[j].name||'').toLowerCase();
+                var attributeValue=String(attributes[j].value||'');
+                var attributeMatch=timestampFromValue(attributeValue);
+                if(attributeMatch &&
+                  (pattern.test(attributeValue) || /(?:time|timestamp|\bts\b|created|sent)/.test(attributeName)))
+                  return {value:attributeMatch,color:readColor(node)};
               }
               var before=String(window.getComputedStyle(node,'::before').content||'');
-              var beforeMatch=before.match(pattern);
-              if(beforeMatch) return {value:beforeMatch[0],color:readPseudoColor(node,'::before')};
+              var beforeMatch=timestampFromValue(before);
+              if(beforeMatch) return {value:beforeMatch,color:readPseudoColor(node,'::before')};
               var after=String(window.getComputedStyle(node,'::after').content||'');
-              var afterMatch=after.match(pattern);
-              if(afterMatch) return {value:afterMatch[0],color:readPseudoColor(node,'::after')};
+              var afterMatch=timestampFromValue(after);
+              if(afterMatch) return {value:afterMatch,color:readPseudoColor(node,'::after')};
             }
             return null;
           }
@@ -156,12 +182,15 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         "if(typeof binding!=='function') return false;" +
         "var previous=window.__afterlineChatObserver;" +
         "if(previous){try{previous.chatObserver&&previous.chatObserver.disconnect();}catch(_){}try{previous.rootObserver&&previous.rootObserver.disconnect();}catch(_){}try{previous.messageHandler&&window.removeEventListener('message',previous.messageHandler,true);}catch(_){}}" +
-        "var state={chat:null,chatObserver:null,rootObserver:null,messageHandler:null,timer:0,frame:0,firstMutationAt:0};" +
-        "function emit(){state.timer=0;state.frame=0;state.firstMutationAt=0;try{var lines=" + ReadChatExpression + ";binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:lines}));}catch(_){}}" +
-        "function schedule(){var now=Date.now();if(!state.firstMutationAt)state.firstMutationAt=now;if(state.timer)clearTimeout(state.timer);if(state.frame)cancelAnimationFrame(state.frame);var remaining=Math.max(0,200-(now-state.firstMutationAt));var quietDelay=Math.min(50,remaining);state.timer=setTimeout(function(){state.timer=0;state.frame=requestAnimationFrame(emit);},quietDelay);}" +
-        "function attach(){var chat=document.querySelector('.chat__messages');if(chat===state.chat)return;if(state.chatObserver)state.chatObserver.disconnect();state.chat=chat;state.chatObserver=null;if(chat){state.chatObserver=new MutationObserver(schedule);state.chatObserver.observe(chat,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','style','data-time','data-timestamp','title']});schedule();}}" +
+        "var state={chat:null,chatObserver:null,rootObserver:null,messageHandler:null,frame:0,knownRows:null,pendingRows:[],isBaseline:false,unavailableReported:false};" +
+        // Chat timestamps are only useful at the point a row arrives. Do not
+        // debounce a busy scene: one animation frame lets FiveM finish the DOM
+        // write while preserving the earliest practical observation time.
+        "function readAddedRow(row){var text=(row&&row.innerText?row.innerText:'').replace(/\\s+/g,' ').trim();return text?{Text:text,ColorRuns:[]}:null;}" +
+        "function emit(){state.frame=0;try{var baseline=state.isBaseline;var lines=baseline?" + ReadChatExpression + ":[];var added=[];if(!baseline){state.pendingRows.forEach(function(row){var line=readAddedRow(row);if(line)added.push(line);});}state.pendingRows=[];state.isBaseline=false;binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:lines,AddedLinesJson:JSON.stringify(added),IsBaseline:baseline}));}catch(_){}}" +
+        "function schedule(){if(!state.frame)state.frame=requestAnimationFrame(emit);}" +
+        "function attach(){var chat=document.querySelector('.chat__messages');if(chat===state.chat)return;if(state.chatObserver)state.chatObserver.disconnect();state.chat=chat;state.chatObserver=null;state.pendingRows=[];state.knownRows=new WeakSet();if(!chat){if(!state.unavailableReported){state.unavailableReported=true;binding(JSON.stringify({ObservedAtUnixMilliseconds:Date.now(),LinesJson:'[]',IsChatSurfaceUnavailable:true}));}return;}state.unavailableReported=false;Array.from(chat.children).forEach(function(node){if(node&&node.matches&&node.matches('li'))state.knownRows.add(node);});state.isBaseline=true;state.chatObserver=new MutationObserver(function(records){records.forEach(function(record){if(record.type!=='childList'||record.target!==state.chat)return;Array.from(record.addedNodes).forEach(function(node){if(!node||!node.matches||!node.matches('li')||state.knownRows.has(node))return;state.knownRows.add(node);if(state.pendingRows.indexOf(node)<0)state.pendingRows.push(node);});});if(state.pendingRows.length)schedule();});state.chatObserver.observe(chat,{childList:true});schedule();}" +
         "state.rootObserver=new MutationObserver(attach);state.rootObserver.observe(document.documentElement,{childList:true,subtree:true});" +
-        "state.messageHandler=schedule;window.addEventListener('message',state.messageHandler,true);" +
         "window.__afterlineChatObserver=state;attach();return true;" +
         "})()";
 
@@ -238,6 +267,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private bool _observerFallbackLogged;
     private bool _eventCaptureAvailable;
     private string[] _lastExactVisibleText = Array.Empty<string>();
+    private long _readerGeneration;
 
     public ServerSessionInfo CurrentServer => _currentServer;
 
@@ -319,8 +349,18 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
                 .Where(line => !string.IsNullOrWhiteSpace(line.Text))
                 .Select(NormalizeCapturedLine)
                 .ToArray();
+            CapturedChatLine[] added = snapshot.AddedLines?
+                .Where(line => !string.IsNullOrWhiteSpace(line.Text))
+                .Select(NormalizeCapturedLine)
+                .ToArray() ?? Array.Empty<CapturedChatLine>();
             _lastExactVisibleText = normalized.Select(line => line.Text).ToArray();
-            return new ObservedChatSnapshot(normalized, snapshot.ObservedAtUtc);
+            return new ObservedChatSnapshot(
+                normalized,
+                snapshot.ObservedAtUtc,
+                added,
+                snapshot.IsBaseline,
+                snapshot.ReaderGeneration,
+                snapshot.IsChatSurfaceUnavailable);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -560,6 +600,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
                 executionContextId = _contextId
             }, linked.Token);
 
+            Interlocked.Increment(ref _readerGeneration);
             JsonElement observer = await RequestAsync("Runtime.evaluate", new
             {
                 expression = InstallChatObserverExpression,
@@ -976,7 +1017,10 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
                 snapshot is null)
                 return;
 
-            _observedSnapshots.Writer.TryWrite(snapshot);
+            _observedSnapshots.Writer.TryWrite(snapshot with
+            {
+                ReaderGeneration = Interlocked.Read(ref _readerGeneration)
+            });
         }
         catch (Exception ex)
         {
@@ -1000,7 +1044,17 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             DateTimeOffset observedAt = envelope.ObservedAtUnixMilliseconds > 0
                 ? DateTimeOffset.FromUnixTimeMilliseconds(envelope.ObservedAtUnixMilliseconds)
                 : DateTimeOffset.UtcNow;
-            snapshot = new ObservedChatSnapshot(lines, observedAt);
+            CapturedChatLine[] added = string.IsNullOrWhiteSpace(envelope.AddedLinesJson)
+                ? Array.Empty<CapturedChatLine>()
+                : JsonSerializer.Deserialize<CapturedChatLine[]>(envelope.AddedLinesJson)
+                    ?? Array.Empty<CapturedChatLine>();
+            snapshot = new ObservedChatSnapshot(
+                lines,
+                observedAt,
+                added,
+                envelope.IsBaseline,
+                0,
+                envelope.IsChatSurfaceUnavailable);
             return true;
         }
         catch
@@ -1018,17 +1072,49 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         string payload = JsonSerializer.Serialize(new ObserverEnvelope
         {
             ObservedAtUnixMilliseconds = observedMilliseconds,
-            LinesJson = JsonSerializer.Serialize(new[] { line })
+            LinesJson = JsonSerializer.Serialize(new[] { line }),
+            AddedLinesJson = JsonSerializer.Serialize(new[] { line })
         });
 
         if (!TryDecodeObserverPayload(payload, out ObservedChatSnapshot? snapshot) ||
             snapshot is null ||
             snapshot.ObservedAtUtc != DateTimeOffset.FromUnixTimeMilliseconds(observedMilliseconds) ||
             snapshot.Lines.Count != 1 ||
+            snapshot.AddedLines?.Count != 1 ||
             snapshot.Lines[0].Text != line.Text ||
+            snapshot.AddedLines[0].Text != line.Text ||
             snapshot.Lines[0].ColorRuns.Count != 1)
         {
             throw new InvalidOperationException("Immediate FiveM chat event decoding failed.");
+        }
+
+        string baselinePayload = JsonSerializer.Serialize(new ObserverEnvelope
+        {
+            ObservedAtUnixMilliseconds = observedMilliseconds,
+            LinesJson = JsonSerializer.Serialize(new[] { line }),
+            IsBaseline = true
+        });
+        if (!TryDecodeObserverPayload(baselinePayload, out ObservedChatSnapshot? baseline) ||
+            baseline is null ||
+            !baseline.IsBaseline ||
+            baseline.AddedLines is not { Count: 0 })
+        {
+            throw new InvalidOperationException(
+                "FiveM chat baseline was not kept separate from appended events.");
+        }
+
+        string unavailablePayload = JsonSerializer.Serialize(new ObserverEnvelope
+        {
+            ObservedAtUnixMilliseconds = observedMilliseconds,
+            LinesJson = "[]",
+            IsChatSurfaceUnavailable = true
+        });
+        if (!TryDecodeObserverPayload(unavailablePayload, out ObservedChatSnapshot? unavailable) ||
+            unavailable is null ||
+            !unavailable.IsChatSurfaceUnavailable)
+        {
+            throw new InvalidOperationException(
+                "FiveM chat surface loss was not surfaced to the capture coordinator.");
         }
 
         string[] requiredObserverFeatures =
@@ -1037,12 +1123,27 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             "requestAnimationFrame",
             "ObservedAtUnixMilliseconds:Date.now()",
             "getComputedStyle(node,'::before')",
-            ChatChangedBinding
+            "knownRows:new WeakSet",
+            "function readAddedRow(row)",
+            "var lines=baseline?",
+            "AddedLinesJson:JSON.stringify(added)",
+            "IsBaseline:baseline",
+            "IsChatSurfaceUnavailable:true",
+            ChatChangedBinding,
+            "function schedule(){if(!state.frame)state.frame=requestAnimationFrame(emit);}"
         };
         if (requiredObserverFeatures.Any(feature =>
                 !InstallChatObserverExpression.Contains(feature, StringComparison.Ordinal)))
         {
             throw new InvalidOperationException("Immediate FiveM chat observer is incomplete.");
+        }
+
+        if (InstallChatObserverExpression.Contains("quietDelay", StringComparison.Ordinal) ||
+            InstallChatObserverExpression.Contains("window.addEventListener('message'", StringComparison.Ordinal) ||
+            InstallChatObserverExpression.Contains("rows.indexOf(row)", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "Immediate FiveM chat observer still batches or reacts to unrelated window messages.");
         }
     }
 
@@ -1087,6 +1188,9 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     {
         public long ObservedAtUnixMilliseconds { get; set; }
         public string LinesJson { get; set; } = string.Empty;
+        public string AddedLinesJson { get; set; } = string.Empty;
+        public bool IsBaseline { get; set; }
+        public bool IsChatSurfaceUnavailable { get; set; }
     }
 
     private static JsonElement CreateEmptyResult()

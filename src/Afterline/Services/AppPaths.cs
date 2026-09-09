@@ -15,6 +15,7 @@ public static class AppPaths
     public static string LastSessionCacheFile => Path.Combine(LocalDataRoot, "Cache", "last-session.txt");
     public static string RawCaptureCacheFile => Path.Combine(LocalDataRoot, "Cache", "raw-capture.json");
     public static string RawCapturePreviousCacheFile => Path.Combine(LocalDataRoot, "Cache", "raw-capture.previous.json");
+    public static string EventCaptureJournalFile => Path.Combine(LocalDataRoot, "Cache", "event-capture.jsonl");
     public static string CaptureRunStateFile => Path.Combine(LocalDataRoot, "Cache", "capture-run.json");
     public static string PotentialDuplicateCandidatesFile => Path.Combine(LocalDataRoot, "Cache", "potential-duplicates.json");
     public static string NotesBookmarksFile => Path.Combine(LocalDataRoot, "Cache", "notes-bookmarks.json");

@@ -17,6 +17,7 @@ internal static class SessionRecoverySmokeTest
         CaptureReplayGuard.RunSmokeTest();
         CaptureCoordinator.RunFocusIndependentContinuitySmokeTest();
         FiveMDevToolsChatReader.RunEventCaptureSmokeTest();
+        RawCaptureFailsafeService.RunEventCheckpointSmokeTest();
         VerifyTimestampToggleOverlap();
         VerifyLeadingChevronActionColor();
         ServerTimeService.RunSmokeTest();
@@ -133,6 +134,33 @@ internal static class SessionRecoverySmokeTest
         {
             throw new InvalidOperationException(
                 "Legitimate repeated messages with distinct visible timestamps were not both committed.");
+        }
+
+        const string durableEventId = "recovery-smoke:1:7:0";
+        const string durableEventText = "[04:42:04] Durable event checkpoint line.";
+        await resumed.AppendAsync(
+            new ChatEntry(startedAt.AddMinutes(2).AddSeconds(4), durableEventText),
+            CancellationToken.None,
+            durableEventId);
+        await resumed.AppendAsync(
+            new ChatEntry(startedAt.AddMinutes(2).AddSeconds(4), durableEventText),
+            CancellationToken.None,
+            durableEventId);
+        if (!await resumed.HasCommittedCaptureEventAsync(
+                durableEventId,
+                CancellationToken.None))
+        {
+            throw new InvalidOperationException(
+                "The session journal did not retain durable event provenance.");
+        }
+        int durableEventOccurrences = (await resumed.ReadRecentCommittedLinesAsync(
+                20,
+                CancellationToken.None))
+            .Count(line => string.Equals(line, durableEventText, StringComparison.Ordinal));
+        if (durableEventOccurrences != 1)
+        {
+            throw new InvalidOperationException(
+                "A committed durable event was replayed into the active chatlog.");
         }
 
         string archiveFile = resumed.ActiveFile
@@ -293,14 +321,20 @@ internal static class SessionRecoverySmokeTest
         var serverTimestamp = new ChatEntry(
             observed,
             "(( PM from (196) Player: hi ))");
+        var delayedBacklogRow = new ChatEntry(
+            observed,
+            "Bianca says: This was already in the visible chat.",
+            isEstimatedCaptureTime: true);
 
         if (visibleTimestamp.TimestampSource != ChatTimestampSource.VisibleChat ||
             visibleTimestamp.CapturedAt.TimeOfDay != new TimeSpan(14, 53, 2) ||
             serverTimestamp.TimestampSource != ChatTimestampSource.ServerObservation ||
-            serverTimestamp.CapturedAt != observed)
+            serverTimestamp.CapturedAt != observed ||
+            !delayedBacklogRow.IsEstimatedCaptureTime ||
+            !delayedBacklogRow.Display.StartsWith("[captured 17:00:00]", StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
-                "Visible FiveM timestamps were not kept distinct from resolved server observation time.");
+                "Visible FiveM timestamps were not kept distinct from capture-time estimates.");
         }
     }
 

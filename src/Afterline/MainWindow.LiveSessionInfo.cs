@@ -105,7 +105,12 @@ public partial class MainWindow
 
         string health;
         object brushKey;
-        switch (_capture.State)
+        if (_capture.CaptureGapDetectedAt is DateTime gapAt)
+        {
+            health = $"Capture health: Review gap · chat UI reattached {gapAt:HH:mm:ss}";
+            brushKey = "Warning";
+        }
+        else switch (_capture.State)
         {
             case CaptureState.Capturing:
                 DateTime? lastRead = _capture.LastSuccessfulReadAt;

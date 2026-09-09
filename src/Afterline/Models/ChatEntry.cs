@@ -45,7 +45,7 @@ public sealed class ChatEntry
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex OocStandaloneStatus = new(
-        @"^(?:WARNING:|Welcome to GTA World\.?|Weather forecast:|Temperature:|Wind:|Online faction members:|Faction Members (?:Online|On-Duty):|Number:\s*\d|Costs:\s*Initialize Call:|Commands:\s*/payphonecall|⚠+\s*You have\s+\d+\s+pending notification(?:s|\(s\))?\.|⚠+\s*These notifications? are extremely important\b|---\s*(?:Your Notifications|End of Notifications)\s*---|\d{5,}:\s+Your property\b|This is your first weekly payment\.|(?:Chief Executive Officer|Chief Operating Officer|Content Creator)\s+\S+(?:\s+\S+)+(?:\s+\(AFK\))?$|You (?:unlocked|locked) the (?:property door|door lock)\.?|Trucking rank:\s+.+\(\(\d+/\d+\)\)$|Stats for\s+|Wallet:\s*|Health\s*\||Organization:\s*|Business\s+\d+:|Bank Account Routing:|Current job:|Time\s*\||Properties:\s*Owned:|Custom Number:|Monthly remaining|Premium:|World Points:|Panda Points:|Current Time:|Time spent online|Time remaining on vacation:|You can only tackle one person every\s+\d+\s+seconds!?|You were missclicked, your health \(and/or armour\) has been restored\.?|Your vehicle has been teleported to your location\..*|The door is locked\.?|Vehicle has been flipped!?|Vehicle parked\.?|We've placed a blip on your map to help you locate your vehicle\.?|.*:\s*Press Y to browse (?:ammunation|ammunition)\.?|.*:\s*Press Y to open store\.?|.* changed their character and quit this one\.?|Type /ar \[id\] to handle a report or /tr \[id\] to trash a report\.?|\*\s*\(A\)\s+.*|\*\s*You have de-spawned your pet\.?|You have loaded .+ their settings\.?|\[\(\d{1,2}:\d{2}:\d{2}\)\s+id:\s*\d+\s*,\s*by:\s*\(\d+\).*\]:|.*\bhas gone on admin duty\.?|\|\s+\S|={8,})",
+        @"^(?:WARNING:|Weather forecast:|Temperature:|Wind:|Online faction members:|Faction Members (?:Online|On-Duty):|Number:\s*\d|Costs:\s*Initialize Call:|Commands:\s*/payphonecall|⚠+\s*You have\s+\d+\s+pending notification(?:s|\(s\))?\.|⚠+\s*These notifications? are extremely important\b|---\s*(?:Your Notifications|End of Notifications)\s*---|\d{5,}:\s+Your property\b|This is your first weekly payment\.|(?:Chief Executive Officer|Chief Operating Officer|Content Creator)\s+\S+(?:\s+\S+)+(?:\s+\(AFK\))?$|You (?:unlocked|locked) the (?:property door|door lock)\.?|Trucking rank:\s+.+\(\(\d+/\d+\)\)$|Stats for\s+|Wallet:\s*|Health\s*\||Organization:\s*|Business\s+\d+:|Bank Account Routing:|Current job:|Time\s*\||Properties:\s*Owned:|Custom Number:|Monthly remaining|Premium:|World Points:|Panda Points:|Current Time:|Time spent online|Time remaining on vacation:|You can only tackle one person every\s+\d+\s+seconds!?|You were missclicked, your health \(and/or armour\) has been restored\.?|Your vehicle has been teleported to your location\..*|The door is locked\.?|Vehicle has been flipped!?|Vehicle parked\.?|We've placed a blip on your map to help you locate your vehicle\.?|.*:\s*Press Y to browse (?:ammunation|ammunition)\.?|.*:\s*Press Y to open store\.?|.* changed their character and quit this one\.?|Type /ar \[id\] to handle a report or /tr \[id\] to trash a report\.?|\*\s*\(A\)\s+.*|\*\s*You have de-spawned your pet\.?|You have loaded .+ their settings\.?|\[\(\d{1,2}:\d{2}:\d{2}\)\s+id:\s*\d+\s*,\s*by:\s*\(\d+\).*\]:|.*\bhas gone on admin duty\.?|\|\s+\S|={8,})",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
@@ -60,6 +60,10 @@ public sealed class ChatEntry
     public string Text { get; }
     public bool IsSystemMessage { get; }
     public ChatTimestampSource TimestampSource { get; }
+    // A catch-up snapshot can preserve message order without exposing the
+    // original in-game clock for each row. Keep that distinction explicit so
+    // a single observation time is never presented as an event time.
+    public bool IsEstimatedCaptureTime { get; }
     public Guid? PotentialDuplicateGroupId { get; }
     public bool IsPotentialDuplicate { get; private set; }
     public bool IsPotentialDuplicateReviewClone { get; }
@@ -128,7 +132,10 @@ public sealed class ChatEntry
         {
             if (IsSystemMessage) return Text;
             string content = ContentWithoutTimestamp;
-            return ShowTimestamps ? $"[{CapturedAt:HH:mm:ss}] {content}" : content;
+            if (!ShowTimestamps) return content;
+            return IsEstimatedCaptureTime
+                ? $"[captured {CapturedAt:HH:mm:ss}] {content}"
+                : $"[{CapturedAt:HH:mm:ss}] {content}";
         }
     }
 
@@ -152,7 +159,8 @@ public sealed class ChatEntry
         bool isSystemMessage = false,
         IEnumerable<ChatColorRun>? capturedColorRuns = null,
         Guid? potentialDuplicateGroupId = null,
-        bool isPotentialDuplicateReviewClone = false)
+        bool isPotentialDuplicateReviewClone = false,
+        bool isEstimatedCaptureTime = false)
     {
         Text = text ?? string.Empty;
         IsSystemMessage = isSystemMessage;
@@ -164,6 +172,9 @@ public sealed class ChatEntry
         PotentialDuplicateGroupId = potentialDuplicateGroupId;
         IsPotentialDuplicate = potentialDuplicateGroupId is not null;
         IsPotentialDuplicateReviewClone = isPotentialDuplicateReviewClone;
+        IsEstimatedCaptureTime = !isSystemMessage &&
+            !TimestampPrefix.IsMatch(Text) &&
+            isEstimatedCaptureTime;
         CapturedAt = isSystemMessage ? capturedAt : ResolveTimestamp(capturedAt, Text);
         CapturedColorRuns = isSystemMessage
             ? Array.Empty<ChatColorRun>()

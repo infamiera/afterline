@@ -228,7 +228,10 @@ public sealed class SessionJournal
         }
     }
 
-    public async Task AppendAsync(ChatEntry entry, CancellationToken cancellationToken)
+    public async Task AppendAsync(
+        ChatEntry entry,
+        CancellationToken cancellationToken,
+        string? captureEventId = null)
     {
         if (!HasActiveSession || _state is null || _activeFile is null) return;
 
@@ -238,6 +241,11 @@ public sealed class SessionJournal
         try
         {
             if (!HasActiveSession || _state is null || _activeFile is null) return;
+            if (!string.IsNullOrWhiteSpace(captureEventId) &&
+                _state.RecentCaptureEventIds.Contains(captureEventId, StringComparer.Ordinal))
+            {
+                return;
+            }
 
             DateTime activeDate = _state.ArchiveDate == default
                 ? _state.StartedAt.Date
@@ -299,6 +307,7 @@ public sealed class SessionJournal
 
             _state.MessageCount++;
             _state.LastMessageAt = entry.CapturedAt;
+            RememberCaptureEventId(_state, captureEventId);
             await SaveStateAsync(cancellationToken);
         }
         finally
@@ -347,6 +356,27 @@ public sealed class SessionJournal
             return File.ReadLines(_activeFile)
                 .TakeLast(maximum)
                 .ToArray();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    // Event IDs are local provenance only: they make interrupted Afterline
+    // runs idempotent without treating identical roleplay text as a duplicate.
+    public async Task<bool> HasCommittedCaptureEventAsync(
+        string captureEventId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(captureEventId)) return false;
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            return _state?.RecentCaptureEventIds.Contains(
+                captureEventId,
+                StringComparer.Ordinal) == true;
         }
         finally
         {
@@ -850,6 +880,20 @@ public sealed class SessionJournal
         await stream.FlushAsync(cancellationToken);
     }
 
+    private static void RememberCaptureEventId(SessionState state, string? captureEventId)
+    {
+        if (string.IsNullOrWhiteSpace(captureEventId)) return;
+
+        state.RecentCaptureEventIds.RemoveAll(id =>
+            string.Equals(id, captureEventId, StringComparison.Ordinal));
+        state.RecentCaptureEventIds.Add(captureEventId);
+        const int maximum = 4096;
+        if (state.RecentCaptureEventIds.Count > maximum)
+            state.RecentCaptureEventIds.RemoveRange(
+                0,
+                state.RecentCaptureEventIds.Count - maximum);
+    }
+
     private static string GetArchivePath(
         string archiveRoot,
         string serverName,
@@ -1015,5 +1059,6 @@ public sealed class SessionJournal
         public string ServerName { get; set; } = "Unknown Server";
         public string ServerKey { get; set; } = "unknown";
         public List<string> LastVisibleSnapshot { get; set; } = new();
+        public List<string> RecentCaptureEventIds { get; set; } = new();
     }
 }
