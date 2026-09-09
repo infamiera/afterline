@@ -8,6 +8,11 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "10/SEP/2026", new[]
         {
+            "Screen-capture hotfix — Corrects the Windows screen-copy operation that prevented every capture after the hotkey was detected.",
+            "Capture validation — Adds a regression check for the .NET-supported copy operation before the game-frame smoke test runs."
+        }, ChangelogChannel.Canary, 257),
+        new("0.7.0", "10/SEP/2026", new[]
+        {
             "Screen-capture handoff — Locks the verified FiveM game window at the moment a global hotkey is pressed, avoiding focus-race failures before the client rectangle is copied.",
             "Frame recovery — Retries a just-activated game frame briefly before rejecting it as blank, without falling back to desktop or another application capture.",
             "Capture feedback — Shows a tray warning when a background hotkey capture cannot be saved, rather than leaving the failure only in the hidden Gallery status.",

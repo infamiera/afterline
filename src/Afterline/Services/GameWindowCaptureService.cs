@@ -16,6 +16,9 @@ public static class GameWindowCaptureService
     private const int MinimumCaptureDimension = 160;
     private const int SampleColumns = 16;
     private const int SampleRows = 10;
+    // Graphics.CopyFromScreen validates this enum value. CAPTUREBLT is a native
+    // BitBlt flag, not a valid System.Drawing CopyPixelOperation flag.
+    private const CopyPixelOperation CaptureCopyOperation = CopyPixelOperation.SourceCopy;
 
     public sealed record CaptureResult(string FilePath, int PixelWidth, int PixelHeight, string WindowTitle);
 
@@ -131,7 +134,7 @@ public static class GameWindowCaptureService
                         bounds.Location,
                         Point.Empty,
                         bounds.Size,
-                        CopyPixelOperation.SourceCopy | CopyPixelOperation.CaptureBlt);
+                        CaptureCopyOperation);
                 }
 
                 if (HasMeaningfulPixels(image))
@@ -167,6 +170,9 @@ public static class GameWindowCaptureService
 
     internal static void RunFrameValidationSmokeTest()
     {
+        if (!Enum.IsDefined(typeof(CopyPixelOperation), CaptureCopyOperation))
+            throw new InvalidOperationException("Game-frame capture uses an invalid CopyPixelOperation.");
+
         using var blank = new Bitmap(32, 32, PixelFormat.Format24bppRgb);
         if (HasMeaningfulPixels(blank))
             throw new InvalidOperationException("Blank game-frame detection accepted an empty image.");
