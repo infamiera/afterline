@@ -1123,7 +1123,7 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
             "requestAnimationFrame",
             "ObservedAtUnixMilliseconds:Date.now()",
             "getComputedStyle(node,'::before')",
-            "knownRows:new WeakSet",
+            "state.knownRows=new WeakSet()",
             "function readAddedRow(row)",
             "var lines=baseline?",
             "AddedLinesJson:JSON.stringify(added)",
