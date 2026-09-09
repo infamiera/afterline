@@ -139,6 +139,16 @@ public sealed class CaptureCoordinator : IAsyncDisposable
                 }
             }
 
+            // A successful DevTools read is authoritative. Replaying the
+            // persistent session cache afterwards clears Live Chat and fills it
+            // with an old snapshot, which can look like a huge duplicate block.
+            // The cache is strictly an offline/unavailable-FiveM fallback.
+            if (liveReadSucceeded)
+            {
+                LastError = null;
+                return captured;
+            }
+
             IReadOnlyList<ChatEntry> cachedEntries =
                 await _lastSessionCache.ReadAsync(_cts.Token);
 

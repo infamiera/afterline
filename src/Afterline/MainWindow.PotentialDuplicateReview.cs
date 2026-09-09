@@ -15,6 +15,7 @@ public partial class MainWindow
     private IReadOnlyList<PotentialDuplicateCandidate> _activePotentialDuplicateReview =
         Array.Empty<PotentialDuplicateCandidate>();
     private string? _activePotentialDuplicateReviewPath;
+    private bool _potentialDuplicatePromptOpen;
 
     private void EnsurePotentialDuplicateReviewUi()
     {
@@ -116,12 +117,21 @@ public partial class MainWindow
 
     private async void Capture_PotentialDuplicateDetected(object? sender, PotentialDuplicateCandidate candidate)
     {
-        await Dispatcher.InvokeAsync(async () =>
+        if (_potentialDuplicatePromptOpen) return;
+        _potentialDuplicatePromptOpen = true;
+        try
         {
-            IReadOnlyList<PotentialDuplicateCandidate> candidates =
-                await _capture.ReadPotentialDuplicatesAsync(candidate.JournalPath, CancellationToken.None);
-            await PresentPotentialDuplicatePromptAsync(candidate.JournalPath, candidates);
-        }).Task.Unwrap();
+            await Dispatcher.InvokeAsync(async () =>
+            {
+                IReadOnlyList<PotentialDuplicateCandidate> candidates =
+                    await _capture.ReadPotentialDuplicatesAsync(candidate.JournalPath, CancellationToken.None);
+                await PresentPotentialDuplicatePromptAsync(candidate.JournalPath, candidates);
+            }, System.Windows.Threading.DispatcherPriority.Send).Task.Unwrap();
+        }
+        finally
+        {
+            _potentialDuplicatePromptOpen = false;
+        }
     }
 
     private async Task PresentPotentialDuplicatePromptAsync(
@@ -133,11 +143,17 @@ public partial class MainWindow
         var prompt = new PotentialDuplicatePromptWindow(this, lineCount);
         if (prompt.ShowDialog() == true)
         {
-            var investigation = new PotentialDuplicateReviewWindow(this, candidates);
+            bool cleanupAvailable = !_journal.HasActiveSession || !string.Equals(
+                _journal.ActiveFile,
+                journalPath,
+                StringComparison.OrdinalIgnoreCase);
+            var investigation = new PotentialDuplicateReviewWindow(this, candidates, cleanupAvailable);
             bool? decision = investigation.ShowDialog();
-            if (decision == true && investigation.OpenLiveChatReview)
+            if (decision == true && investigation.RemoveRequested)
             {
-                ShowPotentialDuplicateReview(journalPath, candidates);
+                IReadOnlyList<PotentialDuplicateCandidate> removalRanges =
+                    BuildPotentialDuplicateRemovalRanges(candidates, investigation.SelectedReplayLineIndexes);
+                await RemovePotentialDuplicatesAsync(journalPath, removalRanges);
                 return;
             }
 
@@ -278,9 +294,21 @@ public partial class MainWindow
         if (_activePotentialDuplicateReview.Count == 0 ||
             string.IsNullOrWhiteSpace(_activePotentialDuplicateReviewPath))
             return;
+        if (await RemovePotentialDuplicatesAsync(
+                _activePotentialDuplicateReviewPath,
+                _activePotentialDuplicateReview))
+        {
+            FinishPotentialDuplicateReview();
+        }
+    }
+
+    private async Task<bool> RemovePotentialDuplicatesAsync(
+        string journalPath,
+        IReadOnlyList<PotentialDuplicateCandidate> candidates)
+    {
         if (_journal.HasActiveSession && string.Equals(
                 _journal.ActiveFile,
-                _activePotentialDuplicateReviewPath,
+                journalPath,
                 StringComparison.OrdinalIgnoreCase))
         {
             System.Windows.MessageBox.Show(
@@ -289,10 +317,10 @@ public partial class MainWindow
                 "Chatlog is still active",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            return;
+            return false;
         }
 
-        int lineCount = _activePotentialDuplicateReview.Sum(candidate => candidate.Lines.Count);
+        int lineCount = candidates.Sum(candidate => candidate.Lines.Count);
         MessageBoxResult confirm = System.Windows.MessageBox.Show(
             this,
             $"Remove exactly {lineCount:N0} highlighted line{(lineCount == 1 ? string.Empty : "s")} from this chatlog?\n\n" +
@@ -300,24 +328,24 @@ public partial class MainWindow
             "Confirm duplicate removal",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes) return;
+        if (confirm != MessageBoxResult.Yes) return false;
 
         PotentialDuplicateCleanupResult? cleanup = null;
         try
         {
             cleanup = await PotentialDuplicateCleanupService.RemoveAsync(
-                _activePotentialDuplicateReviewPath,
-                _activePotentialDuplicateReview,
+                journalPath,
+                candidates,
                 CancellationToken.None);
             await _capture.MarkPotentialDuplicatesReviewedAsync(
-                _activePotentialDuplicateReview.Select(candidate => candidate.Id),
+                candidates.Select(candidate => candidate.Id),
                 removed: true,
                 CancellationToken.None);
             await _archiveService.EnsureFileIndexedAsync(
                 _settings.ArchiveRoot,
-                _activePotentialDuplicateReviewPath,
+                journalPath,
                 CancellationToken.None);
-            FinishPotentialDuplicateReview();
+            ClearPotentialDuplicateFlags(candidates.Select(candidate => candidate.Id).ToHashSet());
             System.Windows.MessageBox.Show(
                 this,
                 $"Removed {cleanup.RemovedLineCount:N0} highlighted line{(cleanup.RemovedLineCount == 1 ? string.Empty : "s")}.\n\n" +
@@ -325,6 +353,7 @@ public partial class MainWindow
                 "Chatlog updated",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
+            return true;
         }
         catch (Exception ex)
         {
@@ -337,7 +366,44 @@ public partial class MainWindow
                 cleanup is null ? "Chatlog was not changed" : "Chatlog updated with a warning",
                 MessageBoxButton.OK,
                 cleanup is null ? MessageBoxImage.Error : MessageBoxImage.Warning);
+            return cleanup is not null;
         }
+    }
+
+    private static IReadOnlyList<PotentialDuplicateCandidate> BuildPotentialDuplicateRemovalRanges(
+        IReadOnlyList<PotentialDuplicateCandidate> candidates,
+        IReadOnlyDictionary<Guid, IReadOnlyList<int>> selectedIndexes)
+    {
+        var ranges = new List<PotentialDuplicateCandidate>();
+        foreach (PotentialDuplicateCandidate candidate in candidates)
+        {
+            if (!selectedIndexes.TryGetValue(candidate.Id, out IReadOnlyList<int>? indexes))
+                continue;
+            int[] ordered = indexes
+                .Where(index => index >= 0 && index < candidate.Lines.Count)
+                .Distinct()
+                .OrderBy(index => index)
+                .ToArray();
+            for (int offset = 0; offset < ordered.Length;)
+            {
+                int start = ordered[offset];
+                int end = start;
+                while (offset + 1 < ordered.Length && ordered[offset + 1] == end + 1)
+                {
+                    end = ordered[++offset];
+                }
+
+                ranges.Add(new PotentialDuplicateCandidate
+                {
+                    Id = candidate.Id,
+                    JournalPath = candidate.JournalPath,
+                    Lines = candidate.Lines.Skip(start).Take(end - start + 1).ToList()
+                });
+                offset++;
+            }
+        }
+
+        return ranges;
     }
 
     private void FinishPotentialDuplicateReview()

@@ -30,17 +30,21 @@ public sealed class PotentialDuplicateCandidateService
         CaptureReplayDecision decision,
         CancellationToken cancellationToken)
     {
+        DateTime detectedAt = DateTime.Now;
         var candidate = new PotentialDuplicateCandidate
         {
             Id = candidateId,
-            DetectedAt = DateTime.Now,
+            DetectedAt = detectedAt,
             JournalPath = journalPath,
             ServerName = server.DisplayName,
             Evidence = decision.Evidence,
             Lines = incoming
                 .Skip(decision.CandidateStartIndex)
                 .Take(decision.CandidateCount)
-                .Select(line => line.Text)
+                // NUI rows can arrive without their own visible timestamp.
+                // Store the same resolved fallback used by replay detection so
+                // the comparison window never disguises a timestamp collapse.
+                .Select(line => CaptureReplayGuard.WithFallbackTimestamp(line.Text, detectedAt))
                 .ToList(),
             HistoricalLines = committedHistory
                 .Skip(decision.HistoricalStartIndex)
