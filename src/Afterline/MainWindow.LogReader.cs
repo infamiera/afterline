@@ -302,6 +302,8 @@ public partial class MainWindow
         menu.Items.Add(CreateAfterlineContextMenuItem("Copy ±5 lines", (_, _) => CopyLogReaderContext(5)));
         menu.Items.Add(CreateAfterlineContextMenuItem("Copy ±10 lines", (_, _) => CopyLogReaderContext(10)));
         menu.Items.Add(CreateAfterlineContextMenuSeparator());
+        menu.Items.Add(CreateAfterlineContextMenuItem("Remove this line…", RemoveLogReaderLine_Click));
+        menu.Items.Add(CreateAfterlineContextMenuSeparator());
         menu.Items.Add(CreateAfterlineContextMenuItem("Bookmark line", BookmarkLogReaderLine_Click));
         menu.Items.Add(CreateAfterlineContextMenuItem("Add note to line…", AddNoteToLogReaderLine_Click));
         return menu;

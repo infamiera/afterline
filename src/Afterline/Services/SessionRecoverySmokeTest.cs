@@ -26,6 +26,9 @@ internal static class SessionRecoverySmokeTest
         await PotentialDuplicateCleanupService.RunSmokeTestAsync(
             archiveRoot,
             CancellationToken.None);
+        await ManualChatLineRemovalService.RunSmokeTestAsync(
+            archiveRoot,
+            CancellationToken.None);
 
         DateTime startedAt = DateTime.Today.AddHours(4).AddMinutes(40);
         var server = new ServerSessionInfo

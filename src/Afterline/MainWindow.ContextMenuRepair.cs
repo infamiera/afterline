@@ -20,6 +20,8 @@ public partial class MainWindow
         menu.Items.Add(CreateAfterlineContextMenuItem("Copy ±5 lines", (_, _) => CopyLiveContext(5)));
         menu.Items.Add(CreateAfterlineContextMenuItem("Copy ±10 lines", (_, _) => CopyLiveContext(10)));
         menu.Items.Add(CreateAfterlineContextMenuSeparator());
+        menu.Items.Add(CreateAfterlineContextMenuItem("Remove from Live Chat…", RemoveSelectedLiveLine_Click));
+        menu.Items.Add(CreateAfterlineContextMenuSeparator());
         menu.Items.Add(CreateAfterlineContextMenuItem("Bookmark line", BookmarkSelectedLiveLine_Click));
         menu.Items.Add(CreateAfterlineContextMenuItem("Add note to line…", AddNoteToSelectedLiveLine_Click));
         LiveChatList.ContextMenu = menu;

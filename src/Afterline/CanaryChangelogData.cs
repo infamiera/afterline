@@ -8,6 +8,11 @@ internal static class CanaryChangelogData
     {
         new("0.7.0", "10/SEP/2026", new[]
         {
+            "Manual cleanup — Adds a right-click removal action in Log Reader that deletes only the selected source row after confirmation and creates a full backup first.",
+            "Live Chat control — Adds immediate right-click removal from the Live Chat display without rewriting an actively captured chatlog."
+        }, ChangelogChannel.Canary, 258),
+        new("0.7.0", "10/SEP/2026", new[]
+        {
             "Screen-capture hotfix — Corrects the Windows screen-copy operation that prevented every capture after the hotkey was detected.",
             "Capture validation — Adds a regression check for the .NET-supported copy operation before the game-frame smoke test runs."
         }, ChangelogChannel.Canary, 257),
