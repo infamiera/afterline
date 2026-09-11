@@ -48,6 +48,8 @@ public partial class MainWindow
     private DispatcherTimer? _editorBaseAdjustTimer;
     private IReadOnlyDictionary<int, ChatColorLineRecord> _editorExactChatColorsV068 =
         new Dictionary<int, ChatColorLineRecord>();
+    private bool _editorPreparingOnDemand;
+    private Grid? _editorLoadingPage;
 
     private void EnsureEditor()
     {
@@ -66,6 +68,14 @@ public partial class MainWindow
 
         int settingsIndex = navigationPanel.Children.IndexOf(SettingsNav);
         navigationPanel.Children.Insert(Math.Max(0, settingsIndex), _editorNavButton);
+
+    }
+
+    private void InitializeEditorSurfaceOnDemand()
+    {
+        if (_editorPage is not null) return;
+        if (DashboardPage.Parent is not Grid pageHost) return;
+        if (SettingsNav.Parent is not StackPanel navigationPanel) return;
 
         _editorPage = BuildEditorPage();
         Grid.SetRow(_editorPage, 2);
@@ -553,12 +563,105 @@ public partial class MainWindow
         return (panel, slider);
     }
 
-    private void EditorNav_Click(object sender, RoutedEventArgs e)
+    private async void EditorNav_Click(object sender, RoutedEventArgs e)
     {
+        await EnsureEditorReadyOnDemandAsync();
         if (_editorPage is null) return;
         if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
         if (_notesBookmarksPage is not null) _notesBookmarksPage.Visibility = Visibility.Collapsed;
         ShowPage(_editorPage, "Editor", "Create RP screenshot chat overlays and apply lightweight image edits");
+    }
+
+    private async Task EnsureEditorReadyOnDemandAsync()
+    {
+        EnsureEditor();
+        if (_editorPage is not null) return;
+        if (_editorPreparingOnDemand) return;
+        if (DashboardPage.Parent is not Grid pageHost) return;
+
+        _editorPreparingOnDemand = true;
+        _editorLoadingPage = BuildEditorLoadingPageOnDemand();
+        Grid.SetRow(_editorLoadingPage, 2);
+        pageHost.Children.Add(_editorLoadingPage);
+        ShowPage(_editorLoadingPage, "Editor", "Preparing your workspace…");
+
+        try
+        {
+            // Let the loading surface paint before optional Editor controls and
+            // image-workspace helpers are built on the UI thread.
+            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+
+            pageHost.Children.Remove(_editorLoadingPage);
+            _editorLoadingPage = null;
+            InitializeEditorSurfaceOnDemand();
+            EnsureEditorV041();
+            EnsureEditorMediaV060();
+            EnsureEditorPositioningV061();
+            EnsureEditorAlignmentV062();
+            EnsureEditorPreferences();
+            EnsureEditorCanaryWorkspace();
+            EnsureEditorProjectAutosaveUiV073();
+            EnsureFinalRuntimeOptimizationV066();
+            EnsureEditorWorkspaceV067();
+            EnsureCompactEditorWorkspaceV078();
+            EnsureEditorSelectionGuardV067();
+            InitializeEditorProjectAutosaveHooksV073();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLogger.Error("Unable to prepare the Editor on demand.", ex);
+            System.Windows.MessageBox.Show(
+                this,
+                "The Editor could not be prepared. Live Chat and capture remain unaffected.\n\n" + ex.Message,
+                "Editor unavailable",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            _editorPreparingOnDemand = false;
+            if (_editorLoadingPage is not null)
+            {
+                pageHost.Children.Remove(_editorLoadingPage);
+                _editorLoadingPage = null;
+            }
+        }
+    }
+
+    private Grid BuildEditorLoadingPageOnDemand()
+    {
+        var page = new Grid();
+        var card = new Border
+        {
+            Style = (Style)FindResource("CardStyle"),
+            Width = 380,
+            Padding = new Thickness(24),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = "Preparing Editor",
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "Loading your local editing tools. Live Chat capture continues independently.",
+            Foreground = (Brush)FindResource("MutedText"),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 6, 0, 12)
+        });
+        content.Children.Add(new ProgressBar
+        {
+            IsIndeterminate = true,
+            Height = 5,
+            BorderThickness = new Thickness(0)
+        });
+        card.Child = content;
+        page.Children.Add(card);
+        return page;
     }
 
     private void ScheduleEditorChatRender()

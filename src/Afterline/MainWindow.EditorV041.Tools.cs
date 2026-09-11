@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using Afterline.Services;
 
 namespace Afterline;
@@ -15,6 +16,7 @@ public partial class MainWindow
     {
         var content = new StackPanel();
         content.Children.Add(EditorHelpText("Select text in Chat & Font to color only those characters, or select a line below to override the entire line. Presets and custom colors use the same saved project data."));
+        content.Children.Add(BuildEditorChatLegendV091());
 
         _editorLineColorList = new ListBox
         {
@@ -54,6 +56,87 @@ public partial class MainWindow
 
         content.Children.Add(EditorSubtleNote("Text-range colors take priority over captured and automatic colors while preserving italics. Use Auto on a selection to remove only its manual range color."));
         return content;
+    }
+
+    private FrameworkElement BuildEditorChatLegendV091()
+    {
+        var chips = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        (string Label, Color Color, string Hint)[] entries =
+        {
+            ("Speech", EditorChatFormatter.White, "Apply the standard speech color."),
+            ("/me & /do", EditorChatFormatter.Purple, "Apply the action and description color."),
+            ("OOC", EditorChatFormatter.Gray, "Apply the out-of-character color."),
+            ("Speech [low]", EditorChatFormatter.Orange, "Apply the low speech color."),
+            ("Speech [lower]", EditorChatFormatter.Gray, "Apply the lower speech color."),
+            ("Radio", EditorChatFormatter.Radio, "Apply the radio color."),
+            ("Phone / Ad", EditorChatFormatter.Yellow, "Apply the phone and announcement color."),
+            ("Success", EditorChatFormatter.Green, "Apply the success color."),
+            ("Warning", EditorChatFormatter.Yellow, "Apply the warning color."),
+            ("Error / Admin", EditorChatFormatter.Red, "Apply the error and admin color."),
+            ("System", EditorChatFormatter.Blue, "Apply the system information color.")
+        };
+
+        foreach ((string label, Color color, string hint) in entries)
+            chips.Children.Add(CreateEditorChatLegendChipV091(label, color, hint));
+
+        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 10) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "CHAT LEGEND",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText")
+        });
+        panel.Children.Add(chips);
+        panel.Children.Add(EditorSubtleNote("Choose a chip to color selected text, or select a row below to color that whole line. Auto restores the detected server style."));
+        return panel;
+    }
+
+    private Button CreateEditorChatLegendChipV091(string label, Color color, string hint)
+    {
+        var marker = new Ellipse
+        {
+            Width = 7,
+            Height = 7,
+            Fill = new SolidColorBrush(color),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 5, 0)
+        };
+        var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(marker);
+        content.Children.Add(text);
+
+        var chip = new Button
+        {
+            Content = content,
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 0, 5, 5),
+            FontSize = 11,
+            ToolTip = hint
+        };
+        chip.Click += (_, _) => ApplyEditorChatLegendColorV091(color, label);
+        return chip;
+    }
+
+    private void ApplyEditorChatLegendColorV091(Color color, string label)
+    {
+        if (_editorInput is { SelectionLength: > 0 })
+        {
+            ApplySelectedTextColorV071(color);
+            return;
+        }
+
+        if (_editorLineColorList?.SelectedItem is EditorLineChoice selected)
+        {
+            _editorLineColorOverrides[selected.SourceIndex] = color;
+            ScheduleEditorChatRender();
+            UpdateEditorLineColorControls();
+            SetEditorStatus($"Applied {label} to the selected line.");
+            return;
+        }
+
+        SetEditorStatus("Select text in Chat & Font or select a line before choosing a chat legend style.");
     }
 
     private FrameworkElement BuildEditorV041TextEffectsPanel()

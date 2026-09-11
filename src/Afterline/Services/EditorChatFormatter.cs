@@ -66,7 +66,7 @@ internal static class EditorChatFormatter
         new EditorColorPreset("blue", "Info / Blue", Blue),
         new EditorColorPreset("yellow", "Comms / Yellow", Yellow),
         new EditorColorPreset("green", "Success / Green", Green),
-        new EditorColorPreset("orange", "Whisper / Orange", Orange),
+        new EditorColorPreset("orange", "Speech [low] / Orange", Orange),
         new EditorColorPreset("red", "Danger / Red", Red),
         new EditorColorPreset("gray", "OOC / Gray", Gray),
         new EditorColorPreset("radio", "Radio / Muted Gold", Radio)

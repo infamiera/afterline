@@ -434,7 +434,7 @@ public partial class MainWindow
         }
     }
 
-    private void OpenFiveMScreenshotInEditorV074(string path)
+    private async void OpenFiveMScreenshotInEditorV074(string path)
     {
         if (!File.Exists(path))
         {
@@ -442,7 +442,11 @@ public partial class MainWindow
             return;
         }
 
-        EditorNav_Click(this, new RoutedEventArgs());
+        await EnsureEditorReadyOnDemandAsync();
+        if (_editorPage is null) return;
+        if (_logReaderPage is not null) _logReaderPage.Visibility = Visibility.Collapsed;
+        if (_notesBookmarksPage is not null) _notesBookmarksPage.Visibility = Visibility.Collapsed;
+        ShowPage(_editorPage, "Editor", "Create RP screenshot chat overlays and apply lightweight image edits");
         LoadEditorMediaV060(path);
     }
 

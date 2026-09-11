@@ -45,16 +45,10 @@ public partial class MainWindow
         await RunDeferredUiStageAsync(
             "Editor initialization",
             EnsureEditor,
-            EnsureEditorV041,
-            EnsureEditorMediaV060,
-            EnsureEditorPositioningV061,
-            EnsureEditorAlignmentV062,
             EnsureFiveMScreenshotCaptureV074,
             EnsureSettingsButtonPlacement,
             EnsureThemeAndAbout,
             EnsureUnifiedChatPresentation,
-            EnsureEditorPreferences,
-            EnsureEditorCanaryWorkspace,
             EnsureCanaryMiscPolish,
             EnsureQolV050,
             EnsureArchiveFilteringV071,
@@ -63,18 +57,13 @@ public partial class MainWindow
             EnsureUpdatePanelV061,
             EnsureUpdateChannelV062,
             EnsureCanaryUpdateHandoffV2,
-            EnsureEditorProjectAutosaveUiV073,
             EnsureSettingsCanarySidebarV2);
 
         await RunDeferredUiStageAsync(
             "final interface initialization",
-            EnsureFinalRuntimeOptimizationV066,
             EnsureBuildIdentityV065,
             EnsureFinalChannelHandoffV066,
-            EnsureEditorWorkspaceV067,
-            EnsureCompactEditorWorkspaceV078,
-            EnsureEditorSelectionGuardV067,
-            InitializeEditorProjectAutosaveHooksV073,
+            EnsureCoreRuntimeOptimizationV091,
             EnsureModernThemeShellV090);
 
         RunEditorImageSmokeTestIfRequestedV069();

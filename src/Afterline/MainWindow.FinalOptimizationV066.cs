@@ -7,6 +7,21 @@ public partial class MainWindow
 {
     private bool _finalRuntimeOptimizationV066Initialized;
     private bool _finalChannelHandoffV066Initialized;
+    private bool _coreRuntimeOptimizationV091Initialized;
+
+    // These are application and Settings controls, not Editor work. Keeping them
+    // separate lets the Editor stay completely cold until it is actually opened.
+    private void EnsureCoreRuntimeOptimizationV091()
+    {
+        if (_coreRuntimeOptimizationV091Initialized)
+            return;
+
+        _coreRuntimeOptimizationV091Initialized = true;
+        ConfigureCustomKeybindsCanaryV3();
+        RebuildApplicationKeybindSettingsCanaryV4();
+        CenterSettingsNavigationCanaryV4();
+        _buildIdentityRefreshTimerV065.Interval = TimeSpan.FromMinutes(10);
+    }
 
     private void EnsureFinalRuntimeOptimizationV066()
     {
@@ -33,7 +48,7 @@ public partial class MainWindow
         // the final controls. Do not initialize its superseded menu, updater, object
         // selection, settings, or slider-prewarm patches.
         _canaryUiFixesV3Initialized = true;
-        ConfigureCustomKeybindsCanaryV3();
+        EnsureCoreRuntimeOptimizationV091();
 
         // Build the final V4 interface directly, excluding its transitional updater
         // wiring. BuildIdentityV065 owns update polling and the update action button.
@@ -42,14 +57,7 @@ public partial class MainWindow
         RebuildSelectionPanelCanaryV4();
         RebuildExportPanelCanaryV4();
         RebuildEditorSettingsPanelCanaryV4();
-        RebuildApplicationKeybindSettingsCanaryV4();
-        CenterSettingsNavigationCanaryV4();
         ConfigureEditorPrewarmCanaryV4();
-
-        // Canary discovery now uses a lightweight release manifest. Ten-minute
-        // polling plus a throttled activation refresh keeps discovery prompt without
-        // hammering GitHub or racing several duplicate checks during startup.
-        _buildIdentityRefreshTimerV065.Interval = TimeSpan.FromMinutes(10);
     }
 
     private void EnsureFinalChannelHandoffV066()

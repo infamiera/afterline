@@ -120,7 +120,7 @@ public partial class MainWindow
         _editorComposition.UpdateLayout();
         _editorFitZoom = true;
 
-        Dispatcher.BeginInvoke(new Action(() =>
+        _ = Dispatcher.BeginInvoke(new Action(() =>
         {
             if (_editorBaseOriginal is null || _editorBaseImage is null)
                 return;
@@ -150,7 +150,7 @@ public partial class MainWindow
         _editorLayerListV067.Drop += LayerListDropV069;
     }
 
-    private void RunEditorImageSmokeTestIfRequestedV069()
+    private async void RunEditorImageSmokeTestIfRequestedV069()
     {
         string[] args = Environment.GetCommandLineArgs();
         int index = Array.FindIndex(args, value => string.Equals(
@@ -168,7 +168,12 @@ public partial class MainWindow
         string? projectPath = projectIndex >= 0 && args.Length > projectIndex + 1
             ? args[projectIndex + 1]
             : null;
-        Dispatcher.BeginInvoke(new Action(() =>
+
+        // The normal application start intentionally leaves the Editor cold until
+        // it is opened. The smoke workflow is the one explicit exception: it
+        // prepares that surface before validating image and project behavior.
+        await EnsureEditorReadyOnDemandAsync();
+        _ = Dispatcher.BeginInvoke(new Action(() =>
         {
             try
             {
