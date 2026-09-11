@@ -97,8 +97,8 @@ public partial class MainWindow
 
     private Border BuildEditorV041Header()
     {
-        // This is a compact command/options bar, not a second large card. It
-        // keeps commonly-used chat actions in the empty strip above the canvas.
+        // This is a compact document/options bar. Text actions live beside the
+        // chat input and image loading stays in File, preserving preview room.
         var card = new Border
         {
             Background = (Brush)FindResource("Panel"),
@@ -127,27 +127,21 @@ public partial class MainWindow
         });
         grid.Children.Add(identity);
 
-        var quickActions = new WrapPanel
+        var typography = new WrapPanel
         {
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(18, 0, 0, 0)
+            Margin = new Thickness(12, 0, 0, 0)
         };
-        quickActions.Children.Add(CreateEditorCommandBarButton("Paste", "Paste chat from the clipboard", EditorPaste_Click));
-        quickActions.Children.Add(CreateEditorCommandBarButton("Import .txt", "Import chat from a text file", EditorImportText_Click));
-        quickActions.Children.Add(CreateEditorCommandBarButton("Clear", "Clear the editable chat text", EditorClearInput_Click));
-        quickActions.Children.Add(CreateEditorCommandBarDivider());
-        quickActions.Children.Add(CreateEditorCommandBarButton("Load image", "Load a base image, GIF, or add an image layer", EditorLoadImage_Click));
-        Grid.SetColumn(quickActions, 1);
-        grid.Children.Add(quickActions);
+        Grid.SetColumn(typography, 1);
+        grid.Children.Add(typography);
 
         _editorContextOptionsHostV092 = new WrapPanel
         {
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(8, 0, 0, 0)
         };
-        quickActions.Children.Add(CreateEditorCommandBarDivider());
-        quickActions.Children.Add(_editorContextOptionsHostV092);
+        typography.Children.Add(_editorContextOptionsHostV092);
 
         var actions = new WrapPanel
         {
@@ -326,10 +320,12 @@ public partial class MainWindow
         _editorInput.TextChanged += (_, _) =>
         {
             PruneEditorLineColorOverrides();
+            UpdateTextBlurTargetHintV093();
             ScheduleEditorChatRender();
         };
         _editorInput.SelectionChanged += (_, _) =>
         {
+            CaptureTextBlurTargetV093();
             if (_editorInput.SelectionLength > 0 && _editorChatColorsExpanderV071 is not null)
             {
                 bool wasCollapsed = !_editorChatColorsExpanderV071.IsExpanded;
@@ -340,6 +336,12 @@ public partial class MainWindow
             UpdateEditorLineColorControls();
         };
         chatContent.Children.Add(_editorInput);
+
+        var inputActions = new WrapPanel { Margin = new Thickness(0, 7, 0, 0) };
+        inputActions.Children.Add(CreateEditorChatInputActionV093("Paste", "Paste chat from the clipboard", EditorPaste_Click));
+        inputActions.Children.Add(CreateEditorChatInputActionV093("Import .txt", "Import chat from a text file", EditorImportText_Click));
+        inputActions.Children.Add(CreateEditorChatInputActionV093("Clear", "Clear the editable chat text", EditorClearInput_Click));
+        chatContent.Children.Add(inputActions);
 
         sections.Children.Add(CreateEditorSidebarExpanderV068("CHAT TEXT", chatContent, expanded: true));
 
@@ -409,7 +411,7 @@ public partial class MainWindow
 
         DetachEditorElement(_editorFontBox);
         _editorFontBox.Width = 150;
-        _editorFontBox.Height = 28;
+        _editorFontBox.Height = 32;
         _editorFontBox.Margin = new Thickness(0, 0, 6, 0);
         _editorFontBox.ToolTip = "Choose the font used for the generated chat overlay.";
         _editorContextOptionsHostV092.Children.Add(_editorFontBox);
@@ -424,6 +426,7 @@ public partial class MainWindow
         DetachEditorElement(_editorShowTimestampsCheck);
         _editorShowTimestampsCheck.Content = "Timestamps";
         _editorShowTimestampsCheck.Margin = new Thickness(4, 0, 0, 0);
+        _editorShowTimestampsCheck.MinHeight = 32;
         _editorShowTimestampsCheck.VerticalAlignment = VerticalAlignment.Center;
         _editorContextOptionsHostV092.Children.Add(_editorShowTimestampsCheck);
 
@@ -444,6 +447,16 @@ public partial class MainWindow
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 7, 0)
         };
+
+    private Button CreateEditorChatInputActionV093(string text, string toolTip, RoutedEventHandler handler)
+    {
+        var button = CreateSmallEditorButton(text, handler);
+        button.MinHeight = 28;
+        button.Height = 28;
+        button.Padding = new Thickness(8, 3, 8, 3);
+        button.ToolTip = toolTip;
+        return button;
+    }
 
     private FrameworkElement CreateEditorContextSliderV092(string label, Slider slider, double width, string toolTip)
     {

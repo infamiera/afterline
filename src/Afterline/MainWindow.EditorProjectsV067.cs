@@ -74,7 +74,11 @@ public partial class MainWindow
         int Start,
         int Length,
         string Text,
-        double Radius);
+        double Radius,
+        double OffsetX = 0,
+        double OffsetY = 0,
+        double ExpandX = 0,
+        double ExpandY = 0);
 
     private sealed record EditorProjectManifestV067(
         int FormatVersion,
@@ -315,7 +319,11 @@ public partial class MainWindow
                     value.Start,
                     value.Length,
                     value.Text,
-                    value.Radius)).ToArray());
+                    value.Radius,
+                    value.OffsetX,
+                    value.OffsetY,
+                    value.ExpandX,
+                    value.ExpandY)).ToArray());
 
         try
         {
@@ -491,7 +499,11 @@ public partial class MainWindow
                 value.Start,
                 value.Length,
                 value.Text,
-                Math.Clamp(value.Radius, 1, 16)));
+                Math.Clamp(value.Radius, 1, 16),
+                Math.Clamp(value.OffsetX, -80, 80),
+                Math.Clamp(value.OffsetY, -40, 40),
+                Math.Clamp(value.ExpandX, -8, 28),
+                Math.Clamp(value.ExpandY, -4, 20)));
         }
         PruneEditorLineColorOverrides();
         if (_editorChatXSlider is not null)

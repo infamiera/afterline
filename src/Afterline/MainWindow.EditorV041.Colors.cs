@@ -245,10 +245,31 @@ public partial class MainWindow
     }
 
     private void EditorApplySelectedTextBlurV092_Click(object sender, RoutedEventArgs e)
-        => ApplySelectedTextBlurV092(_editorTextBlurRadiusSliderV092?.Value ?? 5);
+    {
+        IReadOnlyList<EditorTextColorOverride> target = GetTextBlurTargetRangesV093();
+        if (target.Count == 0)
+        {
+            SetEditorStatus("Highlight text in Chat & Font first, or use right-click → Blur Text…");
+            return;
+        }
+
+        EditorTextBlurSettingsV093 settings = ResolveTextBlurSettingsV093(target) with
+        {
+            Radius = _editorTextBlurRadiusSliderV092?.Value ?? 5
+        };
+        ApplyTextBlurTargetV093(target, settings);
+    }
 
     private void EditorClearSelectedTextBlurV092_Click(object sender, RoutedEventArgs e)
-        => ApplySelectedTextBlurV092(null);
+    {
+        IReadOnlyList<EditorTextColorOverride> target = GetTextBlurTargetRangesV093();
+        if (target.Count == 0)
+        {
+            SetEditorStatus("Choose a blur target in Chat & Font before clearing its blur.");
+            return;
+        }
+        ApplyTextBlurTargetV093(target, null);
+    }
 
     private void EditorClearAllTextBlurV092_Click(object sender, RoutedEventArgs e)
     {
@@ -256,46 +277,6 @@ public partial class MainWindow
         _editorTextBlurOverridesV092.Clear();
         ScheduleEditorChatRender();
         SetEditorStatus("Removed all manual text blur from this project.");
-    }
-
-    private void ApplySelectedTextBlurV092(double? radius)
-    {
-        if (_editorInput is null || _editorInput.SelectionLength <= 0)
-        {
-            SetEditorStatus("Select the exact words in Chat & Font before applying text blur.");
-            return;
-        }
-
-        int selectionStart = _editorInput.SelectionStart;
-        int selectionLength = _editorInput.SelectionLength;
-        IReadOnlyList<EditorTextColorOverride> selected = GetSelectedTextRangesV071(EditorChatFormatter.White);
-        if (selected.Count == 0) return;
-
-        foreach (EditorTextColorOverride range in selected)
-        {
-            RemoveOverlappingTextBlurV092(range.SourceIndex, range.Start, range.End);
-            if (radius is double value)
-            {
-                _editorTextBlurOverridesV092.Add(new EditorTextBlurOverride(
-                    range.SourceIndex,
-                    range.Start,
-                    range.Length,
-                    range.Text,
-                    Math.Clamp(value, 1, 16)));
-            }
-        }
-
-        _editorTextBlurOverridesV092.Sort((left, right) =>
-        {
-            int line = left.SourceIndex.CompareTo(right.SourceIndex);
-            return line != 0 ? line : left.Start.CompareTo(right.Start);
-        });
-        ScheduleEditorChatRender();
-        _editorInput.SelectionStart = selectionStart;
-        _editorInput.SelectionLength = selectionLength;
-        SetEditorStatus(radius is null
-            ? "Removed blur from the selected text."
-            : "Applied blur to the selected text.");
     }
 
     private void RemoveOverlappingTextBlurV092(int sourceIndex, int start, int end)

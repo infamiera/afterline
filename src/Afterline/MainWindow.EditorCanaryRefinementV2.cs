@@ -276,7 +276,7 @@ public partial class MainWindow
         var button = new Button
         {
             Content = title,
-            Height = 29,
+            Height = 32,
             MinWidth = 46,
             Padding = new Thickness(10, 3, 10, 3),
             Margin = new Thickness(0),

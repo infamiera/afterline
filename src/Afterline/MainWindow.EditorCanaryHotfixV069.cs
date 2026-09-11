@@ -591,10 +591,27 @@ public partial class MainWindow
                     }
 
                     editorInput.Select(selectedStart, "Bianca Yurei".Length);
+                    if (editorInput.ContextMenu?.Items.OfType<MenuItem>()
+                            .Any(item => (item.Header as TextBlock)?.Text == "Blur Text…") != true)
+                    {
+                        throw new InvalidOperationException(
+                            "The Chat & Font right-click Blur Text command was not initialized.");
+                    }
                     if (_editorTextBlurRadiusSliderV092 is null)
                         throw new InvalidOperationException("The selected-text blur controls were not initialized.");
                     _editorTextBlurRadiusSliderV092.Value = 6;
-                    ApplySelectedTextBlurV092(_editorTextBlurRadiusSliderV092.Value);
+                    IReadOnlyList<EditorTextColorOverride> smokeBlurTarget = GetTextBlurTargetRangesV093();
+                    if (smokeBlurTarget.Count == 0)
+                        throw new InvalidOperationException("The selected-text blur target was not retained.");
+                    ApplyTextBlurTargetV093(smokeBlurTarget, new EditorTextBlurSettingsV093(6, 4, -2, 3, 1));
+                    if (_editorTextBlurTargetV093 is null ||
+                        BuildTextBlurPreviewBitmapV093(
+                            _editorTextBlurTargetV093,
+                            new EditorTextBlurSettingsV093(6, 4, -2, 3, 1)) is null)
+                    {
+                        throw new InvalidOperationException(
+                            "The Blur Text contextual preview did not render around its saved target.");
+                    }
                     IReadOnlyList<EditorChatLine> blurredLines = UnifiedChatFormatter.FormatLines(
                         editorInput.Text,
                         false,
@@ -681,7 +698,11 @@ public partial class MainWindow
                         !_editorTextColorOverridesV071.Any(value =>
                             value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red) ||
                         !_editorTextBlurOverridesV092.Any(value =>
-                            value.Text == "Bianca Yurei" && value.Radius >= 5.9))
+                            value.Text == "Bianca Yurei" && value.Radius >= 5.9 &&
+                            Math.Abs(value.OffsetX - 4) < 0.01 &&
+                            Math.Abs(value.OffsetY + 2) < 0.01 &&
+                            Math.Abs(value.ExpandX - 3) < 0.01 &&
+                            Math.Abs(value.ExpandY - 1) < 0.01))
                     {
                         throw new InvalidOperationException(
                             "The saved Editor project did not restore its filtered image layer, Base Image trim and selected-text color.");

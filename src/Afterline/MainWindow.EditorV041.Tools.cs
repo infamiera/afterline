@@ -211,23 +211,32 @@ public partial class MainWindow
             Margin = new Thickness(0, 0, 0, 6)
         });
         content.Children.Add(EditorHelpText(
-            "Select the exact words in Chat & Font, choose a strength, then apply blur. The blur is rendered into the chat overlay and is preserved in projects and exports."));
+            "Right-click selected chat text and choose Blur Text… for precise placement. This slider is a fast fallback and keeps the last selected target even after you open this panel."));
+        _editorTextBlurTargetHintV093 = new TextBlock
+        {
+            Foreground = (Brush)FindResource("MutedText"),
+            FontSize = 10.5,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 7)
+        };
+        content.Children.Add(_editorTextBlurTargetHintV093);
         var textBlur = CreateEditorV041Slider("Blur strength", 1, 16, 5);
         _editorTextBlurRadiusSliderV092 = textBlur.Slider;
-        _editorTextBlurRadiusSliderV092.ToolTip = "Controls the blur used when you apply blur to selected chat text.";
+        _editorTextBlurRadiusSliderV092.ToolTip = "Controls the blur used by the fallback action for the saved blur target.";
         content.Children.Add(textBlur.Panel);
 
         var blurActions = new WrapPanel { Margin = new Thickness(0, 0, 0, 2) };
-        var applyBlur = CreateSmallEditorButton("Blur selected text", EditorApplySelectedTextBlurV092_Click);
-        applyBlur.ToolTip = "Apply the selected blur strength to text selected in the Chat & Font editor.";
-        var clearBlur = CreateSmallEditorButton("Clear selected blur", EditorClearSelectedTextBlurV092_Click);
-        clearBlur.ToolTip = "Remove blur only from the text currently selected in the Chat & Font editor.";
+        var applyBlur = CreateSmallEditorButton("Apply to target", EditorApplySelectedTextBlurV092_Click);
+        applyBlur.ToolTip = "Apply the selected blur strength to the last text target selected in Chat & Font.";
+        var clearBlur = CreateSmallEditorButton("Clear target blur", EditorClearSelectedTextBlurV092_Click);
+        clearBlur.ToolTip = "Remove blur from the saved text target.";
         var clearAllBlur = CreateSmallEditorButton("Clear all text blur", EditorClearAllTextBlurV092_Click);
         clearAllBlur.ToolTip = "Remove every manual text blur in this Editor project.";
         blurActions.Children.Add(applyBlur);
         blurActions.Children.Add(clearBlur);
         blurActions.Children.Add(clearAllBlur);
         content.Children.Add(blurActions);
+        UpdateTextBlurTargetHintV093();
 
         var reset = CreateSmallEditorButton("Reset Text Effects", EditorResetTextEffects_Click);
         reset.Margin = new Thickness(0, 9, 0, 0);
@@ -238,10 +247,9 @@ public partial class MainWindow
     private FrameworkElement BuildEditorV041ImagePanel()
     {
         var content = new StackPanel();
-        content.Children.Add(EditorHelpText("Load a screenshot or animated GIF. Chat-only exports still work without one."));
+        content.Children.Add(EditorHelpText("Use File → Open Image / GIF to add media. Chat-only exports still work without one."));
 
         var imageButtons = new WrapPanel();
-        imageButtons.Children.Add(CreateSmallEditorButton("Load Image / GIF", EditorLoadMediaV060_Click));
         _editorRemoveImageButton = CreateSmallEditorButton("Remove Media", EditorRemoveMediaV060_Click);
         _editorRemoveImageButton.IsEnabled = _editorBaseOriginal is not null;
         imageButtons.Children.Add(_editorRemoveImageButton);

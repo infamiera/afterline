@@ -43,6 +43,15 @@ public partial class MainWindow
             inputMenu.Items.Add(CreateAfterlineContextMenuItem("Copy", (_, _) => _editorInput.Copy()));
             inputMenu.Items.Add(CreateAfterlineContextMenuItem("Paste", (_, _) => _editorInput.Paste()));
             inputMenu.Items.Add(CreateAfterlineContextMenuSeparator());
+            MenuItem blurText = CreateAfterlineContextMenuItem("Blur Text…", EditorOpenTextBlurEditorV093_Click);
+            blurText.ToolTip = "Open a precise blur editor for the selected chat text.";
+            inputMenu.Items.Add(blurText);
+            inputMenu.Opened += (_, _) =>
+            {
+                CaptureTextBlurTargetV093();
+                blurText.IsEnabled = GetTextBlurTargetRangesWithoutCaptureV093().Count > 0;
+            };
+            inputMenu.Items.Add(CreateAfterlineContextMenuSeparator());
             inputMenu.Items.Add(CreateAfterlineContextMenuItem("Select all", (_, _) => _editorInput.SelectAll()));
             _editorInput.ContextMenu = inputMenu;
         }

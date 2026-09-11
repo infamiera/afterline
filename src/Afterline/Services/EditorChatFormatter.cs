@@ -7,7 +7,11 @@ internal sealed record EditorChatSegment(
     string Text,
     Color Color,
     bool IsItalic = false,
-    double BlurRadius = 0);
+    double BlurRadius = 0,
+    double BlurOffsetX = 0,
+    double BlurOffsetY = 0,
+    double BlurExpandX = 0,
+    double BlurExpandY = 0);
 
 internal sealed record EditorChatLine(
     int SourceIndex,
@@ -32,7 +36,11 @@ internal sealed record EditorTextBlurOverride(
     int Start,
     int Length,
     string Text,
-    double Radius)
+    double Radius,
+    double OffsetX = 0,
+    double OffsetY = 0,
+    double ExpandX = 0,
+    double ExpandY = 0)
 {
     internal int End => Start + Length;
 }

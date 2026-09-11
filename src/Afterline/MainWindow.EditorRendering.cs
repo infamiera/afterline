@@ -144,6 +144,8 @@ public partial class MainWindow
         // flattened for preview/export. Splitting at whitespace means a blurred
         // sentence can still wrap naturally in a narrow chat box.
         double radius = Math.Clamp(segment.BlurRadius, 1, 16);
+        double expandX = Math.Clamp(segment.BlurExpandX, -8, 28);
+        double expandY = Math.Clamp(segment.BlurExpandY, -4, 20);
         foreach (string token in EditorBlurWordSplitV092.Split(segment.Text))
         {
             if (token.Length == 0) continue;
@@ -157,13 +159,32 @@ public partial class MainWindow
             {
                 Text = token,
                 Foreground = brush,
+                // A very subtle backing block makes coverage adjustments visible
+                // and gives the user an honest preview of the blur extent without
+                // turning the effect into a censor bar.
+                Background = new SolidColorBrush(Color.FromArgb(
+                    18,
+                    segment.Color.R,
+                    segment.Color.G,
+                    segment.Color.B)),
                 FontFamily = fontFamily,
                 FontWeight = fontWeight,
                 FontSize = fontSize,
                 FontStyle = segment.IsItalic ? FontStyles.Italic : FontStyles.Normal,
-                Padding = new Thickness(radius + 1, 0, radius + 1, 0),
-                Margin = new Thickness(-(radius + 1), 0, -(radius + 1), 0),
+                Padding = new Thickness(
+                    Math.Max(0, radius + 1 + expandX),
+                    Math.Max(0, expandY),
+                    Math.Max(0, radius + 1 + expandX),
+                    Math.Max(0, expandY)),
+                Margin = new Thickness(
+                    -Math.Max(0, radius + 1 + expandX),
+                    -Math.Max(0, expandY),
+                    -Math.Max(0, radius + 1 + expandX),
+                    -Math.Max(0, expandY)),
                 Effect = new BlurEffect { Radius = radius, RenderingBias = RenderingBias.Quality },
+                RenderTransform = new TranslateTransform(
+                    Math.Clamp(segment.BlurOffsetX, -80, 80),
+                    Math.Clamp(segment.BlurOffsetY, -40, 40)),
                 IsHitTestVisible = false
             };
             TextOptions.SetTextFormattingMode(blurred, TextFormattingMode.Display);

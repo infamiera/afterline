@@ -119,9 +119,10 @@ public partial class MainWindow
         var button = new Button
         {
             Content = text,
-            Padding = new Thickness(10, 6, 10, 6),
+            Padding = new Thickness(10, 4, 10, 4),
             Margin = new Thickness(6, 0, 0, 0),
-            MinHeight = 34
+            Height = 32,
+            MinHeight = 32
         };
         button.Click += handler;
         return button;

@@ -160,7 +160,11 @@ internal static class UnifiedChatFormatter
                 segments,
                 visibleStart,
                 visibleLength,
-                Math.Clamp(value.Radius, 1, 16));
+                Math.Clamp(value.Radius, 1, 16),
+                Math.Clamp(value.OffsetX, -80, 80),
+                Math.Clamp(value.OffsetY, -40, 40),
+                Math.Clamp(value.ExpandX, -8, 28),
+                Math.Clamp(value.ExpandY, -4, 20));
             changed = true;
         }
 
@@ -271,7 +275,11 @@ internal static class UnifiedChatFormatter
         IReadOnlyList<EditorChatSegment> source,
         int start,
         int length,
-        double radius)
+        double radius,
+        double offsetX,
+        double offsetY,
+        double expandX,
+        double expandY)
     {
         int end = start + length;
         int cursor = 0;
@@ -295,7 +303,11 @@ internal static class UnifiedChatFormatter
                 AppendMerged(result, segment with
                 {
                     Text = segment.Text.Substring(localStart, localEnd - localStart),
-                    BlurRadius = radius
+                    BlurRadius = radius,
+                    BlurOffsetX = offsetX,
+                    BlurOffsetY = offsetY,
+                    BlurExpandX = expandX,
+                    BlurExpandY = expandY
                 });
             if (localEnd < segment.Text.Length)
                 AppendMerged(result, segment with { Text = segment.Text[localEnd..] });
@@ -310,7 +322,11 @@ internal static class UnifiedChatFormatter
         if (target.Count > 0 &&
             target[^1].Color == segment.Color &&
             target[^1].IsItalic == segment.IsItalic &&
-            Math.Abs(target[^1].BlurRadius - segment.BlurRadius) < 0.001)
+            Math.Abs(target[^1].BlurRadius - segment.BlurRadius) < 0.001 &&
+            Math.Abs(target[^1].BlurOffsetX - segment.BlurOffsetX) < 0.001 &&
+            Math.Abs(target[^1].BlurOffsetY - segment.BlurOffsetY) < 0.001 &&
+            Math.Abs(target[^1].BlurExpandX - segment.BlurExpandX) < 0.001 &&
+            Math.Abs(target[^1].BlurExpandY - segment.BlurExpandY) < 0.001)
         {
             target[^1] = target[^1] with { Text = target[^1].Text + segment.Text };
             return;
