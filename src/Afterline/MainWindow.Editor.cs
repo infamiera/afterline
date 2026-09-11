@@ -600,6 +600,9 @@ public partial class MainWindow
             EnsureEditorAlignmentV062();
             EnsureEditorPreferences();
             EnsureEditorCanaryWorkspace();
+            // Startup deliberately skips Editor construction. Re-run this
+            // Editor-only layout step now that the preview surface exists.
+            MoveCanaryEditorGuidesOutsideComposition();
             EnsureEditorProjectAutosaveUiV073();
             EnsureFinalRuntimeOptimizationV066();
             EnsureEditorWorkspaceV067();
