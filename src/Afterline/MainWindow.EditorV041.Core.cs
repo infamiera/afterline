@@ -92,35 +92,57 @@ public partial class MainWindow
 
     private Border BuildEditorV041Header()
     {
-        var card = new Border { Style = (Style)FindResource("CardStyle") };
+        // This is a compact command/options bar, not a second large card. It
+        // keeps commonly-used chat actions in the empty strip above the canvas.
+        var card = new Border
+        {
+            Background = (Brush)FindResource("Panel"),
+            BorderBrush = (Brush)FindResource("Border"),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(10, 6, 10, 6)
+        };
         var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var title = new StackPanel();
-        title.Children.Add(new TextBlock
+        var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        identity.Children.Add(new TextBlock
         {
-            Text = "RP Screenshot Editor",
-            FontSize = 17,
+            Text = "EDITOR",
+            FontSize = 10,
             FontWeight = FontWeights.SemiBold
         });
-        title.Children.Add(new TextBlock
+        identity.Children.Add(new TextBlock
         {
-            Text = "Automatic RP colors by default. Open only the tool you need from the icon bar.",
+            Text = "Chat composition",
             Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 11,
-            Margin = new Thickness(0, 4, 0, 0)
+            FontSize = 10,
+            Margin = new Thickness(8, 0, 0, 0)
         });
-        grid.Children.Add(title);
+        grid.Children.Add(identity);
+
+        var quickActions = new WrapPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(18, 0, 0, 0)
+        };
+        quickActions.Children.Add(CreateEditorCommandBarButton("Paste", "Paste chat from the clipboard", EditorPaste_Click));
+        quickActions.Children.Add(CreateEditorCommandBarButton("Import .txt", "Import chat from a text file", EditorImportText_Click));
+        quickActions.Children.Add(CreateEditorCommandBarButton("Clear", "Clear the editable chat text", EditorClearInput_Click));
+        quickActions.Children.Add(CreateEditorCommandBarDivider());
+        quickActions.Children.Add(CreateEditorCommandBarButton("Load image", "Load a base image, GIF, or add an image layer", EditorLoadImage_Click));
+        Grid.SetColumn(quickActions, 1);
+        grid.Children.Add(quickActions);
 
         var actions = new WrapPanel
         {
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(actions, 1);
+        Grid.SetColumn(actions, 2);
 
-        actions.Children.Add(CreateEditorHeaderButton("Load Image", EditorLoadImage_Click));
         _editorUndoButton = CreateEditorHeaderButton("Undo", EditorUndo_Click);
         _editorRedoButton = CreateEditorHeaderButton("Redo", EditorRedo_Click);
         actions.Children.Add(_editorUndoButton);
@@ -133,6 +155,31 @@ public partial class MainWindow
         card.Child = grid;
         return card;
     }
+
+    private Button CreateEditorCommandBarButton(string text, string toolTip, RoutedEventHandler handler)
+    {
+        var button = new Button
+        {
+            Content = text,
+            ToolTip = toolTip,
+            Padding = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(0, 0, 4, 0),
+            MinHeight = 28,
+            FontSize = 10.5
+        };
+        button.Click += handler;
+        return button;
+    }
+
+    private Border CreateEditorCommandBarDivider()
+        => new()
+        {
+            Width = 1,
+            Height = 22,
+            Background = (Brush)FindResource("Border"),
+            Margin = new Thickness(3, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
 
     private Grid BuildEditorV041Body(string existingInput)
     {
@@ -281,11 +328,6 @@ public partial class MainWindow
         };
         chatContent.Children.Add(_editorInput);
 
-        var inputButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 2) };
-        inputButtons.Children.Add(CreateSmallEditorButton("Paste", EditorPaste_Click));
-        inputButtons.Children.Add(CreateSmallEditorButton("Import .txt", EditorImportText_Click));
-        inputButtons.Children.Add(CreateSmallEditorButton("Clear", EditorClearInput_Click));
-        chatContent.Children.Add(inputButtons);
         sections.Children.Add(CreateEditorSidebarExpanderV068("CHAT TEXT", chatContent, expanded: true));
 
         var fontContent = new StackPanel();

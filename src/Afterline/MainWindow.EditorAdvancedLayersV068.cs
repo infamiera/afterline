@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -51,6 +52,7 @@ public partial class MainWindow
 
     private bool _editorAdvancedLayersV068Initialized;
     private Expander? _editorFilterAdjustmentsExpanderV068;
+    private ControlTemplate? _editorSidebarExpanderTemplateV092;
     private Rectangle? _editorLayerSelectionOutlineV068;
     private readonly Dictionary<EditorLayerResizeHandleV071, Thumb> _editorLayerResizeThumbsV071 = new();
     private Button? _editorLayerLockBadgeV068;
@@ -121,33 +123,81 @@ public partial class MainWindow
 
     private Expander CreateEditorSidebarExpanderV068(string title, UIElement content, bool expanded)
     {
-        var header = new Border
-        {
-            Background = (Brush)FindResource("Raised"),
-            BorderBrush = (Brush)FindResource("Accent"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(5),
-            Padding = new Thickness(9, 6, 9, 6),
-            Margin = new Thickness(0, 0, 0, 5),
-            Child = new TextBlock
-            {
-                Text = title,
-                FontSize = 10,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("Text")
-            }
-        };
         var expander = new Expander
         {
             IsExpanded = expanded,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Header = header,
+            Header = new TextBlock
+            {
+                Text = title,
+                FontSize = 9.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = (Brush)FindResource("MutedText")
+            },
             Content = content,
-            Margin = new Thickness(0, 0, 0, 7)
+            Margin = new Thickness(0, 0, 0, 5),
+            Template = GetEditorSidebarExpanderTemplateV092()
         };
         expander.Expanded += (_, _) => content.Visibility = Visibility.Visible;
         expander.Collapsed += (_, _) => content.Visibility = Visibility.Collapsed;
         return expander;
+    }
+
+    private ControlTemplate GetEditorSidebarExpanderTemplateV092()
+    {
+        if (_editorSidebarExpanderTemplateV092 is not null)
+            return _editorSidebarExpanderTemplateV092;
+
+        _editorSidebarExpanderTemplateV092 = (ControlTemplate)XamlReader.Parse("""
+            <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                             TargetType="{x:Type Expander}">
+              <Grid>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ToggleButton x:Name="HeaderToggle"
+                              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                              Background="Transparent"
+                              BorderBrush="Transparent"
+                              BorderThickness="0"
+                              Padding="0"
+                              HorizontalContentAlignment="Stretch">
+                  <Border Background="{DynamicResource Raised}"
+                          BorderBrush="{DynamicResource Border}"
+                          BorderThickness="0,0,0,1"
+                          Padding="5,5,5,5">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <Grid Width="16" Height="16">
+                        <TextBlock x:Name="CollapsedGlyph" Text="›" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ExpandedGlyph" Text="⌄" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource MutedText}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="Collapsed" />
+                      </Grid>
+                      <ContentPresenter Grid.Column="1" Content="{TemplateBinding Header}"
+                                        VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </Grid>
+                  </Border>
+                </ToggleButton>
+                <ContentPresenter x:Name="ContentSite" Grid.Row="1" Content="{TemplateBinding Content}"
+                                  Margin="0,5,0,2" Visibility="Collapsed" />
+              </Grid>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsExpanded" Value="True">
+                  <Setter TargetName="ContentSite" Property="Visibility" Value="Visible" />
+                  <Setter TargetName="CollapsedGlyph" Property="Visibility" Value="Collapsed" />
+                  <Setter TargetName="ExpandedGlyph" Property="Visibility" Value="Visible" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+            """);
+        return _editorSidebarExpanderTemplateV092;
     }
 
     private void OpenFilterAdjustmentsV068()
