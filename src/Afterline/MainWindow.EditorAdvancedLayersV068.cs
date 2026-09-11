@@ -121,18 +121,29 @@ public partial class MainWindow
 
     private Expander CreateEditorSidebarExpanderV068(string title, UIElement content, bool expanded)
     {
-        var expander = new Expander
+        var header = new Border
         {
-            IsExpanded = expanded,
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Header = new TextBlock
+            Background = (Brush)FindResource("Raised"),
+            BorderBrush = (Brush)FindResource("Accent"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(9, 6, 9, 6),
+            Margin = new Thickness(0, 0, 0, 5),
+            Child = new TextBlock
             {
                 Text = title,
                 FontSize = 10,
                 FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("MutedText")
-            },
-            Content = content
+                Foreground = (Brush)FindResource("Text")
+            }
+        };
+        var expander = new Expander
+        {
+            IsExpanded = expanded,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Header = header,
+            Content = content,
+            Margin = new Thickness(0, 0, 0, 7)
         };
         expander.Expanded += (_, _) => content.Visibility = Visibility.Visible;
         expander.Collapsed += (_, _) => content.Visibility = Visibility.Collapsed;

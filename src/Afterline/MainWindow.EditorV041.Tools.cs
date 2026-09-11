@@ -65,9 +65,10 @@ public partial class MainWindow
         {
             ("Speech", EditorChatFormatter.White, "Apply the standard speech color."),
             ("/me & /do", EditorChatFormatter.Purple, "Apply the action and description color."),
-            ("OOC", EditorChatFormatter.Gray, "Apply the out-of-character color."),
-            ("Speech [low]", EditorChatFormatter.Orange, "Apply the low speech color."),
-            ("Speech [lower]", EditorChatFormatter.Gray, "Apply the lower speech color."),
+            ("OOC", EditorChatFormatter.SpeechLow, "Apply the out-of-character color."),
+            ("Speech [low]", EditorChatFormatter.SpeechLow, "Apply the muted middle speech color."),
+            ("Speech [lower]", EditorChatFormatter.SpeechLower, "Apply the dimmest speech color."),
+            ("Whisper", EditorChatFormatter.Orange, "Apply the orange Whisper color."),
             ("Radio", EditorChatFormatter.Radio, "Apply the radio color."),
             ("Phone / Ad", EditorChatFormatter.Yellow, "Apply the phone and announcement color."),
             ("Success", EditorChatFormatter.Green, "Apply the success color."),

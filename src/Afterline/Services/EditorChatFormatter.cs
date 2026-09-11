@@ -56,6 +56,10 @@ internal static class EditorChatFormatter
     internal static readonly Color Orange = Color.FromRgb(0xED, 0xA8, 0x41);
     internal static readonly Color Red = Color.FromRgb(0xFF, 0x00, 0x00);
     internal static readonly Color Gray = Color.FromRgb(0xB8, 0xBE, 0xC7);
+    // The two muted speech styles are intentionally separate from Whisper.
+    // They match the server palette used by the Chatlog Magician reference.
+    internal static readonly Color SpeechLow = Color.FromRgb(0x9F, 0xA5, 0xA9);
+    internal static readonly Color SpeechLower = Color.FromRgb(0x99, 0x99, 0x99);
     internal static readonly Color Radio = Color.FromRgb(0xC8, 0xB4, 0x5A);
     internal static readonly Color MutedTimestamp = Color.FromRgb(0xA8, 0xB2, 0xBE);
 
@@ -66,7 +70,9 @@ internal static class EditorChatFormatter
         new EditorColorPreset("blue", "Info / Blue", Blue),
         new EditorColorPreset("yellow", "Comms / Yellow", Yellow),
         new EditorColorPreset("green", "Success / Green", Green),
-        new EditorColorPreset("orange", "Speech [low] / Orange", Orange),
+        new EditorColorPreset("speech-low", "Speech [low] / Muted Gray", SpeechLow),
+        new EditorColorPreset("speech-lower", "Speech [lower] / Dim Gray", SpeechLower),
+        new EditorColorPreset("orange", "Whisper / Orange", Orange),
         new EditorColorPreset("red", "Danger / Red", Red),
         new EditorColorPreset("gray", "OOC / Gray", Gray),
         new EditorColorPreset("radio", "Radio / Muted Gold", Radio)

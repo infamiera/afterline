@@ -9,6 +9,8 @@ namespace Afterline;
 
 public partial class MainWindow
 {
+    private bool _editorExplorerDropV091Configured;
+
     private bool _qolV050Initialized;
     private Button? _dashboardOpenCurrentLogButton;
     private Button? _liveOpenCurrentLogButton;
@@ -106,26 +108,45 @@ public partial class MainWindow
             };
         }
 
-        if (_editorPage is not null)
+        ConfigureEditorExplorerDropV091();
+    }
+
+    // The Editor is now created only when opened, so its Explorer drop target
+    // must be connected at that point instead of only during application startup.
+    private void ConfigureEditorExplorerDropV091()
+    {
+        if (_editorExplorerDropV091Configured || _editorPage is null)
+            return;
+
+        _editorExplorerDropV091Configured = true;
+        _editorPage.AllowDrop = true;
+        _editorPage.PreviewDragOver += EditorExplorerDragOverV091;
+        _editorPage.PreviewDrop += EditorExplorerDropV091;
+        if (_editorPreviewScroll is not null)
         {
-            _editorPage.AllowDrop = true;
-            _editorPage.PreviewDragOver += (_, e) =>
-            {
-                e.Effects = DroppedFilesV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif").Count == 0
-                    ? DragDropEffects.None
-                    : DragDropEffects.Copy;
-                e.Handled = true;
-            };
-            _editorPage.PreviewDrop += (_, e) =>
-            {
-                IReadOnlyList<string> paths = DroppedFilesV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif");
-                Point dropPoint = _editorComposition is null
-                    ? new Point(double.NaN, double.NaN)
-                    : e.GetPosition(_editorComposition);
-                e.Handled = true;
-                if (paths.Count > 0) ImportDroppedEditorImagesV078(paths, dropPoint);
-            };
+            _editorPreviewScroll.AllowDrop = true;
+            _editorPreviewScroll.PreviewDragOver += EditorExplorerDragOverV091;
+            _editorPreviewScroll.PreviewDrop += EditorExplorerDropV091;
         }
+    }
+
+    private void EditorExplorerDragOverV091(object sender, DragEventArgs e)
+    {
+        e.Effects = DroppedFilesV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif").Count == 0
+            ? DragDropEffects.None
+            : DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private void EditorExplorerDropV091(object sender, DragEventArgs e)
+    {
+        IReadOnlyList<string> paths = DroppedFilesV050(e, ".png", ".jpg", ".jpeg", ".bmp", ".gif");
+        Point dropPoint = _editorComposition is null
+            ? new Point(double.NaN, double.NaN)
+            : e.GetPosition(_editorComposition);
+        e.Handled = true;
+        if (paths.Count > 0)
+            ImportDroppedEditorImagesV078(paths, dropPoint);
     }
 
     private static string? DroppedFileV050(DragEventArgs e, params string[] extensions)

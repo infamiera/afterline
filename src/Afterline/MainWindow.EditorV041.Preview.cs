@@ -200,9 +200,9 @@ public partial class MainWindow
         {
             Text = text,
             Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 11,
+            FontSize = 10,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 0, 0, 8)
         };
 
     private TextBlock EditorSubtleNote(string text)
@@ -210,9 +210,9 @@ public partial class MainWindow
         {
             Text = text,
             Foreground = (Brush)FindResource("MutedText"),
-            FontSize = 10,
+            FontSize = 9.5,
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 10, 0, 0)
+            Margin = new Thickness(0, 6, 0, 0)
         };
 
     private void ShowEditorToolPanel(string key, bool forceOpen)

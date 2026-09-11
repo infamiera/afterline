@@ -185,6 +185,19 @@ public partial class MainWindow
 
                 if (_editorPage is null || _editorComposition is null || _editorBaseImage is null)
                     throw new InvalidOperationException("The Editor visual tree was not initialized.");
+                if (!_editorPage.AllowDrop || _editorPreviewScroll?.AllowDrop != true)
+                {
+                    throw new InvalidOperationException(
+                        "The Editor preview did not restore Explorer image drop after lazy initialization.");
+                }
+                if (EditorChatFormatter.SpeechLow != Color.FromRgb(0x9F, 0xA5, 0xA9) ||
+                    EditorChatFormatter.SpeechLower != Color.FromRgb(0x99, 0x99, 0x99) ||
+                    !EditorChatFormatter.ColorPresets.Any(preset =>
+                        string.Equals(preset.Name, "Whisper / Orange", StringComparison.Ordinal)))
+                {
+                    throw new InvalidOperationException(
+                        "The Editor chat legend no longer preserves the distinct Whisper and muted-speech palette.");
+                }
 
                 ShowPage(_editorPage, "Editor", "Canary image-load smoke test");
                 LoadEditorMediaV060(path);

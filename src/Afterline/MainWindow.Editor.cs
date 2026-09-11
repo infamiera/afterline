@@ -595,6 +595,7 @@ public partial class MainWindow
             _editorLoadingPage = null;
             InitializeEditorSurfaceOnDemand();
             EnsureEditorV041();
+            ConfigureEditorExplorerDropV091();
             EnsureEditorMediaV060();
             EnsureEditorPositioningV061();
             EnsureEditorAlignmentV062();
