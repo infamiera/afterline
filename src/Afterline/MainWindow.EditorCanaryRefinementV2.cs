@@ -138,6 +138,13 @@ public partial class MainWindow
         };
         button.Click += (_, _) =>
         {
+            if (string.Equals(key, "filters", StringComparison.OrdinalIgnoreCase) &&
+                !_editorToolPanels.ContainsKey("filters"))
+            {
+                DeactivateSelectionInteractionCanary();
+                OpenEditorFiltersV092();
+                return;
+            }
             if (!string.Equals(key, "selection", StringComparison.OrdinalIgnoreCase))
                 DeactivateSelectionInteractionCanary();
             ShowEditorToolPanel(key, forceOpen: false);
@@ -178,10 +185,6 @@ public partial class MainWindow
             .FirstOrDefault(border => Grid.GetRow(border) == 0);
         if (header is null) return;
 
-        var bar = new Grid();
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
         var menus = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -207,7 +210,7 @@ public partial class MainWindow
             ("Flip Vertical", () => RunEditorTransformWithHistoryCanaryV2("flip-v"))));
 
         menus.Children.Add(CreateEditorMenuButtonCanaryV2("Filter",
-            ("Filters & Adjustments", () => ShowEditorToolPanel("filters", true)),
+            ("Filters & Adjustments", OpenEditorFiltersV092),
             ("Apply Changes", ApplyFilterWithHistoryCanaryV2),
             ("Revert Preview", RevertCanaryFilterPreview),
             ("Save Current Filter…", SaveCurrentFilterPresetCanaryV2)));
@@ -216,31 +219,56 @@ public partial class MainWindow
             ("Fit Canvas", FitEditorPreviewToWindow),
             ("Zoom 100%", () => { _editorFitZoom = false; SetEditorZoom(1.0); }),
             ("Chat & Font", () => ShowEditorToolPanel("chat", true)),
-            ("Selection Tools", () => ShowEditorToolPanel("selection", true)),
+            ("Selection Tools", () =>
+            {
+                ShowEditorToolPanel("selection", true);
+                ActivateSelectionToolCanary(_editorSelectionToolCanary == CanarySelectionTool.None
+                    ? CanarySelectionTool.Rectangular
+                    : _editorSelectionToolCanary);
+            }),
             ("Full Screen Editor", ToggleEditorFullscreenCanary)));
 
         menus.Children.Add(CreateEditorMenuButtonCanaryV2("Help",
             ("Editor Shortcuts", () => new CanaryEditorShortcutsWindow(this).ShowDialog()),
             ("About Afterline", () => new AboutWindow(this).ShowDialog())));
 
-        bar.Children.Add(menus);
-
-        var label = new TextBlock
+        // Preserve the contextual toolbar. Replacing Header.Child here left a
+        // blank strip where Font & Layout should have lived.
+        if (header.Child is not Grid headerGrid)
+            return;
+        StackPanel? menuHost = headerGrid.Children.OfType<StackPanel>()
+            .FirstOrDefault(panel => Grid.GetColumn(panel) == 0);
+        if (menuHost is null)
         {
-            Text = "CANARY EDITOR",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("MutedText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 4, 0)
-        };
-        Grid.SetColumn(label, 1);
-        bar.Children.Add(label);
+            menuHost = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(menuHost, 0);
+            headerGrid.Children.Add(menuHost);
+        }
+        menuHost.Children.Clear();
+        menuHost.Orientation = Orientation.Horizontal;
+        menuHost.Visibility = Visibility.Visible;
+        menuHost.Children.Add(menus);
 
         header.Padding = new Thickness(6, 4, 6, 4);
-        header.Child = bar;
         if (_editorPage.RowDefinitions.Count > 1)
             _editorPage.RowDefinitions[1].Height = new GridLength(5);
+    }
+
+    private void OpenEditorFiltersV092()
+    {
+        if (_editorToolPanels.ContainsKey("filters"))
+        {
+            ShowEditorToolPanel("filters", true);
+            return;
+        }
+
+        if (_editorRightSidebarV067?.Visibility == Visibility.Collapsed)
+            ToggleEditorRightSidebarV072();
+        OpenFilterAdjustmentsV068();
     }
 
     private Button CreateEditorMenuButtonCanaryV2(string title, params (string Label, Action Action)[] items)

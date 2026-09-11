@@ -28,6 +28,7 @@ public partial class MainWindow
     private readonly Dictionary<string, FrameworkElement> _editorToolPanels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, Color> _editorLineColorOverrides = new();
     private readonly List<EditorTextColorOverride> _editorTextColorOverridesV071 = new();
+    private readonly List<EditorTextBlurOverride> _editorTextBlurOverridesV092 = new();
     private ColumnDefinition? _editorToolPanelColumn;
     private ColumnDefinition? _editorToolGapColumn;
     private Border? _editorToolPanelHost;
@@ -51,6 +52,9 @@ public partial class MainWindow
     private Slider? _editorShadowOffsetXSlider;
     private Slider? _editorShadowOffsetYSlider;
     private ComboBox? _editorShadowColorBox;
+    private Slider? _editorTextBlurRadiusSliderV092;
+    private WrapPanel? _editorContextOptionsHostV092;
+    private Expander? _editorFontLayoutExpanderV092;
     private CheckBox? _editorStrokeEnabledCheck;
     private Slider? _editorStrokeWidthSlider;
     private ComboBox? _editorStrokeColorBox;
@@ -71,6 +75,7 @@ public partial class MainWindow
         Grid newBody = BuildEditorV041Body(existingInput);
         Grid.SetRow(newBody, 2);
         _editorPage.Children.Add(newBody);
+        MoveEditorTypographyControlsToContextBarV092();
 
         ConfigureEditorContextMenus();
         ConfigureEditorLineColorContextMenu();
@@ -135,6 +140,14 @@ public partial class MainWindow
         quickActions.Children.Add(CreateEditorCommandBarButton("Load image", "Load a base image, GIF, or add an image layer", EditorLoadImage_Click));
         Grid.SetColumn(quickActions, 1);
         grid.Children.Add(quickActions);
+
+        _editorContextOptionsHostV092 = new WrapPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+        quickActions.Children.Add(CreateEditorCommandBarDivider());
+        quickActions.Children.Add(_editorContextOptionsHostV092);
 
         var actions = new WrapPanel
         {
@@ -367,6 +380,7 @@ public partial class MainWindow
         fontContent.Children.Add(_editorShowTimestampsCheck);
 
         Expander fontSection = CreateEditorSidebarExpanderV068("FONT & LAYOUT", fontContent, expanded: true);
+        _editorFontLayoutExpanderV092 = fontSection;
         fontSection.Margin = new Thickness(0, 8, 0, 0);
         sections.Children.Add(fontSection);
 
@@ -378,6 +392,81 @@ public partial class MainWindow
         sections.Children.Add(_editorChatColorsExpanderV071);
 
         return WrapEditorToolPanel(sections);
+    }
+
+    private void MoveEditorTypographyControlsToContextBarV092()
+    {
+        if (_editorContextOptionsHostV092 is null ||
+            _editorFontBox is null ||
+            _editorFontSizeSlider is null ||
+            _editorLineSpacingSlider is null ||
+            _editorChatWidthSlider is null ||
+            _editorShowTimestampsCheck is null)
+            return;
+
+        _editorContextOptionsHostV092.Children.Clear();
+        _editorContextOptionsHostV092.Children.Add(CreateEditorContextLabelV092("FONT & LAYOUT"));
+
+        DetachEditorElement(_editorFontBox);
+        _editorFontBox.Width = 150;
+        _editorFontBox.Height = 28;
+        _editorFontBox.Margin = new Thickness(0, 0, 6, 0);
+        _editorFontBox.ToolTip = "Choose the font used for the generated chat overlay.";
+        _editorContextOptionsHostV092.Children.Add(_editorFontBox);
+
+        _editorContextOptionsHostV092.Children.Add(CreateEditorContextSliderV092(
+            "Size", _editorFontSizeSlider, 96, "Adjust generated chat font size."));
+        _editorContextOptionsHostV092.Children.Add(CreateEditorContextSliderV092(
+            "Leading", _editorLineSpacingSlider, 84, "Adjust the vertical space between chat lines."));
+        _editorContextOptionsHostV092.Children.Add(CreateEditorContextSliderV092(
+            "Width", _editorChatWidthSlider, 96, "Adjust the width of the generated chat block."));
+
+        DetachEditorElement(_editorShowTimestampsCheck);
+        _editorShowTimestampsCheck.Content = "Timestamps";
+        _editorShowTimestampsCheck.Margin = new Thickness(4, 0, 0, 0);
+        _editorShowTimestampsCheck.VerticalAlignment = VerticalAlignment.Center;
+        _editorContextOptionsHostV092.Children.Add(_editorShowTimestampsCheck);
+
+        // The old Font & Layout panel contains the source holders for the controls
+        // above. Hide it after reparenting so it cannot become a duplicate, empty
+        // card in the Chat panel.
+        if (_editorFontLayoutExpanderV092 is not null)
+            _editorFontLayoutExpanderV092.Visibility = Visibility.Collapsed;
+    }
+
+    private TextBlock CreateEditorContextLabelV092(string text)
+        => new()
+        {
+            Text = text,
+            FontSize = 9,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 7, 0)
+        };
+
+    private FrameworkElement CreateEditorContextSliderV092(string label, Slider slider, double width, string toolTip)
+    {
+        DetachEditorElement(slider);
+        slider.Width = width;
+        slider.Margin = new Thickness(0);
+        slider.ToolTip = toolTip;
+
+        var panel = new StackPanel
+        {
+            Width = width,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        panel.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 8.5,
+            Foreground = (Brush)FindResource("MutedText"),
+            ToolTip = toolTip
+        });
+        panel.Children.Add(slider);
+        return panel;
     }
 
 }

@@ -71,14 +71,7 @@ public partial class MainWindow
         _editorSelectionOverlayCanary.PreviewMouseLeftButtonDown += SelectionMouseDownCanary;
         _editorSelectionOverlayCanary.PreviewMouseMove += SelectionMouseMoveCanary;
         _editorSelectionOverlayCanary.PreviewMouseLeftButtonUp += SelectionMouseUpCanary;
-        _editorSelectionOverlayCanary.PreviewMouseRightButtonDown += (_, e) =>
-        {
-            if (_editorSelectionToolCanary == CanarySelectionTool.Polygonal)
-            {
-                CommitPolygonSelectionCanary();
-                e.Handled = true;
-            }
-        };
+        _editorSelectionOverlayCanary.PreviewMouseRightButtonDown += SelectionMouseRightButtonDownCanary;
 
         _editorSelectionBoundaryImageCanary = new Image
         {
@@ -99,6 +92,14 @@ public partial class MainWindow
         _editorSelectionOverlayCanary.Children.Add(_editorSelectionPreviewPathCanary);
         Panel.SetZIndex(_editorSelectionOverlayCanary, 7);
         _editorComposition.Children.Add(_editorSelectionOverlayCanary);
+
+        // The composition is the reliable routing surface. Image layers, zoom
+        // hosts and rulers can otherwise win hit-testing before the transparent
+        // overlay receives a pointer event.
+        _editorComposition.PreviewMouseLeftButtonDown += SelectionMouseDownCanary;
+        _editorComposition.PreviewMouseMove += SelectionMouseMoveCanary;
+        _editorComposition.PreviewMouseLeftButtonUp += SelectionMouseUpCanary;
+        _editorComposition.PreviewMouseRightButtonDown += SelectionMouseRightButtonDownCanary;
 
         ResizeCanaryOverlays();
         PreviewKeyDown += SelectionKeyDownCanary;
@@ -145,6 +146,8 @@ public partial class MainWindow
         _editorSelectionToolCanary = CanarySelectionTool.None;
         _editorSelectionDraggingCanary = false;
         _editorSelectionPointsCanary.Clear();
+        if (_editorComposition?.IsMouseCaptured == true)
+            _editorComposition.ReleaseMouseCapture();
         if (_editorSelectionOverlayCanary is not null)
         {
             _editorSelectionOverlayCanary.IsHitTestVisible = false;
@@ -177,7 +180,7 @@ public partial class MainWindow
         _editorSelectionDraggingCanary = true;
         _editorSelectionPointsCanary.Clear();
         _editorSelectionPointsCanary.Add(p);
-        _editorSelectionOverlayCanary.CaptureMouse();
+        _editorComposition?.CaptureMouse();
         e.Handled = true;
     }
 
@@ -225,8 +228,8 @@ public partial class MainWindow
 
         Point end = ClampSelectionPointCanary(e.GetPosition(_editorSelectionOverlayCanary));
         _editorSelectionDraggingCanary = false;
-        if (_editorSelectionOverlayCanary.IsMouseCaptured)
-            _editorSelectionOverlayCanary.ReleaseMouseCapture();
+        if (_editorComposition?.IsMouseCaptured == true)
+            _editorComposition.ReleaseMouseCapture();
 
         if (_editorSelectionToolCanary == CanarySelectionTool.Lasso)
         {
@@ -245,6 +248,15 @@ public partial class MainWindow
                 CommitRectangleSelectionCanary(rect);
         }
 
+        e.Handled = true;
+    }
+
+    private void SelectionMouseRightButtonDownCanary(object sender, MouseButtonEventArgs e)
+    {
+        if (_editorSelectionToolCanary != CanarySelectionTool.Polygonal)
+            return;
+
+        CommitPolygonSelectionCanary();
         e.Handled = true;
     }
 

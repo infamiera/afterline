@@ -226,6 +226,27 @@ public partial class MainWindow
                     throw new InvalidOperationException(
                         "The compact Editor workspace density was not applied.");
                 }
+                if (_editorContextOptionsHostV092 is null || _editorFontBox is null ||
+                    !_editorContextOptionsHostV092.Children.Contains(_editorFontBox) ||
+                    _editorFontLayoutExpanderV092?.Visibility != Visibility.Collapsed)
+                {
+                    throw new InvalidOperationException(
+                        "Font & Layout was not moved into the compact contextual toolbar.");
+                }
+                Border? editorHeader = _editorPage.Children.OfType<Border>()
+                    .FirstOrDefault(border => Grid.GetRow(border) == 0);
+                if (editorHeader?.Child is not Grid editorHeaderGrid ||
+                    !editorHeaderGrid.Children.OfType<StackPanel>()
+                        .SelectMany(panel => panel.Children.OfType<StackPanel>())
+                        .SelectMany(panel => panel.Children.OfType<Button>())
+                        .Any(button => string.Equals(button.Content?.ToString(), "File", StringComparison.Ordinal)) ||
+                    !editorHeaderGrid.Children.OfType<WrapPanel>()
+                        .SelectMany(panel => panel.Children.OfType<Button>())
+                        .Any(button => string.Equals(button.Content?.ToString(), "Export", StringComparison.Ordinal)))
+                {
+                    throw new InvalidOperationException(
+                        "The compact Editor menu or GIF-aware export command was not initialized.");
+                }
 
                 if (!_editorFitZoom)
                     throw new InvalidOperationException("The first Base Image load did not automatically fit the preview.");
@@ -569,6 +590,51 @@ public partial class MainWindow
                             "Selecting a whole line retained a stale text-range color target.");
                     }
 
+                    editorInput.Select(selectedStart, "Bianca Yurei".Length);
+                    if (_editorTextBlurRadiusSliderV092 is null)
+                        throw new InvalidOperationException("The selected-text blur controls were not initialized.");
+                    _editorTextBlurRadiusSliderV092.Value = 6;
+                    ApplySelectedTextBlurV092(_editorTextBlurRadiusSliderV092.Value);
+                    IReadOnlyList<EditorChatLine> blurredLines = UnifiedChatFormatter.FormatLines(
+                        editorInput.Text,
+                        false,
+                        _editorLineColorOverrides,
+                        _editorExactChatColorsV068,
+                        _editorTextColorOverridesV071,
+                        _editorTextBlurOverridesV092);
+                    if (!blurredLines.SelectMany(line => line.Segments)
+                            .Any(segment => segment.BlurRadius >= 5.9))
+                    {
+                        throw new InvalidOperationException(
+                            "The selected-text blur did not reach the rendered chat segments.");
+                    }
+
+                    CommitRectangleSelectionCanary(new Rect(1, 1, 12, 10));
+                    if (_editorSelectionMaskCanary is null ||
+                        !_editorSelectionMaskCanary.Any(selected => selected))
+                    {
+                        throw new InvalidOperationException(
+                            "Rectangular selection did not create a usable image mask.");
+                    }
+
+                    BitmapSource selectionFilterSource = BitmapSource.Create(
+                        2, 1, 96, 96, PixelFormats.Bgra32, null,
+                        new byte[] { 20, 30, 40, 255, 70, 80, 90, 255 }, 8);
+                    selectionFilterSource.Freeze();
+                    BitmapSource selectionFiltered = BuildFilteredBitmapCanary(
+                        selectionFilterSource,
+                        new CanaryFilterRenderSettingsV070(
+                            "None", 1, 20, 0, 0, 0, 0, 0,
+                            new[] { true, false }, 2, 1));
+                    byte[] selectionPixels = new byte[8];
+                    selectionFiltered.CopyPixels(selectionPixels, 8, 0);
+                    if (selectionPixels[0] == 20 || selectionPixels[1] == 30 || selectionPixels[2] == 40 ||
+                        selectionPixels[4] != 70 || selectionPixels[5] != 80 || selectionPixels[6] != 90)
+                    {
+                        throw new InvalidOperationException(
+                            "Selected-area image filtering changed pixels outside the selection or skipped selected pixels.");
+                    }
+
                     Rect smokeBaseBoundary = new(
                         0,
                         0,
@@ -613,7 +679,9 @@ public partial class MainWindow
                         _editorComposition.Clip is not RectangleGeometry restoredBoundary ||
                         restoredBoundary.Rect != smokeBaseBoundary ||
                         !_editorTextColorOverridesV071.Any(value =>
-                            value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red))
+                            value.Text == "Bianca Yurei" && value.Color == EditorChatFormatter.Red) ||
+                        !_editorTextBlurOverridesV092.Any(value =>
+                            value.Text == "Bianca Yurei" && value.Radius >= 5.9))
                     {
                         throw new InvalidOperationException(
                             "The saved Editor project did not restore its filtered image layer, Base Image trim and selected-text color.");

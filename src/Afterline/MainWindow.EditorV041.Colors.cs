@@ -172,6 +172,18 @@ public partial class MainWindow
                 lines[value.SourceIndex].Substring(value.Start, value.Length),
                 value.Text,
                 StringComparison.Ordinal));
+
+        _editorTextBlurOverridesV092.RemoveAll(value =>
+            value.SourceIndex < 0 ||
+            value.SourceIndex >= lines.Length ||
+            value.Start < 0 ||
+            value.Length <= 0 ||
+            value.End > lines[value.SourceIndex].Length ||
+            value.Radius < 0.5 ||
+            !string.Equals(
+                lines[value.SourceIndex].Substring(value.Start, value.Length),
+                value.Text,
+                StringComparison.Ordinal));
     }
 
     private void EditorChooseCustomTextColorV071(object sender, RoutedEventArgs e)
@@ -230,6 +242,98 @@ public partial class MainWindow
         SetEditorStatus(color is null
             ? "Returned the selected text to automatic coloring."
             : "Applied a manual color to the selected text.");
+    }
+
+    private void EditorApplySelectedTextBlurV092_Click(object sender, RoutedEventArgs e)
+        => ApplySelectedTextBlurV092(_editorTextBlurRadiusSliderV092?.Value ?? 5);
+
+    private void EditorClearSelectedTextBlurV092_Click(object sender, RoutedEventArgs e)
+        => ApplySelectedTextBlurV092(null);
+
+    private void EditorClearAllTextBlurV092_Click(object sender, RoutedEventArgs e)
+    {
+        if (_editorTextBlurOverridesV092.Count == 0) return;
+        _editorTextBlurOverridesV092.Clear();
+        ScheduleEditorChatRender();
+        SetEditorStatus("Removed all manual text blur from this project.");
+    }
+
+    private void ApplySelectedTextBlurV092(double? radius)
+    {
+        if (_editorInput is null || _editorInput.SelectionLength <= 0)
+        {
+            SetEditorStatus("Select the exact words in Chat & Font before applying text blur.");
+            return;
+        }
+
+        int selectionStart = _editorInput.SelectionStart;
+        int selectionLength = _editorInput.SelectionLength;
+        IReadOnlyList<EditorTextColorOverride> selected = GetSelectedTextRangesV071(EditorChatFormatter.White);
+        if (selected.Count == 0) return;
+
+        foreach (EditorTextColorOverride range in selected)
+        {
+            RemoveOverlappingTextBlurV092(range.SourceIndex, range.Start, range.End);
+            if (radius is double value)
+            {
+                _editorTextBlurOverridesV092.Add(new EditorTextBlurOverride(
+                    range.SourceIndex,
+                    range.Start,
+                    range.Length,
+                    range.Text,
+                    Math.Clamp(value, 1, 16)));
+            }
+        }
+
+        _editorTextBlurOverridesV092.Sort((left, right) =>
+        {
+            int line = left.SourceIndex.CompareTo(right.SourceIndex);
+            return line != 0 ? line : left.Start.CompareTo(right.Start);
+        });
+        ScheduleEditorChatRender();
+        _editorInput.SelectionStart = selectionStart;
+        _editorInput.SelectionLength = selectionLength;
+        SetEditorStatus(radius is null
+            ? "Removed blur from the selected text."
+            : "Applied blur to the selected text.");
+    }
+
+    private void RemoveOverlappingTextBlurV092(int sourceIndex, int start, int end)
+    {
+        string[] lines = _editorInput is null
+            ? Array.Empty<string>()
+            : NormalizeEditorTextV071(_editorInput.Text).Split('\n');
+        var replacements = new List<EditorTextBlurOverride>();
+        for (int index = _editorTextBlurOverridesV092.Count - 1; index >= 0; index--)
+        {
+            EditorTextBlurOverride existing = _editorTextBlurOverridesV092[index];
+            if (existing.SourceIndex != sourceIndex || existing.End <= start || existing.Start >= end)
+                continue;
+
+            _editorTextBlurOverridesV092.RemoveAt(index);
+            if (sourceIndex < 0 || sourceIndex >= lines.Length) continue;
+            string line = lines[sourceIndex];
+            if (existing.Start < start)
+            {
+                int length = start - existing.Start;
+                replacements.Add(existing with
+                {
+                    Length = length,
+                    Text = line.Substring(existing.Start, length)
+                });
+            }
+            if (existing.End > end)
+            {
+                int length = existing.End - end;
+                replacements.Add(existing with
+                {
+                    Start = end,
+                    Length = length,
+                    Text = line.Substring(end, length)
+                });
+            }
+        }
+        _editorTextBlurOverridesV092.AddRange(replacements);
     }
 
     private IReadOnlyList<EditorTextColorOverride> GetSelectedTextRangesV071(Color color)
@@ -352,6 +456,8 @@ public partial class MainWindow
         if (_editorShadowOffsetXSlider is not null) _editorShadowOffsetXSlider.Value = 2;
         if (_editorShadowOffsetYSlider is not null) _editorShadowOffsetYSlider.Value = 2;
         if (_editorShadowColorBox is not null) _editorShadowColorBox.SelectedItem = "Black";
+        if (_editorTextBlurRadiusSliderV092 is not null) _editorTextBlurRadiusSliderV092.Value = 5;
+        _editorTextBlurOverridesV092.Clear();
         ScheduleEditorChatRender();
         SetEditorStatus("Text effects were reset.");
     }

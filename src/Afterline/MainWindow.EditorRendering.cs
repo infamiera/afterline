@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -39,7 +40,8 @@ public partial class MainWindow
                 showTimestamps,
                 _editorLineColorOverrides,
                 _editorExactChatColorsV068,
-                _editorTextColorOverridesV071);
+                _editorTextColorOverridesV071,
+                _editorTextBlurOverridesV092);
             RefreshEditorLineColorList(lines);
 
             var stack = new StackPanel
@@ -75,9 +77,7 @@ public partial class MainWindow
                     {
                         var brush = new SolidColorBrush(segment.Color);
                         if (brush.CanFreeze) brush.Freeze();
-                        var run = new Run(segment.Text) { Foreground = brush };
-                        if (segment.IsItalic) run.FontStyle = FontStyles.Italic;
-                        text.Inlines.Add(run);
+                        AddEditorChatSegmentInlineV092(text, segment, brush, fontFamily, fontWeight, fontSize);
                     }
                 }
                 stack.Children.Add(text);
@@ -118,6 +118,60 @@ public partial class MainWindow
         {
             DiagnosticLogger.Error("Unable to render Editor chat overlay.", ex);
             SetEditorStatus("The chat preview could not be rendered.");
+        }
+    }
+
+    private static readonly Regex EditorBlurWordSplitV092 = new(@"(\s+)", RegexOptions.Compiled);
+
+    private static void AddEditorChatSegmentInlineV092(
+        TextBlock host,
+        EditorChatSegment segment,
+        Brush brush,
+        FontFamily fontFamily,
+        FontWeight fontWeight,
+        double fontSize)
+    {
+        if (segment.BlurRadius < 0.5)
+        {
+            var run = new Run(segment.Text) { Foreground = brush };
+            if (segment.IsItalic) run.FontStyle = FontStyles.Italic;
+            host.Inlines.Add(run);
+            return;
+        }
+
+        // InlineUIContainer lets selected text retain normal wrapping while the
+        // rendered glyphs themselves receive a true blur before the overlay is
+        // flattened for preview/export. Splitting at whitespace means a blurred
+        // sentence can still wrap naturally in a narrow chat box.
+        double radius = Math.Clamp(segment.BlurRadius, 1, 16);
+        foreach (string token in EditorBlurWordSplitV092.Split(segment.Text))
+        {
+            if (token.Length == 0) continue;
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                host.Inlines.Add(new Run(token) { Foreground = brush });
+                continue;
+            }
+
+            var blurred = new TextBlock
+            {
+                Text = token,
+                Foreground = brush,
+                FontFamily = fontFamily,
+                FontWeight = fontWeight,
+                FontSize = fontSize,
+                FontStyle = segment.IsItalic ? FontStyles.Italic : FontStyles.Normal,
+                Padding = new Thickness(radius + 1, 0, radius + 1, 0),
+                Margin = new Thickness(-(radius + 1), 0, -(radius + 1), 0),
+                Effect = new BlurEffect { Radius = radius, RenderingBias = RenderingBias.Quality },
+                IsHitTestVisible = false
+            };
+            TextOptions.SetTextFormattingMode(blurred, TextFormattingMode.Display);
+            TextOptions.SetTextRenderingMode(blurred, TextRenderingMode.Grayscale);
+            host.Inlines.Add(new InlineUIContainer(blurred)
+            {
+                BaselineAlignment = BaselineAlignment.Center
+            });
         }
     }
 

@@ -201,6 +201,34 @@ public partial class MainWindow
         _editorShadowColorBox.SelectionChanged += (_, _) => ScheduleEditorChatRender();
         content.Children.Add(CreateEditorField("Shadow color", _editorShadowColorBox));
 
+        content.Children.Add(CreateEditorDivider());
+        content.Children.Add(new TextBlock
+        {
+            Text = "SELECTED TEXT BLUR",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("MutedText"),
+            Margin = new Thickness(0, 0, 0, 6)
+        });
+        content.Children.Add(EditorHelpText(
+            "Select the exact words in Chat & Font, choose a strength, then apply blur. The blur is rendered into the chat overlay and is preserved in projects and exports."));
+        var textBlur = CreateEditorV041Slider("Blur strength", 1, 16, 5);
+        _editorTextBlurRadiusSliderV092 = textBlur.Slider;
+        _editorTextBlurRadiusSliderV092.ToolTip = "Controls the blur used when you apply blur to selected chat text.";
+        content.Children.Add(textBlur.Panel);
+
+        var blurActions = new WrapPanel { Margin = new Thickness(0, 0, 0, 2) };
+        var applyBlur = CreateSmallEditorButton("Blur selected text", EditorApplySelectedTextBlurV092_Click);
+        applyBlur.ToolTip = "Apply the selected blur strength to text selected in the Chat & Font editor.";
+        var clearBlur = CreateSmallEditorButton("Clear selected blur", EditorClearSelectedTextBlurV092_Click);
+        clearBlur.ToolTip = "Remove blur only from the text currently selected in the Chat & Font editor.";
+        var clearAllBlur = CreateSmallEditorButton("Clear all text blur", EditorClearAllTextBlurV092_Click);
+        clearAllBlur.ToolTip = "Remove every manual text blur in this Editor project.";
+        blurActions.Children.Add(applyBlur);
+        blurActions.Children.Add(clearBlur);
+        blurActions.Children.Add(clearAllBlur);
+        content.Children.Add(blurActions);
+
         var reset = CreateSmallEditorButton("Reset Text Effects", EditorResetTextEffects_Click);
         reset.Margin = new Thickness(0, 9, 0, 0);
         content.Children.Add(reset);

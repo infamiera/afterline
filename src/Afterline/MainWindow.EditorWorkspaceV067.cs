@@ -1395,10 +1395,6 @@ public partial class MainWindow
         if (header is null)
             return;
 
-        var bar = new Grid();
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
         var menus = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -1464,32 +1460,46 @@ public partial class MainWindow
             ("Zoom 100%", () => { _editorFitZoom = false; SetEditorZoom(1.0); }),
             ($"Toggle Rulers ({_settings.Editor.RulerKeybind})", ToggleEditorRulersV068),
             ("Chat & Font", () => ShowEditorToolPanel("chat", true)),
-            ("Selection Tools", () => ShowEditorToolPanel("selection", true)),
+            ("Selection Tools", () =>
+            {
+                ShowEditorToolPanel("selection", true);
+                ActivateSelectionToolCanary(_editorSelectionToolCanary == CanarySelectionTool.None
+                    ? CanarySelectionTool.Rectangular
+                    : _editorSelectionToolCanary);
+            }),
             ("Full Screen Editor", ToggleEditorFullscreenCanary)));
 
         menus.Children.Add(CreateEditorMenuButtonCanaryV4("Help",
             ("Editor Shortcuts", () => new CanaryEditorShortcutsWindow(this, _settings.Editor.RulerKeybind).ShowDialog()),
             ("About Afterline", () => new AboutWindow(this).ShowDialog())));
 
-        bar.Children.Add(menus);
+        // Keep the V041 contextual controls alive. This workspace refinement
+        // runs after the initial toolbar pass, so assigning Header.Child here
+        // used to undo the compact Font & Layout command strip.
+        if (header.Child is not Grid headerGrid)
+            return;
 
-        var label = new TextBlock
+        StackPanel? menuHost = headerGrid.Children.OfType<StackPanel>()
+            .FirstOrDefault(panel => Grid.GetColumn(panel) == 0);
+        if (menuHost is null)
         {
-            Text = "CANARY EDITOR · PROJECTS & LAYERS",
-            FontSize = 9,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = (Brush)FindResource("MutedText"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 4, 0)
-        };
-        Grid.SetColumn(label, 1);
-        bar.Children.Add(label);
+            menuHost = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(menuHost, 0);
+            headerGrid.Children.Add(menuHost);
+        }
+        menuHost.Children.Clear();
+        menuHost.Orientation = Orientation.Horizontal;
+        menuHost.Visibility = Visibility.Visible;
+        menuHost.Children.Add(menus);
 
         header.Background = (Brush)FindResource("Panel");
         header.BorderBrush = (Brush)FindResource("Border");
         header.BorderThickness = new Thickness(1);
         header.Padding = new Thickness(6, 4, 6, 4);
-        header.Child = bar;
     }
 
     private void UpdateProjectLabelV067()

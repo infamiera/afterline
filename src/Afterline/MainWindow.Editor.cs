@@ -606,6 +606,7 @@ public partial class MainWindow
             MoveCanaryEditorGuidesOutsideComposition();
             EnsureEditorProjectAutosaveUiV073();
             EnsureFinalRuntimeOptimizationV066();
+            EnsureCanaryEditorRefinementV2();
             EnsureEditorWorkspaceV067();
             EnsureCompactEditorWorkspaceV078();
             EnsureEditorSelectionGuardV067();

@@ -3,7 +3,11 @@ using System.Windows.Media;
 
 namespace Afterline.Services;
 
-internal sealed record EditorChatSegment(string Text, Color Color, bool IsItalic = false);
+internal sealed record EditorChatSegment(
+    string Text,
+    Color Color,
+    bool IsItalic = false,
+    double BlurRadius = 0);
 
 internal sealed record EditorChatLine(
     int SourceIndex,
@@ -19,6 +23,16 @@ internal sealed record EditorTextColorOverride(
     int Length,
     string Text,
     Color Color)
+{
+    internal int End => Start + Length;
+}
+
+internal sealed record EditorTextBlurOverride(
+    int SourceIndex,
+    int Start,
+    int Length,
+    string Text,
+    double Radius)
 {
     internal int End => Start + Length;
 }

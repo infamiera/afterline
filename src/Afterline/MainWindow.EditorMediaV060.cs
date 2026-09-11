@@ -57,11 +57,11 @@ public partial class MainWindow
         Border? header = _editorPage.Children.OfType<Border>()
             .FirstOrDefault(border => Grid.GetRow(border) == 0);
         if (header?.Child is not Grid headerGrid) return;
-        WrapPanel? actions = headerGrid.Children.OfType<WrapPanel>()
-            .FirstOrDefault(panel => Grid.GetColumn(panel) == 1);
-        if (actions is null) return;
-
-        foreach (Button button in actions.Children.OfType<Button>())
+        // The compact Editor has command groups in more than one header column.
+        // Rewire every direct command button so GIF load/export stays available
+        // after the contextual toolbar is rebuilt.
+        foreach (Button button in headerGrid.Children.OfType<WrapPanel>()
+                     .SelectMany(panel => panel.Children.OfType<Button>()))
         {
             string text = button.Content?.ToString() ?? string.Empty;
             if (string.Equals(text, "Load Image", StringComparison.OrdinalIgnoreCase))

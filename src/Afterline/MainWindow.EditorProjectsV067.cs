@@ -69,6 +69,13 @@ public partial class MainWindow
         byte Green,
         byte Blue);
 
+    private sealed record EditorProjectTextBlurV092(
+        int SourceIndex,
+        int Start,
+        int Length,
+        string Text,
+        double Radius);
+
     private sealed record EditorProjectManifestV067(
         int FormatVersion,
         string? ChatText,
@@ -95,7 +102,8 @@ public partial class MainWindow
         double? ContentBoundaryX = null,
         double? ContentBoundaryY = null,
         double? ContentBoundaryWidth = null,
-        double? ContentBoundaryHeight = null);
+        double? ContentBoundaryHeight = null,
+        IReadOnlyList<EditorProjectTextBlurV092>? TextBlurs = null);
 
     private enum NewProjectChoiceV067
     {
@@ -300,7 +308,14 @@ public partial class MainWindow
             _editorContentBoundaryV083?.X,
             _editorContentBoundaryV083?.Y,
             _editorContentBoundaryV083?.Width,
-            _editorContentBoundaryV083?.Height);
+            _editorContentBoundaryV083?.Height,
+            TextBlurs: _editorTextBlurOverridesV092.Select(value =>
+                new EditorProjectTextBlurV092(
+                    value.SourceIndex,
+                    value.Start,
+                    value.Length,
+                    value.Text,
+                    value.Radius)).ToArray());
 
         try
         {
@@ -465,6 +480,19 @@ public partial class MainWindow
                 value.Text,
                 Color.FromArgb(value.Alpha, value.Red, value.Green, value.Blue)));
         }
+        _editorTextBlurOverridesV092.Clear();
+        foreach (EditorProjectTextBlurV092 value in manifest.TextBlurs ?? Array.Empty<EditorProjectTextBlurV092>())
+        {
+            if (value.SourceIndex < 0 || value.Start < 0 || value.Length <= 0 ||
+                string.IsNullOrEmpty(value.Text) || value.Radius < 0.5)
+                continue;
+            _editorTextBlurOverridesV092.Add(new EditorTextBlurOverride(
+                value.SourceIndex,
+                value.Start,
+                value.Length,
+                value.Text,
+                Math.Clamp(value.Radius, 1, 16)));
+        }
         PruneEditorLineColorOverrides();
         if (_editorChatXSlider is not null)
             _editorChatXSlider.Value = Math.Max(_editorChatXSlider.Minimum, Math.Min(_editorChatXSlider.Maximum, manifest.ChatX));
@@ -599,6 +627,7 @@ public partial class MainWindow
         _editorExactChatColorsV068 = new Dictionary<int, ChatColorLineRecord>();
         _editorLineColorOverrides.Clear();
         _editorTextColorOverridesV071.Clear();
+        _editorTextBlurOverridesV092.Clear();
         if (_editorInput is not null)
             _editorInput.Text = string.Empty;
         if (_editorChatXSlider is not null)

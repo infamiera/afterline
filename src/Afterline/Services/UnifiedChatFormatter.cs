@@ -15,7 +15,8 @@ internal static class UnifiedChatFormatter
         bool showTimestamps,
         IReadOnlyDictionary<int, Color>? lineOverrides = null,
         IReadOnlyDictionary<int, ChatColorLineRecord>? exactColors = null,
-        IReadOnlyList<EditorTextColorOverride>? textOverrides = null)
+        IReadOnlyList<EditorTextColorOverride>? textOverrides = null,
+        IReadOnlyList<EditorTextBlurOverride>? blurOverrides = null)
     {
         IReadOnlyList<EditorChatLine> baseLines = EditorChatFormatter.FormatLines(input, showTimestamps, lineOverrides);
         if (baseLines.Count == 0) return baseLines;
@@ -90,16 +91,22 @@ internal static class UnifiedChatFormatter
                 ChatTypographyService.ApplySlashItalics(finalSegments)));
         }
 
-        if (textOverrides is null || textOverrides.Count == 0)
+        if ((textOverrides is null || textOverrides.Count == 0) &&
+            (blurOverrides is null || blurOverrides.Count == 0))
             return result;
 
-        return result.Select(line => ApplyTextColorOverrides(
-            line,
-            line.SourceIndex >= 0 && line.SourceIndex < sourceLines.Length
+        return result.Select(line =>
+        {
+            string rawLine = line.SourceIndex >= 0 && line.SourceIndex < sourceLines.Length
                 ? sourceLines[line.SourceIndex]
-                : string.Empty,
-            showTimestamps,
-            textOverrides)).ToArray();
+                : string.Empty;
+            EditorChatLine colored = textOverrides is { Count: > 0 }
+                ? ApplyTextColorOverrides(line, rawLine, showTimestamps, textOverrides)
+                : line;
+            return blurOverrides is { Count: > 0 }
+                ? ApplyTextBlurOverrides(colored, rawLine, showTimestamps, blurOverrides)
+                : colored;
+        }).ToArray();
     }
 
     private static EditorChatLine ApplyTextColorOverrides(
@@ -129,43 +136,94 @@ internal static class UnifiedChatFormatter
             : line;
     }
 
+    private static EditorChatLine ApplyTextBlurOverrides(
+        EditorChatLine line,
+        string rawLine,
+        bool showTimestamps,
+        IReadOnlyList<EditorTextBlurOverride> overrides)
+    {
+        IReadOnlyList<EditorChatSegment> segments = line.Segments;
+        bool changed = false;
+        foreach (EditorTextBlurOverride value in overrides.Where(value => value.SourceIndex == line.SourceIndex))
+        {
+            if (!TryMapTextOverrideToVisibleRange(
+                    rawLine,
+                    showTimestamps,
+                    value.Start,
+                    value.Length,
+                    value.Text,
+                    out int visibleStart,
+                    out int visibleLength))
+                continue;
+
+            segments = ApplyBlurToSegmentRange(
+                segments,
+                visibleStart,
+                visibleLength,
+                Math.Clamp(value.Radius, 1, 16));
+            changed = true;
+        }
+
+        return changed
+            ? line with { AutoStyle = "Manual text blur", Segments = segments }
+            : line;
+    }
+
     private static bool TryMapTextOverrideToVisibleRange(
         string rawLine,
         bool showTimestamps,
         EditorTextColorOverride value,
         out int visibleStart,
         out int visibleLength)
+        => TryMapTextOverrideToVisibleRange(
+            rawLine,
+            showTimestamps,
+            value.Start,
+            value.Length,
+            value.Text,
+            out visibleStart,
+            out visibleLength);
+
+    private static bool TryMapTextOverrideToVisibleRange(
+        string rawLine,
+        bool showTimestamps,
+        int start,
+        int length,
+        string text,
+        out int visibleStart,
+        out int visibleLength)
     {
         visibleStart = 0;
         visibleLength = 0;
         string source = rawLine.TrimEnd();
-        if (value.Start < 0 || value.Length <= 0 || value.End > source.Length ||
-            !string.Equals(source.Substring(value.Start, value.Length), value.Text, StringComparison.Ordinal))
+        int end = start + length;
+        if (start < 0 || length <= 0 || end > source.Length ||
+            !string.Equals(source.Substring(start, length), text, StringComparison.Ordinal))
             return false;
 
         Match timestamp = TimestampPrefix.Match(source);
         if (!timestamp.Success)
         {
-            visibleStart = value.Start;
-            visibleLength = value.Length;
+            visibleStart = start;
+            visibleLength = length;
             return true;
         }
 
         Group timestampGroup = timestamp.Groups["timestamp"];
         Group bodyGroup = timestamp.Groups["body"];
-        if (value.Start >= bodyGroup.Index)
+        if (start >= bodyGroup.Index)
         {
             visibleStart = showTimestamps
-                ? timestampGroup.Length + 1 + value.Start - bodyGroup.Index
-                : value.Start - bodyGroup.Index;
-            visibleLength = value.Length;
+                ? timestampGroup.Length + 1 + start - bodyGroup.Index
+                : start - bodyGroup.Index;
+            visibleLength = length;
             return true;
         }
 
-        if (showTimestamps && value.Start >= timestampGroup.Index && value.End <= timestampGroup.Index + timestampGroup.Length)
+        if (showTimestamps && start >= timestampGroup.Index && end <= timestampGroup.Index + timestampGroup.Length)
         {
-            visibleStart = value.Start - timestampGroup.Index;
-            visibleLength = value.Length;
+            visibleStart = start - timestampGroup.Index;
+            visibleLength = length;
             return true;
         }
 
@@ -209,12 +267,50 @@ internal static class UnifiedChatFormatter
         return result;
     }
 
+    private static IReadOnlyList<EditorChatSegment> ApplyBlurToSegmentRange(
+        IReadOnlyList<EditorChatSegment> source,
+        int start,
+        int length,
+        double radius)
+    {
+        int end = start + length;
+        int cursor = 0;
+        var result = new List<EditorChatSegment>(source.Count + 4);
+        foreach (EditorChatSegment segment in source)
+        {
+            int segmentStart = cursor;
+            int segmentEnd = cursor + segment.Text.Length;
+            if (segmentEnd <= start || segmentStart >= end)
+            {
+                AppendMerged(result, segment);
+                cursor = segmentEnd;
+                continue;
+            }
+
+            int localStart = Math.Max(0, start - segmentStart);
+            int localEnd = Math.Min(segment.Text.Length, end - segmentStart);
+            if (localStart > 0)
+                AppendMerged(result, segment with { Text = segment.Text[..localStart] });
+            if (localEnd > localStart)
+                AppendMerged(result, segment with
+                {
+                    Text = segment.Text.Substring(localStart, localEnd - localStart),
+                    BlurRadius = radius
+                });
+            if (localEnd < segment.Text.Length)
+                AppendMerged(result, segment with { Text = segment.Text[localEnd..] });
+            cursor = segmentEnd;
+        }
+        return result;
+    }
+
     private static void AppendMerged(List<EditorChatSegment> target, EditorChatSegment segment)
     {
         if (segment.Text.Length == 0) return;
         if (target.Count > 0 &&
             target[^1].Color == segment.Color &&
-            target[^1].IsItalic == segment.IsItalic)
+            target[^1].IsItalic == segment.IsItalic &&
+            Math.Abs(target[^1].BlurRadius - segment.BlurRadius) < 0.001)
         {
             target[^1] = target[^1] with { Text = target[^1].Text + segment.Text };
             return;
