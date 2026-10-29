@@ -204,33 +204,8 @@ internal sealed class CaptureReplayGuard
             return Array.Empty<ExistingLogReplayMatch>();
 
         var matches = new List<ExistingLogReplayMatch>();
-        // A HUD redraw can replay a short ordered batch. It is too small for
-        // automatic capture suppression, but deserves a manual review card.
-        // Require five varied rows and near-identical *server* timestamps.
-        for (int start = 5; start <= lines.Count - 5; start++)
-        {
-            int first = Math.Max(0, start - HistoryLimit);
-            for (int old = first; old <= start - 5; old++)
-            {
-                int count = 0;
-                var distinct = new HashSet<string>(StringComparer.Ordinal);
-                while (count < 20 && start + count < lines.Count && old + count < start &&
-                       string.Equals(NormalizeBody(lines[old + count]),
-                           NormalizeBody(lines[start + count]), StringComparison.Ordinal) &&
-                       CloseTimestamp(lines[old + count], lines[start + count]))
-                {
-                    distinct.Add(NormalizeBody(lines[start + count]));
-                    count++;
-                }
-                if (count < 5 || distinct.Count < 4) continue;
-                matches.Add(new ExistingLogReplayMatch(start, count, old,
-                    "Short ordered scene with matching text and near-identical timestamps; review before removal."));
-                start += count - 1;
-                break;
-            }
-        }
         if (lines.Count < MinimumReplayLines * 2)
-            return matches;
+            return FindShortReplays(lines, matches);
         for (int candidateWindowStart = MinimumReplayLines;
              candidateWindowStart <= lines.Count - MinimumReplayLines;)
         {
@@ -283,7 +258,41 @@ internal sealed class CaptureReplayGuard
             candidateWindowStart = absoluteCandidateStart + decision.CandidateCount;
         }
 
-        return matches;
+        return FindShortReplays(lines, matches);
+    }
+
+    private static IReadOnlyList<ExistingLogReplayMatch> FindShortReplays(
+        IReadOnlyList<string> lines, List<ExistingLogReplayMatch> matches)
+    {
+        // A HUD redraw can replay a short ordered batch. It is too small for
+        // automatic suppression and must be reviewed manually.
+        for (int start = 5; start <= lines.Count - 5; start++)
+        {
+            if (matches.Any(match => start >= match.CandidateStartIndex &&
+                                     start < match.CandidateStartIndex + match.CandidateCount)) continue;
+            int first = Math.Max(0, start - HistoryLimit);
+            for (int old = first; old <= start - 5; old++)
+            {
+                int count = 0;
+                var distinct = new HashSet<string>(StringComparer.Ordinal);
+                while (count < 20 && start + count < lines.Count && old + count < start &&
+                       string.Equals(NormalizeBody(lines[old + count]),
+                           NormalizeBody(lines[start + count]), StringComparison.Ordinal) &&
+                       CloseTimestamp(lines[old + count], lines[start + count]))
+                {
+                    distinct.Add(NormalizeBody(lines[start + count]));
+                    count++;
+                }
+                if (count < 5 || distinct.Count < 4 ||
+                    matches.Any(match => start < match.CandidateStartIndex + match.CandidateCount &&
+                                         match.CandidateStartIndex < start + count)) continue;
+                matches.Add(new ExistingLogReplayMatch(start, count, old,
+                    "Short ordered scene with matching text and near-identical timestamps; review before removal."));
+                start += count - 1;
+                break;
+            }
+        }
+        return matches.OrderBy(match => match.CandidateStartIndex).ToArray();
     }
 
     private static bool CloseTimestamp(string left, string right)
