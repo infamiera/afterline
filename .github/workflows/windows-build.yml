@@ -30,6 +30,33 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Embed accurate Canary build history
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = [string]($project.Project.PropertyGroup.Version | Select-Object -First 1)
+          $response = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?branch=canary&per_page=100" | ConvertFrom-Json
+          $runs = @($response.workflow_runs | Where-Object {
+            $_.path -eq '.github/workflows/windows-build.yml' -and
+            $_.event -eq 'push' -and $_.run_number -le [int]$env:GITHUB_RUN_NUMBER -and
+            ($_.conclusion -eq 'success' -or $_.id -eq [long]$env:GITHUB_RUN_ID)
+          })
+          if (-not ($runs | Where-Object { $_.id -eq [long]$env:GITHUB_RUN_ID })) {
+            throw 'The current Canary build was missing from the build history.'
+          }
+          $history = @($runs | ForEach-Object {
+            $title = [string]($_.head_commit.message -split "`n")[0]
+            [ordered]@{
+              build = [int]$_.run_number
+              version = $version
+              date = ([datetimeoffset]$_.run_started_at).UtcDateTime.ToString('dd/MMM/yyyy').ToUpperInvariant() + ' (UTC)'
+              summary = 'Update — ' + $title
+            }
+          })
+          $history | ConvertTo-Json -Depth 3 | Set-Content src/Afterline/CanaryBuildHistory.json -Encoding utf8
+
       - name: Publish identified Canary Windows x64 build
         shell: pwsh
         run: |

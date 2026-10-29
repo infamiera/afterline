@@ -18,6 +18,7 @@ internal static class SessionRecoverySmokeTest
         CaptureCoordinator.RunFocusIndependentContinuitySmokeTest();
         FiveMDevToolsChatReader.RunEventCaptureSmokeTest();
         GlobalHotkeySafety.RunSmokeTest();
+        CanaryBuildHistory.ValidatePackagedBuild();
         GameWindowCaptureService.RunFrameValidationSmokeTest();
         RawCaptureFailsafeService.RunEventCheckpointSmokeTest();
         VerifyTimestampToggleOverlap();

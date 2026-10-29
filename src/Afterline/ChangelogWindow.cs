@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -52,19 +51,15 @@ internal sealed class ChangelogWindow : Window
             .Concat(ChangelogData.Entries)
             .Where(entry => entry.Channel == ChangelogChannel.Stable);
         IEnumerable<ChangelogEntry> entries = isCanaryBuild
-            ? CanaryChangelogData.Entries
-                .Where(entry => entry.Channel == ChangelogChannel.Canary)
+            ? CanaryBuildHistory.Entries
+                .Concat(CanaryChangelogData.Entries.Where(entry =>
+                    !CanaryBuildHistory.Entries.Any(recent => recent.CanaryBuild == entry.CanaryBuild)))
+                .OrderByDescending(entry => entry.CanaryBuild)
                 .Concat(stableEntries)
             : stableEntries;
-        bool currentCanaryCard = isCanaryBuild;
         foreach (ChangelogEntry entry in entries)
         {
-            int? runningBuild = currentCanaryCard && entry.Channel == ChangelogChannel.Canary
-                ? GetRunningCanaryBuild()
-                : null;
-            releaseStack.Children.Add(BuildReleaseCard(entry, runningBuild));
-            if (entry.Channel == ChangelogChannel.Canary)
-                currentCanaryCard = false;
+            releaseStack.Children.Add(BuildReleaseCard(entry));
         }
 
         var scroll = new ScrollViewer
@@ -113,7 +108,7 @@ internal sealed class ChangelogWindow : Window
         ThemeService.ApplyWindow(this);
     }
 
-    private Border BuildReleaseCard(ChangelogEntry entry, int? runningCanaryBuild)
+    private Border BuildReleaseCard(ChangelogEntry entry)
     {
         var content = new StackPanel();
         var header = new Grid();
@@ -122,7 +117,7 @@ internal sealed class ChangelogWindow : Window
         header.Children.Add(new TextBlock
         {
             Text = entry.Channel == ChangelogChannel.Canary
-                ? $"Afterline Canary - #{(runningCanaryBuild ?? entry.CanaryBuild.GetValueOrDefault()):000}"
+                ? $"Afterline Canary - #{entry.CanaryBuild.GetValueOrDefault():000}"
                 : $"Afterline Stable - v{entry.Version}",
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
@@ -240,14 +235,4 @@ internal sealed class ChangelogWindow : Window
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion.Contains("-canary.", StringComparison.OrdinalIgnoreCase) == true;
 
-    private static int? GetRunningCanaryBuild()
-    {
-        string informational = (Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly())
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? string.Empty;
-        Match match = Regex.Match(informational, @"-canary\.(?<build>\d+)", RegexOptions.IgnoreCase);
-        return match.Success && int.TryParse(match.Groups["build"].Value, out int build)
-            ? build
-            : null;
-    }
 }

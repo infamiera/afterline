@@ -26,5 +26,6 @@
   <ItemGroup>
     <Resource Include="Assets\Afterline.ico" />
     <Resource Include="Assets\AfterlineTray.ico" />
+    <EmbeddedResource Include="CanaryBuildHistory.json" Condition="Exists('CanaryBuildHistory.json')" />
   </ItemGroup>
 </Project>
