@@ -140,9 +140,10 @@ internal sealed class PotentialDuplicateReviewWindow : Window
             Content = "Resolve all confirmed replays…",
             Padding = new Thickness(14, 7, 14, 7),
             Margin = new Thickness(8, 0, 0, 0),
-            IsEnabled = cleanupAvailable,
+            IsEnabled = cleanupAvailable && candidates.Any(candidate =>
+                !candidate.Evidence.StartsWith("Short ordered scene", StringComparison.Ordinal)),
             ToolTip = cleanupAvailable
-                ? "Removes every currently confirmed replay only when each exact range occurs once. A complete backup is created first."
+                ? "Resolves confirmed long replays. Short HUD-redraw matches require individual review and are never batch-removed."
                 : "End the active FiveM session before changing its chatlog."
         };
         resolveAll.Click += (_, _) => RequestResolveAll();
@@ -208,7 +209,10 @@ internal sealed class PotentialDuplicateReviewWindow : Window
     {
         var selections = new Dictionary<Guid, IReadOnlyList<int>>();
         foreach (PotentialDuplicateCandidate candidate in _candidates)
+        {
+            if (candidate.Evidence.StartsWith("Short ordered scene", StringComparison.Ordinal)) continue;
             selections[candidate.Id] = Enumerable.Range(0, candidate.Lines.Count).ToArray();
+        }
 
         SelectedReplayLineIndexes = selections;
         ResolveAllRequested = true;

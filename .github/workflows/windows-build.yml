@@ -51,7 +51,7 @@ jobs:
             [ordered]@{
               build = [int]$_.run_number
               version = $version
-              date = ([datetimeoffset]$_.run_started_at).UtcDateTime.ToString('dd/MMM/yyyy').ToUpperInvariant() + ' (UTC)'
+              date = ([datetimeoffset]$_.run_started_at).UtcDateTime.ToString('dd/MMM/yyyy').ToUpperInvariant()
               summary = 'Update — ' + $title
             }
           })

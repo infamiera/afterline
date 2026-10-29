@@ -200,10 +200,37 @@ internal sealed class CaptureReplayGuard
     public static IReadOnlyList<ExistingLogReplayMatch> FindInExistingLog(
         IReadOnlyList<string> lines)
     {
-        if (lines.Count < MinimumReplayLines * 2)
+        if (lines.Count < 10)
             return Array.Empty<ExistingLogReplayMatch>();
 
         var matches = new List<ExistingLogReplayMatch>();
+        // A HUD redraw can replay a short ordered batch. It is too small for
+        // automatic capture suppression, but deserves a manual review card.
+        // Require five varied rows and near-identical *server* timestamps.
+        for (int start = 5; start <= lines.Count - 5; start++)
+        {
+            int first = Math.Max(0, start - HistoryLimit);
+            for (int old = first; old <= start - 5; old++)
+            {
+                int count = 0;
+                var distinct = new HashSet<string>(StringComparer.Ordinal);
+                while (count < 20 && start + count < lines.Count && old + count < start &&
+                       string.Equals(NormalizeBody(lines[old + count]),
+                           NormalizeBody(lines[start + count]), StringComparison.Ordinal) &&
+                       CloseTimestamp(lines[old + count], lines[start + count]))
+                {
+                    distinct.Add(NormalizeBody(lines[start + count]));
+                    count++;
+                }
+                if (count < 5 || distinct.Count < 4) continue;
+                matches.Add(new ExistingLogReplayMatch(start, count, old,
+                    "Short ordered scene with matching text and near-identical timestamps; review before removal."));
+                start += count - 1;
+                break;
+            }
+        }
+        if (lines.Count < MinimumReplayLines * 2)
+            return matches;
         for (int candidateWindowStart = MinimumReplayLines;
              candidateWindowStart <= lines.Count - MinimumReplayLines;)
         {
@@ -239,6 +266,12 @@ internal sealed class CaptureReplayGuard
             }
 
             int absoluteCandidateStart = candidateWindowStart + decision.CandidateStartIndex;
+            if (matches.Any(match => absoluteCandidateStart < match.CandidateStartIndex + match.CandidateCount &&
+                                     match.CandidateStartIndex < absoluteCandidateStart + decision.CandidateCount))
+            {
+                candidateWindowStart = absoluteCandidateStart + decision.CandidateCount;
+                continue;
+            }
             matches.Add(new ExistingLogReplayMatch(
                 absoluteCandidateStart,
                 decision.CandidateCount,
@@ -253,8 +286,41 @@ internal sealed class CaptureReplayGuard
         return matches;
     }
 
+    private static bool CloseTimestamp(string left, string right)
+    {
+        Match a = TimestampPrefix.Match(left);
+        Match b = TimestampPrefix.Match(right);
+        return a.Success && b.Success &&
+               TimeSpan.TryParse(a.Groups["time"].Value, out TimeSpan first) &&
+               TimeSpan.TryParse(b.Groups["time"].Value, out TimeSpan second) &&
+               Math.Abs((first - second).TotalSeconds) <= 3;
+    }
+
     internal static void RunSmokeTest()
     {
+        string[] shortOriginal =
+        {
+            "[15:49:22] Bianca Yurei says: Wot.",
+            "[15:49:24] Bianca Yurei says: Buh.",
+            "[15:49:26] Bianca Yurei says: Guh.",
+            "[15:49:40] [FRIEND] Marlie Peterson has logged in.",
+            "[15:50:15] INFO: Timestamps enabled"
+        };
+        string[] shortReplay =
+        {
+            "[15:49:22] Bianca Yurei says: Wot.",
+            "[15:49:23] Bianca Yurei says: Buh.",
+            "[15:49:24] Bianca Yurei says: Guh.",
+            "[15:49:38] [FRIEND] Marlie Peterson has logged in.",
+            "[15:50:15] INFO: Timestamps enabled"
+        };
+        string[] shortLog = shortOriginal.Concat(new[] { "[15:48:48] Welcome to the server." })
+            .Concat(shortReplay).ToArray();
+        if (!FindInExistingLog(shortLog).Any(match => match.CandidateStartIndex == 6 && match.CandidateCount == 5) ||
+            FindInExistingLog(shortOriginal.Concat(shortOriginal.Select(line =>
+                line.Replace("15:49:", "16:49:").Replace("15:50:", "16:50:"))).ToArray()).Count != 0)
+            throw new InvalidOperationException("Short HUD replay review lost its timestamp guard.");
+
         string[] bodies = Enumerable.Range(1, 24)
             .Select(index => index switch
             {

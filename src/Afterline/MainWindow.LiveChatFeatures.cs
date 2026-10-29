@@ -591,8 +591,8 @@ public partial class MainWindow
                     CancellationToken.None);
             if (_liveActionStatus is not null)
                 _liveActionStatus.Text = candidates.Count == 0
-                    ? "No confirmed replayed chat scenes were found."
-                    : $"Found {candidates.Count:N0} confirmed replay scene{(candidates.Count == 1 ? string.Empty : "s")}. Review them after the active session ends.";
+                    ? "No ordered replay matches were found in the active TXT. Single repeated lines need manual review."
+                    : $"Found {candidates.Count:N0} possible replay scene{(candidates.Count == 1 ? string.Empty : "s")}. Review them after the active session ends.";
         }
         catch (Exception ex)
         {

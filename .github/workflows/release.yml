@@ -48,7 +48,7 @@ jobs:
       - name: Stamp Stable release date
         shell: pwsh
         run: |
-          $date = [datetime]::UtcNow.ToString('dd/MMM/yyyy').ToUpperInvariant() + ' (UTC)'
+          $date = [datetime]::UtcNow.ToString('dd/MMM/yyyy').ToUpperInvariant()
           @{ date = $date } | ConvertTo-Json -Compress |
             Set-Content src/Afterline/StableReleaseDate.json -Encoding utf8
           $notes = Get-Content RELEASE_NOTES.md -Raw

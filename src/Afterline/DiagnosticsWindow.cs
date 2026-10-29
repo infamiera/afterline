@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net.Http;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -69,6 +71,14 @@ internal sealed class DiagnosticsWindow : Window
             RefreshErrors();
         };
         headingActions.Children.Add(_previousSessionButton);
+        var runDiagnostics = new Button
+        {
+            Content = "Run diagnostics",
+            Padding = new Thickness(12, 7, 12, 7),
+            Margin = new Thickness(0, 0, 8, 0)
+        };
+        runDiagnostics.Click += RunDiagnostics_Click;
+        headingActions.Children.Add(runDiagnostics);
         var refresh = new Button
         {
             Content = "Refresh",
@@ -198,6 +208,46 @@ internal sealed class DiagnosticsWindow : Window
             : string.Join(Environment.NewLine + new string('-', 78) + Environment.NewLine, errors);
         _errorText.Select(0, 0);
         _errorText.ScrollToLine(0);
+    }
+
+    private static async Task<string> RunCaptureDiagnosticsAsync()
+    {
+        bool running = FiveMProcessService.Refresh();
+        string targetStatus;
+        try
+        {
+            using var client = new HttpClient(new HttpClientHandler { UseProxy = false })
+            { Timeout = TimeSpan.FromSeconds(2) };
+            using var response = await client.GetAsync("http://127.0.0.1:13172/json");
+            response.EnsureSuccessStatusCode();
+            using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            int rootTargets = document.RootElement.EnumerateArray().Count(target =>
+                target.TryGetProperty("url", out JsonElement url) &&
+                string.Equals(url.GetString(), "nui://game/ui/root.html", StringComparison.OrdinalIgnoreCase));
+            targetStatus = $"Local FiveM root NUI targets: {rootTargets}";
+        }
+        catch (Exception ex)
+        {
+            targetStatus = $"Local DevTools endpoint unavailable ({ex.GetType().Name}).";
+        }
+        return $"Capture diagnostic at {DateTime.Now:yyyy-MM-dd HH:mm:ss} local time" + Environment.NewLine +
+               $"FiveM process detected: {running}" + Environment.NewLine + targetStatus + Environment.NewLine +
+               "This read-only check does not modify chatlogs. A reachable NUI target does not prove the server exposed every chat event or timestamp.";
+    }
+
+    private async void RunDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        button.IsEnabled = false;
+        try
+        {
+            string report = await RunCaptureDiagnosticsAsync();
+            _errorText.Text = report + Environment.NewLine + Environment.NewLine + _errorText.Text;
+            _errorText.ScrollToLine(0);
+            DiagnosticLogger.Info(report.Replace(Environment.NewLine, " | "));
+            _summary.Text = "Read-only capture diagnostics completed. Export a report to include these findings.";
+        }
+        finally { button.IsEnabled = true; }
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)
