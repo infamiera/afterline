@@ -6,6 +6,14 @@ internal static class CurrentReleaseData
     // release-ready build can evolve without rewriting previous patch history.
     public static IReadOnlyList<ChangelogEntry> Entries { get; } = new ChangelogEntry[]
     {
+        new("0.7.1", StableReleaseDate.Value, new[]
+        {
+            "Capture reliability — Adds direct chat-event delivery, recovery checkpoints, focus-independent continuity and guarded replay detection while preserving local TXT logs.",
+            "Capture controls — Prevents unmodified screenshot hotkeys from blocking FiveM input, improves NUI connection diagnostics, and separates game screenshots from chat capture.",
+            "Duplicate review — Adds contextual side-by-side review, batch resolution, and manual line removal with protected backups where source rows are edited.",
+            "Editor — Refines image layers, drop handling, compact controls, color presets, selection blur and precise text-range blur with preview controls.",
+            "Changelog — Uses build-specific Canary metadata, eliminating mismatched current-build numbers and dates without runtime network activity."
+        }),
         new("0.7.0", "24/AUG/2026", new[]
         {
             "Image Editor — Added independently editable image layers with direct dragging, mouse resizing, exact pixel dimensions, four-edge snapping, locking, visible lock badges, drag-to-reorder stacking, and per-layer paint and transparent eraser tools with undo and redo.",

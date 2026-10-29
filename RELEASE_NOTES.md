@@ -1,4 +1,31 @@
-# Afterline 0.7.0 — Advanced Editor & Live Chat Update
+# Afterline 0.7.1 — Capture Reliability & Editor Refinements
+
+Release date: pending final Stable publication. This candidate has passed Canary #266's packaged Windows workflow; final Stable packaging and runtime testing remain required.
+
+## Chat capture and recovery
+
+- Responds to direct FiveM chat changes and uses bounded reconciliation when an event is unavailable. Captured receipt times remain labeled separately from server-provided timestamps.
+- Protects active sessions across focus changes, HUD visibility changes, crashes, updates, and restarts using local checkpoints without automatically rewriting restored chat to TXT.
+- Adds cautious replay guards and contextual duplicate review with batch resolution and manual removal. Ambiguous repeats remain for user review; cleanup of source files is backed up.
+- Improves connection diagnostics and prevents a bare screenshot hotkey such as `T` from taking a game key. Existing unsafe shortcuts migrate to `Ctrl+Shift+F12`.
+
+## Screenshots and Editor
+
+- Separates game-window screenshot capture from chat reading, validates blank frames, and retains native-resolution PNG or optional JPEG output.
+- Refines the Editor's compact controls, image drop and layer handling, color legend, selection blur, and precise text-range blur with adjustable preview.
+
+## Changelog and diagnostics
+
+- Embeds actual Canary workflow build numbers, UTC dates, and commit summaries at build time, without adding runtime network requests.
+- Keeps Stable history separate from Canary notes and adds a packaged validation that the running Canary has its own changelog entry.
+
+## Known limitations
+
+- Without a server-authorized chat bridge, some chat events and other players' `/ame` lines may not be accessible to a client-side logger. Use in-game `/timestamp on` when reliable server times matter.
+
+---
+
+Previous Stable release notes (0.7.0):
 
 This release turns the Image Editor into a proper layered workspace, makes Live Chat colors and recovery considerably more reliable, and reduces Afterline's resource usage while idle.
 

@@ -9,8 +9,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>Afterline</AssemblyName>
     <RootNamespace>Afterline</RootNamespace>
-    <Version>0.7.0</Version>
-    <ReleaseTitle>Advanced Editor &amp; Live Chat Update</ReleaseTitle>
+    <Version>0.7.1</Version>
+    <ReleaseTitle>Capture Reliability &amp; Editor Refinements</ReleaseTitle>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Afterline.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
@@ -27,5 +27,6 @@
     <Resource Include="Assets\Afterline.ico" />
     <Resource Include="Assets\AfterlineTray.ico" />
     <EmbeddedResource Include="CanaryBuildHistory.json" Condition="Exists('CanaryBuildHistory.json')" />
+    <EmbeddedResource Include="StableReleaseDate.json" Condition="Exists('StableReleaseDate.json')" />
   </ItemGroup>
 </Project>

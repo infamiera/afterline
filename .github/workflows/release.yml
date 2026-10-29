@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - stable-prep
 
 permissions:
   contents: write
@@ -13,7 +15,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Check out tagged source
+      - name: Check out release candidate source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -29,8 +31,11 @@ jobs:
           [xml]$project = Get-Content src/Afterline/Afterline.csproj
           $version = $project.Project.PropertyGroup.Version | Select-Object -First 1
           $expected = "v$version"
-          if ($env:GITHUB_REF_NAME -ne $expected) {
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne $expected) {
             throw "Release tag '$env:GITHUB_REF_NAME' does not match project version '$expected'."
+          }
+          if ($env:GITHUB_REF_TYPE -ne 'tag' -and $env:GITHUB_REF_NAME -ne 'stable-prep') {
+            throw "Unexpected Stable candidate branch '$env:GITHUB_REF_NAME'."
           }
           if (-not (Test-Path RELEASE_NOTES.md) -or (Get-Item RELEASE_NOTES.md).Length -le 0) {
             throw "RELEASE_NOTES.md is required for a Stable release."
@@ -40,9 +45,24 @@ jobs:
             throw "Release notes do not identify version $version."
           }
 
+      - name: Stamp Stable release date
+        shell: pwsh
+        run: |
+          $date = [datetime]::UtcNow.ToString('dd/MMM/yyyy').ToUpperInvariant() + ' (UTC)'
+          @{ date = $date } | ConvertTo-Json -Compress |
+            Set-Content src/Afterline/StableReleaseDate.json -Encoding utf8
+          $notes = Get-Content RELEASE_NOTES.md -Raw
+          $notes = $notes.Replace('Release date: pending final Stable publication.', "Release date: $date.")
+          if ($notes.Contains('Release date: pending final Stable publication.')) {
+            throw 'Stable release notes still contain a pending date.'
+          }
+          Set-Content RELEASE_NOTES.md $notes -Encoding utf8
+
       - name: Publish single-file Windows x64 release
         shell: pwsh
         run: |
+          [xml]$project = Get-Content src/Afterline/Afterline.csproj
+          $version = [string]($project.Project.PropertyGroup.Version | Select-Object -First 1)
           dotnet publish src/Afterline/Afterline.csproj `
             -c Release `
             -r win-x64 `
@@ -55,7 +75,7 @@ jobs:
             -p:DebugSymbols=false `
             -p:DebugType=None `
             -p:SatelliteResourceLanguages=en `
-            -p:InformationalVersion="$env:GITHUB_REF_NAME+$env:GITHUB_SHA" `
+            -p:InformationalVersion="v$version+$env:GITHUB_SHA" `
             -p:IncludeSourceRevisionInInformationalVersion=false `
             -o publish/Afterline
 
@@ -145,6 +165,28 @@ jobs:
             throw "Afterline failed the Stable session-recovery test with code $($sessionTest.ExitCode)."
           }
 
+      - name: Stress test Stable archive and updater
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/Afterline/Afterline.exe"
+          $log = Join-Path $env:LOCALAPPDATA "Afterline/Logs/afterline.log"
+          $checks = @(
+            @{ Name = '10,000-chatlog archive'; Switch = '--afterline-smoke-archive-stress'; Timeout = 120000 },
+            @{ Name = 'transactional updater'; Switch = '--afterline-smoke-update-transaction'; Timeout = 45000 }
+          )
+          foreach ($check in $checks) {
+            $root = Join-Path $env:RUNNER_TEMP ("stable-" + $check.Switch.TrimStart('-'))
+            $test = Start-Process -FilePath $exe -ArgumentList @($check.Switch, "`"$root`"") -PassThru
+            if (-not $test.WaitForExit($check.Timeout)) {
+              Stop-Process -Id $test.Id -Force -ErrorAction SilentlyContinue
+              throw "Stable $($check.Name) test timed out."
+            }
+            if ($test.ExitCode -ne 0) {
+              if (Test-Path $log) { Get-Content $log }
+              throw "Stable $($check.Name) test failed with code $($test.ExitCode)."
+            }
+          }
+
       - name: Prepare release assets and checksum
         shell: pwsh
         run: |
@@ -166,6 +208,7 @@ jobs:
           compression-level: 9
 
       - name: Create Stable GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
