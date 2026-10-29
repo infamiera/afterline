@@ -451,6 +451,18 @@ public partial class MainWindow : Window
                 FiveMStateText.Text = "Reconnect grace";
                 FooterCaptureText.Text = "Session protected on disk";
                 break;
+            case CaptureState.WaitingForFiveM when !_settings.AutoDetectFiveM:
+                status = "Automatic FiveM detection disabled";
+                dot = (Brush)FindResource("MutedText");
+                FiveMStateText.Text = "Disabled";
+                FooterCaptureText.Text = "Enable automatic detection in Settings";
+                break;
+            case CaptureState.WaitingForFiveM when FiveMProcessService.IsRunning() && !_settings.AutoCapture:
+                status = "FiveM detected — automatic capture disabled";
+                dot = (Brush)FindResource("Warning");
+                FiveMStateText.Text = "Detected";
+                FooterCaptureText.Text = "Enable automatic capture in Settings";
+                break;
             default:
                 status = "Waiting for FiveM";
                 dot = (Brush)FindResource("MutedText");
@@ -897,7 +909,7 @@ public partial class MainWindow : Window
             {
                 System.Windows.MessageBox.Show(
                     this,
-                    "Use a hotkey such as Ctrl+Shift+F12, Ctrl+Alt+S, or F10.",
+                    "Use a hotkey such as Ctrl+Shift+F12 or Ctrl+Alt+S. Keyboard shortcuts require a modifier so they cannot block a game key.",
                     "Invalid screenshot hotkey",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);

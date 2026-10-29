@@ -59,9 +59,17 @@ public sealed class SettingsService
                     "Afterline",
                     "Screenshots");
             }
+            bool screenshotHotkeySafetyChanged = false;
             settings.ScreenshotHotkey = string.IsNullOrWhiteSpace(settings.ScreenshotHotkey)
-                ? "Ctrl+Shift+F12"
+                ? GlobalHotkeySafety.DefaultScreenshotHotkey
                 : settings.ScreenshotHotkey.Trim();
+            if (!GlobalHotkeySafety.IsSafeForGlobalRegistration(settings.ScreenshotHotkey))
+            {
+                settings.ScreenshotHotkey = GlobalHotkeySafety.DefaultScreenshotHotkey;
+                screenshotHotkeySafetyChanged = true;
+                DiagnosticLogger.Warn(
+                    "An unsafe unmodified screen-capture keyboard shortcut was reset to Ctrl+Shift+F12 so it cannot intercept a game key.");
+            }
             settings.ScreenshotFormat = string.Equals(settings.ScreenshotFormat, "JPEG", StringComparison.OrdinalIgnoreCase)
                 ? "JPEG"
                 : "PNG";
@@ -133,7 +141,7 @@ public sealed class SettingsService
                 }
             }
 
-            if (archivePolicyChanged || editorBackgroundPolicyChanged)
+            if (archivePolicyChanged || editorBackgroundPolicyChanged || screenshotHotkeySafetyChanged)
             {
                 try
                 {

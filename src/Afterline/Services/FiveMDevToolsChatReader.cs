@@ -273,6 +273,10 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
     private DateTime _lastTimeZoneResolutionAttemptUtc = DateTime.MinValue;
     private bool _exactColorFallbackLogged;
     private bool _observerFallbackLogged;
+    private string? _lastTargetDiagnosticSignature;
+    private string? _lastFrameDiagnosticSignature;
+    private bool _missingServerHintLogged;
+    private bool _multipleRootTargetsLogged;
     private bool _eventCaptureAvailable;
     private string[] _lastExactVisibleText = Array.Empty<string>();
     private long _readerGeneration;
@@ -560,19 +564,39 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         using JsonDocument targets = JsonDocument.Parse(targetJson);
 
         string? debuggerUrl = null;
+        int rootTargetCount = 0;
         foreach (JsonElement target in targets.RootElement.EnumerateArray())
         {
             if (!target.TryGetProperty("url", out JsonElement url) ||
                 !string.Equals(url.GetString(), RootUiUrl, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (target.TryGetProperty("webSocketDebuggerUrl", out JsonElement ws))
+            rootTargetCount++;
+            if (string.IsNullOrWhiteSpace(debuggerUrl) &&
+                target.TryGetProperty("webSocketDebuggerUrl", out JsonElement ws))
                 debuggerUrl = ws.GetString();
-            break;
         }
 
         if (string.IsNullOrWhiteSpace(debuggerUrl))
+        {
+            LogChangedTargetDiagnostic(targets.RootElement);
             throw new IOException("FiveM root NUI target is not available yet.");
+        }
+
+        _lastTargetDiagnosticSignature = null;
+        if (rootTargetCount > 1)
+        {
+            if (!_multipleRootTargetsLogged)
+            {
+                DiagnosticLogger.Warn(
+                    $"FiveM exposed {rootTargetCount} root NUI targets; Afterline selected the first debugger-capable entry.");
+                _multipleRootTargetsLogged = true;
+            }
+        }
+        else
+        {
+            _multipleRootTargetsLogged = false;
+        }
 
         Uri socketUri = new(debuggerUrl);
         if (!IsLoopback(socketUri))
@@ -589,7 +613,11 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         JsonElement frameTree = await RequestAsync("Page.getFrameTree", new { }, linked.Token);
         string? frameId = FindClientFrameId(frameTree);
         if (string.IsNullOrWhiteSpace(frameId))
+        {
+            LogChangedFrameDiagnostic(frameTree);
             throw new IOException("FiveM client chat frame is not available yet.");
+        }
+        _lastFrameDiagnosticSignature = null;
 
         JsonElement isolatedWorld = await RequestAsync("Page.createIsolatedWorld", new
         {
@@ -648,10 +676,18 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
 
         if (string.IsNullOrWhiteSpace(address))
         {
+            if (!_missingServerHintLogged)
+            {
+                _missingServerHintLogged = true;
+                DiagnosticLogger.Warn(
+                    "FiveM chat NUI was reached, but its root page did not expose an active server address. Check automatic capture settings and export this report if the state persists while connected.");
+            }
             _currentServer = ServerSessionInfo.Unknown;
             _lastResolutionAddress = null;
             return;
         }
+
+        _missingServerHintLogged = false;
 
         string normalizedAddress = NormalizeAddress(address);
         if (ServerSessionInfo.IsGenericServerName(name)) name = null;
@@ -916,6 +952,58 @@ public sealed class FiveMDevToolsChatReader : IAsyncDisposable
         if (string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
         return IPAddress.TryParse(uri.Host, out IPAddress? address) && IPAddress.IsLoopback(address);
     }
+
+    private void LogChangedTargetDiagnostic(JsonElement targets)
+    {
+        var urls = new List<string>();
+        if (targets.ValueKind == JsonValueKind.Array)
+        {
+            foreach (JsonElement target in targets.EnumerateArray())
+            {
+                if (urls.Count >= 8) break;
+                if (target.TryGetProperty("url", out JsonElement url) &&
+                    !string.IsNullOrWhiteSpace(url.GetString()))
+                    urls.Add(TruncateDiagnosticValue(url.GetString()!));
+            }
+        }
+
+        string signature = urls.Count == 0 ? "none" : string.Join(" | ", urls);
+        if (string.Equals(signature, _lastTargetDiagnosticSignature, StringComparison.Ordinal)) return;
+        _lastTargetDiagnosticSignature = signature;
+        DiagnosticLogger.Warn($"FiveM DevTools target check found no root NUI target. Exposed target URLs: {signature}");
+    }
+
+    private void LogChangedFrameDiagnostic(JsonElement frameTree)
+    {
+        var urls = new List<string>();
+        CollectFrameUrls(frameTree, urls);
+        string signature = urls.Count == 0 ? "none" : string.Join(" | ", urls);
+        if (string.Equals(signature, _lastFrameDiagnosticSignature, StringComparison.Ordinal)) return;
+        _lastFrameDiagnosticSignature = signature;
+        DiagnosticLogger.Warn($"FiveM root NUI was reached without a client chat frame. Exposed frame URLs: {signature}");
+    }
+
+    private static void CollectFrameUrls(JsonElement value, ICollection<string> urls)
+    {
+        if (urls.Count >= 8 || value.ValueKind != JsonValueKind.Object) return;
+        if (value.TryGetProperty("frameTree", out JsonElement nestedFrameTree))
+            CollectFrameUrls(nestedFrameTree, urls);
+        if (value.TryGetProperty("frame", out JsonElement frame) &&
+            frame.TryGetProperty("url", out JsonElement url) &&
+            !string.IsNullOrWhiteSpace(url.GetString()))
+            urls.Add(TruncateDiagnosticValue(url.GetString()!));
+
+        if (!value.TryGetProperty("childFrames", out JsonElement children) ||
+            children.ValueKind != JsonValueKind.Array) return;
+        foreach (JsonElement child in children.EnumerateArray())
+        {
+            CollectFrameUrls(child, urls);
+            if (urls.Count >= 8) break;
+        }
+    }
+
+    private static string TruncateDiagnosticValue(string value)
+        => value.Length <= 180 ? value : value[..180] + "…";
 
     private async Task<JsonElement> RequestAsync(string method, object parameters, CancellationToken cancellationToken)
     {

@@ -602,6 +602,7 @@ public partial class MainWindow
         if (mouseButton != 0)
             return true;
         if (key is not Key selected) return false;
+        if (!GlobalHotkeySafety.IsSafeForGlobalRegistration(value)) return false;
         int valueCode = KeyInterop.VirtualKeyFromKey(selected);
         if (valueCode <= 0) return false;
         virtualKey = (uint)valueCode;
@@ -632,7 +633,12 @@ public partial class MainWindow
 
         ScreenshotHotkeyBox.Text = BuildScreenshotShortcutTextV076(Keyboard.Modifiers, FriendlyScreenshotKeyNameV076(key));
         ScreenshotHotkeyBox.CaretIndex = ScreenshotHotkeyBox.Text.Length;
-        ShowScreenshotHotkeyRecognitionV076($"Recognized {ScreenshotHotkeyBox.Text}. Confirm it or choose Re-do.", valid: true);
+        bool safe = GlobalHotkeySafety.IsSafeForGlobalRegistration(ScreenshotHotkeyBox.Text);
+        ShowScreenshotHotkeyRecognitionV076(
+            safe
+                ? $"Recognized {ScreenshotHotkeyBox.Text}. Confirm it or choose Re-do."
+                : "Keyboard capture shortcuts must include Ctrl, Shift, Alt, or Win so they cannot block a game key.",
+            valid: safe);
         e.Handled = true;
     }
 
