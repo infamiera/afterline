@@ -26,6 +26,14 @@ internal static class ChatColorReliabilityService
         @"^\s*\(\(\s*\(\d+\)\s+[^:\r\n]+:\s*.*\)\)\s*$",
         RegexOptions.Compiled);
 
+    private static readonly Regex VehicleOoc = new(
+        @"^\s*\(\(\s*[^:\r\n()]+\s+\[ID:\s*\d+\]:\s*.+\)\)\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex FixVehicleWarning = new(
+        @"^\s*\(\(\s*ANY MISUSAGE OF /FIXVEH IS BANNABLE\b.*\)\)\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     internal static IReadOnlyList<ChatColorRun> EnsureExpectedAccents(
         string text,
         IEnumerable<ChatColorRun>? colorRuns)
@@ -42,6 +50,23 @@ internal static class ChatColorReliabilityService
         int bodyStart = timestamp.Success ? timestamp.Length : 0;
         string body = text[bodyStart..];
         Color? timestampColor = ResolveTimestampReferenceColor(normalized, timestamp);
+
+        // These server messages carry their line color on the timestamp before
+        // the body CSS has settled. Do not generalize this to ordinary OOC or
+        // player-scoped faction chat, whose colors can be arbitrary.
+        Color? expectedLineColor = IsVehicleOoc(body)
+            ? EditorChatFormatter.Yellow
+            : IsFixVehicleWarning(body) ? EditorChatFormatter.Red : null;
+        if (expectedLineColor is Color expected)
+        {
+            Color lineColor = timestampColor is Color captured &&
+                              IsCompatibleTint(captured, expected)
+                ? captured
+                : expected;
+            return HasReliableAccent(normalized, bodyStart, body.Length)
+                ? normalized
+                : OverrideColor(text, normalized, bodyStart, body.Length, lineColor);
+        }
 
         // Faction and other player-scoped channels use the same outer (( ... ))
         // shape as ordinary OOC, but the server assigns an arbitrary per-faction
@@ -158,6 +183,12 @@ internal static class ChatColorReliabilityService
 
     internal static bool IsGlobalOoc(string body)
         => !string.IsNullOrWhiteSpace(body) && GlobalOoc.IsMatch(body);
+
+    internal static bool IsVehicleOoc(string body)
+        => !string.IsNullOrWhiteSpace(body) && VehicleOoc.IsMatch(body);
+
+    internal static bool IsFixVehicleWarning(string body)
+        => !string.IsNullOrWhiteSpace(body) && FixVehicleWarning.IsMatch(body);
 
     private static Color? ResolveGlobalOocRoleColor(
         IReadOnlyList<ChatColorRun> runs,

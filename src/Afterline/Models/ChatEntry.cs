@@ -51,6 +51,7 @@ public sealed class ChatEntry
     private static readonly Brush RoleplayBrush = CreateFrozenBrush(0xC2, 0xA2, 0xDA);
     private static readonly Brush PrivateMessageBrush = CreateFrozenBrush(0xFB, 0xF7, 0x24);
     private static readonly Brush OocBrush = CreateFrozenBrush(0xB8, 0xBE, 0xC7);
+    private static readonly Brush WarningBrush = CreateFrozenBrush(0xFF, 0x00, 0x00);
     private static readonly Brush DefaultBrush = CreateFrozenBrush(0xED, 0xF2, 0xF7);
 
     public static bool ShowTimestamps { get; set; } = true;
@@ -144,6 +145,10 @@ public sealed class ChatEntry
         get
         {
             if (IsPrivateMessage) return PrivateMessageBrush;
+            if (ChatColorReliabilityService.IsVehicleOoc(ContentWithoutTimestamp))
+                return PrivateMessageBrush;
+            if (ChatColorReliabilityService.IsFixVehicleWarning(ContentWithoutTimestamp))
+                return WarningBrush;
             if (IsOocChatLine) return OocBrush;
             if (ColorizeRoleplayLines && IsRoleplayLine) return RoleplayBrush;
             return DefaultBrush;

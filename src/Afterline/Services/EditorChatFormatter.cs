@@ -197,6 +197,12 @@ internal static class EditorChatFormatter
             ChatColorReliabilityService.IsGlobalOoc(body))
             return Single(body, White);
 
+        if (ChatColorReliabilityService.IsVehicleOoc(body))
+            return Single(body, Yellow);
+
+        if (ChatColorReliabilityService.IsFixVehicleWarning(body))
+            return Single(body, Red);
+
         Match motdMatch = MotdLine.Match(body);
         if (motdMatch.Success)
             return FormatMotdLine(motdMatch);

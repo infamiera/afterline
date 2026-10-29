@@ -24,6 +24,7 @@ internal static class SessionRecoverySmokeTest
         RawCaptureFailsafeService.RunEventCheckpointSmokeTest();
         VerifyTimestampToggleOverlap();
         VerifyLeadingChevronActionColor();
+        VerifyWholeLineOocColors();
         ServerTimeService.RunSmokeTest();
         VerifyTimestampProvenance();
         await PotentialDuplicateCleanupService.RunSmokeTestAsync(
@@ -379,6 +380,45 @@ internal static class SessionRecoverySmokeTest
         {
             throw new InvalidOperationException(
                 "Leading-chevron /ame rows did not receive the standard purple action color.");
+        }
+    }
+
+    private static void VerifyWholeLineOocColors()
+    {
+        VerifyLine("[16:06:26] (( Kassandra Fior [ID: 271]: test ))",
+            EditorChatFormatter.Yellow);
+        VerifyLine("[16:05:57] (( ANY MISUSAGE OF /FIXVEH IS BANNABLE, YOU MAY ONLY USE IT AFTER A BUG. ))",
+            EditorChatFormatter.Red);
+
+        string ordinary = "[16:06:27] (( Kassandra Fior: ordinary OOC ))";
+        int ordinaryBody = ordinary.IndexOf("((", StringComparison.Ordinal);
+        var ordinaryRuns = new[]
+        {
+            new ChatColorRun(0, ordinaryBody, 255, 0, 0),
+            new ChatColorRun(ordinaryBody, ordinary.Length - ordinaryBody, 184, 190, 199)
+        };
+        IReadOnlyList<ChatColorRun> untouched = ChatColorReliabilityService.EnsureExpectedAccents(
+            ordinary, ordinaryRuns);
+        if (untouched.Count != 2 || untouched[1].Red != 184)
+            throw new InvalidOperationException("Ordinary OOC inherited a special whole-line color.");
+
+        static void VerifyLine(string line, Color expected)
+        {
+            int bodyStart = line.IndexOf("((", StringComparison.Ordinal);
+            var runs = new[]
+            {
+                new ChatColorRun(0, bodyStart, expected.R, expected.G, expected.B),
+                new ChatColorRun(bodyStart, line.Length - bodyStart, 184, 190, 199)
+            };
+            IReadOnlyList<ChatColorRun> corrected = ChatColorReliabilityService.EnsureExpectedAccents(
+                line, runs);
+            if (corrected.Any(run => run.End > bodyStart &&
+                (run.Red != expected.R || run.Green != expected.G || run.Blue != expected.B)))
+                throw new InvalidOperationException("A special OOC line did not retain its whole-line color.");
+
+            EditorChatLine fallback = EditorChatFormatter.FormatLines(line, showTimestamps: false).First();
+            if (fallback.Segments.Any(segment => segment.Color != expected))
+                throw new InvalidOperationException("A special OOC archive line lost its whole-line color.");
         }
     }
 
